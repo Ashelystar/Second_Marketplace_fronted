@@ -27,6 +27,11 @@ const router = createRouter({
       component: () => import('../views/EditProduct.vue'),
     },
     {
+      path: '/edit',
+      name: 'edit',
+      component: () => import('../views/EditProduct.vue'),
+    },
+    {
       path: '/forum',
       name: 'forum',
       component: () => import('../views/forum/ForumHome.vue'),

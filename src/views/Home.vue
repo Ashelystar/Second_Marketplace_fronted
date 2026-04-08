@@ -26,7 +26,7 @@
         </div>
 
         <div class="hidden md:flex items-center gap-5 text-sm text-gray-700">
-          <button class="hover:text-xianyuText flex items-center gap-1"><i class="fa fa-comments"></i> 社区</button>
+          <button class="hover:text-xianyuText flex items-center gap-1" @click="router.push('/forum')"><i class="fa fa-comments"></i> 社区</button>
           <template v-if="userStore.isLoggedIn">
             <button class="hover:text-xianyuText flex items-center gap-1"><i class="fa fa-shopping-bag"></i> 订单</button>
             <button class="hover:text-xianyuText flex items-center gap-1"><i class="fa fa-user"></i> 我的</button>
