@@ -1,12 +1,30 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import Home from '../views/Home.vue'
+import Detail from '../views/Detail.vue'
+import SearchPage from '../views/SearchPage.vue'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory('/'),
   routes: [
     {
       path: '/',
       name: 'home',
-      component: () => import('../views/Home.vue'),
+      component: Home,
+    },
+    {
+      path: '/search',
+      name: 'search',
+      component: SearchPage,
+    },
+    {
+      path: '/detail',
+      name: 'detail',
+      component: Detail,
+    },
+    {
+      path: '/publish',
+      name: 'publish',
+      component: () => import('../views/EditProduct.vue'),
     },
     {
       path: '/forum',

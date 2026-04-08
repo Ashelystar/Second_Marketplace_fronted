@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-xianyuBg min-h-screen">
+  <div class="bg-white min-h-screen">
     <header class="bg-white sticky top-0 z-50 shadow-sm">
       <div class="max-w-[1600px] mx-auto px-4 py-3 flex items-center">
         <button class="mr-4 text-gray-600 hover:text-xianyuText" @click="goBack"><i class="fa fa-arrow-left text-lg"></i></button>
@@ -177,12 +177,30 @@ const allLoaded = computed(() => displayedProducts.value.length >= store.filtere
 const getSortLabel = (v: SortOption) => sortOptions.find(o => o.value === v)?.label || '综合排序'
 const handleTopTagClick = (tag: { id: number; text: string }) => {
   activeTopTag.value = tag.id
-  tag.id === 1 ? store.resetFilter() : store.performSearch(tag.text)
+  if (tag.id === 1) {
+    store.resetFilter()
+  } else {
+    store.performSearch(tag.text)
+  }
 }
 const performSearch = () => { if (searchInput.value.trim()) store.performSearch(searchInput.value.trim()) }
 const handleSort = (v: SortOption) => { store.sortProducts(v); sortDropdownOpen.value = false }
-const toggleCondition = (c: string) => { const i = filterState.value.conditions.indexOf(c); i === -1 ? filterState.value.conditions.push(c) : filterState.value.conditions.splice(i, 1) }
-const toggleLocation = (l: string) => { const i = filterState.value.locations.indexOf(l); i === -1 ? filterState.value.locations.push(l) : filterState.value.locations.splice(i, 1) }
+const toggleCondition = (c: string) => {
+  const i = filterState.value.conditions.indexOf(c)
+  if (i === -1) {
+    filterState.value.conditions.push(c)
+  } else {
+    filterState.value.conditions.splice(i, 1)
+  }
+}
+const toggleLocation = (l: string) => {
+  const i = filterState.value.locations.indexOf(l)
+  if (i === -1) {
+    filterState.value.locations.push(l)
+  } else {
+    filterState.value.locations.splice(i, 1)
+  }
+}
 const openFilterModal = () => { filterModalOpen.value = true; filterState.value = { ...store.filterState } }
 const applyFilter = () => { store.applyFilter(filterState.value); filterModalOpen.value = false }
 const resetFilter = () => { filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' } }
@@ -193,6 +211,7 @@ const goBack = () => window.history.length > 1 ? router.back() : router.push('/'
 const handleClickOutside = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.sort-dropdown-container')) sortDropdownOpen.value = false }
 
 onMounted(() => {
+  store.initialize()
   if (store.products.length > 0) {
     if (route.query.q) { searchInput.value = route.query.q as string; store.performSearch(route.query.q as string) }
     isLoading.value = false

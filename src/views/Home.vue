@@ -86,15 +86,11 @@
       <section class="flex-1">
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           <div v-for="p in displayedProducts" :key="p.id" class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer card-hover group">
-            <div class="aspect-square overflow-hidden relative" @click="goToDetail(p.id)">
-              <img :src="p.image" :alt="p.title" class="w-full h-full object-cover">
-              <div class="absolute top-2 left-2">
+            <div class="aspect-square overflow-hidden relative cursor-pointer" @click="goToDetail(p.id)">
+              <img :src="p.image" :alt="p.title" class="w-full h-full object-cover pointer-events-none">
+              <div class="absolute top-2 left-2 pointer-events-none">
                 <span class="text-xs bg-white/90 text-gray-700 px-2 py-1 rounded-full">{{ p.condition }}</span>
               </div>
-              <button class="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/80 hover:bg-white flex items-center justify-center transition-all"
-                      @click.stop="toggleFavorite(p.id)">
-                <i class="fa" :class="isFavorited(p.id) ? 'fa-star text-yellow-400' : 'fa-star-o text-gray-500'"></i>
-              </button>
             </div>
             <div class="p-3">
               <h3 class="text-sm font-medium mb-1 line-clamp-2">{{ p.title }}</h3>
@@ -125,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
@@ -277,7 +273,11 @@ const floatingTools = [
   { id: 5, icon: 'fa fa-headphones text-gray-700', label: '客服', action: () => alert('正在为您连接客服...') }
 ]
 
-const displayedProducts = store.products.slice(0, 6)
+const displayedProducts = computed(() => store.products.slice(0, 6))
+
+onMounted(() => {
+  store.initialize()
+})
 
 const handleSearch = () => {
   if (searchInput.value.trim()) router.push({ path: '/search', query: { q: searchInput.value.trim() } })

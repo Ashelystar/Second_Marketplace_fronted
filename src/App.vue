@@ -1,17 +1,10 @@
 <template>
   <div class="app">
-    <TopNav />
     <main class="main">
-      <div class="container">
-        <RouterView />
-      </div>
+      <RouterView />
     </main>
   </div>
 </template>
-
-<script setup lang="ts">
-import TopNav from './components/TopNav.vue'
-</script>
 
 <style scoped>
 .app {
@@ -19,7 +12,6 @@ import TopNav from './components/TopNav.vue'
 }
 
 .main {
-  padding: 18px 0 40px;
+  padding: 0;
 }
 </style>
-

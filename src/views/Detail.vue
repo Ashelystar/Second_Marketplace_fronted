@@ -151,7 +151,7 @@
               <button class="flex-1 border rounded-lg py-3 hover:bg-gray-50 transition-all" 
                       :class="isFavorited ? 'border-yellow-400 bg-yellow-50 text-yellow-600' : 'border-gray-300 text-gray-700'"
                       @click="toggleFavorite">
-                <i class="fa mr-2" :class="isFavorited ? 'fa-star text-yellow-400' : 'fa-star-o'"></i>{{ isFavorited ? '已收藏' : '收藏' }}
+                <i class="fa-regular fa-star mr-2" :class="isFavorited ? 'text-yellow-400' : 'text-gray-500'"></i>{{ isFavorited ? '已收藏' : '收藏' }}
               </button>
               <button class="flex-1 border border-gray-300 text-gray-700 rounded-lg py-3 hover:bg-gray-50"><i class="fa fa-share-alt mr-2"></i>分享</button>
             </div>
@@ -291,8 +291,18 @@ const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: i
 const goToEdit = () => { if (product.value) router.push({ path: '/edit', query: { id: product.value!.id.toString() } }) }
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
 
-watch(() => route.query.id, (id) => { if (id) { isLoading.value = true; loadDetails(); loadRecs() } }, { immediate: true })
-onMounted(() => { store.initialize(); loadRecs() })
+watch(() => route.query.id, (id) => { 
+  if (id) { 
+    isLoading.value = true
+    store.initialize()
+    loadDetails()
+    loadRecs() 
+  } 
+}, { immediate: true })
+
+onMounted(() => {
+  store.initialize()
+})
 </script>
 
 <style scoped>
