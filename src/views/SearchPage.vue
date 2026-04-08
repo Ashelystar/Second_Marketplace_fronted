@@ -128,6 +128,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+
+defineOptions({ name: 'SearchPage' })
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import type { SortOption } from '@/types'

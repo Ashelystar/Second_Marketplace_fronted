@@ -206,6 +206,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+
+defineOptions({ name: 'ProductDetail' })
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import type { Product, ProductImage } from '@/types'

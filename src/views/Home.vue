@@ -122,6 +122,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+
+defineOptions({ name: 'HomePage' })
 import { useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
@@ -137,21 +139,10 @@ const hoveredIndex = ref<number>(0)
 const subMenuTop = ref(0)
 const subMenuLeft = ref(0)
 const categoryRefs = ref<(HTMLElement | null)[]>([])
-const favorites = ref<Set<number>>(new Set())
 let hideTimeout: ReturnType<typeof setTimeout> | null = null
 
 const setCategoryRef = (el: HTMLElement | null, index: number) => {
   categoryRefs.value[index] = el
-}
-
-const isFavorited = (id: number) => favorites.value.has(id)
-
-const toggleFavorite = (id: number) => {
-  if (favorites.value.has(id)) {
-    favorites.value.delete(id)
-  } else {
-    favorites.value.add(id)
-  }
 }
 
 const handleLogin = () => {
