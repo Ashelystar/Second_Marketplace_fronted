@@ -194,7 +194,7 @@ export const useProductStore = defineStore('product', () => {
   // 排序
   const sortProducts = (sortType: SortOption) => {
     currentSort.value = sortType
-    let sorted = [...filteredProducts.value]
+    const sorted = [...filteredProducts.value]
     switch (sortType) {
       case 'price-low': sorted.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)); break
       case 'price-high': sorted.sort((a, b) => parseFloat(b.price) - parseFloat(a.price)); break

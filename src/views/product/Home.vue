@@ -50,7 +50,7 @@
                 @mouseenter="showSubMenu(cat.id, index)"
                 @mouseleave="hideSubMenu">
               <a href="#" class="flex items-center gap-3" @click.prevent>
-                <i :class="cat.iconClass" class="text-lg"></i>
+                <i :class="cat.iconClass" class="text-lg w-5 text-center flex-shrink-0"></i>
                 <span class="text-gray-700 text-sm">{{ cat.name }}</span>
                 <i class="fa fa-chevron-right text-xs text-gray-400 ml-auto opacity-0 group-hover:opacity-100 transition-opacity"></i>
               </a>
@@ -85,8 +85,8 @@
       <!-- 商品展示 -->
       <section class="flex-1">
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-          <div v-for="p in displayedProducts" :key="p.id" class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer card-hover group">
-            <div class="aspect-square overflow-hidden relative cursor-pointer" @click="goToDetail(p.id)">
+          <div v-for="p in displayedProducts" :key="p.id" class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer card-hover group" @click="goToDetail(p.id)">
+            <div class="aspect-square overflow-hidden relative">
               <img :src="p.image" :alt="p.title" class="w-full h-full object-cover pointer-events-none">
               <div class="absolute top-2 left-2 pointer-events-none">
                 <span class="text-xs bg-white/90 text-gray-700 px-2 py-1 rounded-full">{{ p.condition }}</span>
@@ -179,29 +179,29 @@ const mainCategories = [
       { id: 34, name: '键鼠', iconClass: 'fa fa-keyboard-o', iconBgClass: 'bg-purple-100' }
     ]
   },
-  { id: 4, name: '服饰', iconClass: 'fa fa-shirtsinbulk text-pink-500',
+  { id: 4, name: '服饰', iconClass: 'fa fa-joomla text-pink-500',
     children: [
       { id: 41, name: '男装', iconClass: 'fa fa-male', iconBgClass: 'bg-blue-100' },
       { id: 42, name: '女装', iconClass: 'fa fa-female', iconBgClass: 'bg-pink-100' },
       { id: 43, name: '童装', iconClass: 'fa fa-child', iconBgClass: 'bg-orange-100' },
-      { id: 44, name: '鞋', iconClass: 'fa fa-shirtsinbulk', iconBgClass: 'bg-red-100' },
+      { id: 44, name: '鞋', iconClass: 'fa fa-gittip', iconBgClass: 'bg-red-100' },
       { id: 45, name: '配饰', iconClass: 'fa fa-diamond', iconBgClass: 'bg-yellow-100' }
     ]
   },
-  { id: 5, name: '箱包', iconClass: 'fa fa-shopping-bag text-purple-500',
+  { id: 5, name: '箱包', iconClass: 'fa fa-briefcase text-purple-500',
     children: [
       { id: 51, name: '女包', iconClass: 'fa fa-handbag', iconBgClass: 'bg-pink-100' },
       { id: 52, name: '男包', iconClass: 'fa fa-briefcase', iconBgClass: 'bg-gray-100' },
-      { id: 53, name: '旅行箱', iconClass: 'fa fa-suitcase', iconBgClass: 'bg-blue-100' },
-      { id: 54, name: '双肩包', iconClass: 'fa fa-briefcase', iconBgClass: 'bg-green-100' }
+      { id: 53, name: '旅行箱', iconClass: 'fa fa-suitcase-rolling', iconBgClass: 'bg-blue-100' },
+      { id: 54, name: '双肩包', iconClass: 'fa fa-backpack', iconBgClass: 'bg-green-100' }
     ]
   },
-  { id: 6, name: '运动', iconClass: 'fa fa-futbol-o text-green-500',
+  { id: 6, name: '运动', iconClass: 'fa fa-bicycle text-green-500',
     children: [
-      { id: 61, name: '球类', iconClass: 'fa fa-futbol-o', iconBgClass: 'bg-orange-100' },
+      { id: 61, name: '球类', iconClass: 'fa fa-circle-o', iconBgClass: 'bg-orange-100' },
       { id: 62, name: '健身', iconClass: 'fa fa-dumbbell', iconBgClass: 'bg-red-100' },
       { id: 63, name: '骑行', iconClass: 'fa fa-bicycle', iconBgClass: 'bg-green-100' },
-      { id: 64, name: '游泳', iconClass: 'fa fa-support', iconBgClass: 'bg-blue-100' }
+      { id: 64, name: '游泳', iconClass: 'fa fa-tint', iconBgClass: 'bg-blue-100' }
     ]
   },
   { id: 7, name: '家电', iconClass: 'fa fa-television text-blue-500',
@@ -233,7 +233,7 @@ const mainCategories = [
     children: [
       { id: 101, name: '童装', iconClass: 'fa fa-child', iconBgClass: 'bg-pink-100' },
       { id: 102, name: '玩具', iconClass: 'fa fa-gamepad', iconBgClass: 'bg-yellow-100' },
-      { id: 103, name: '婴儿车', iconClass: 'fa fa-wheelchair', iconBgClass: 'bg-blue-100' },
+      { id: 103, name: '婴儿车', iconClass: 'fa fa-stroller', iconBgClass: 'bg-blue-100' },
       { id: 104, name: '用品', iconClass: 'fa fa-baby', iconBgClass: 'bg-teal-100' }
     ]
   },

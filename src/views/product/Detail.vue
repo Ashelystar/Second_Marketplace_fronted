@@ -253,7 +253,6 @@ const loadDetails = () => {
   const found = store.getProductById(id)
   if (found) {
     product.value = found
-    // 优先使用商品自带图片，否则生成假图
     if (found.images && found.images.length > 0) {
       images.value = found.images
     } else {

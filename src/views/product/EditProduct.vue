@@ -270,7 +270,6 @@ const handleSave = () => {
     return
   }
   
-  // 模拟保存
   alert('商品信息已保存！')
   router.back()
 }
