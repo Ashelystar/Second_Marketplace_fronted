@@ -19,6 +19,15 @@ export default defineConfigWithVueTs(
 
   globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
 
+  // 页面级组件允许多词命名例外
+  {
+    name: 'app/vue-views-exceptions',
+    files: ['src/views/**/*.vue'],
+    rules: {
+      'vue/multi-word-component-names': 'off',
+    },
+  },
+
   ...pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
 
