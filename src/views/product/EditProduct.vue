@@ -1,172 +1,194 @@
 <template>
-  <div class="bg-white min-h-screen">
+  <div class="page">
     <!-- 顶部导航 -->
-    <header class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      <div class="max-w-[1200px] mx-auto px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <button class="text-gray-600 hover:text-xianyuText" @click="goBack">
-            <i class="fa fa-arrow-left text-xl"></i>
-          </button>
-          <h1 class="text-xl font-bold text-gray-800">编辑商品</h1>
-        </div>
-        <button class="px-4 py-1.5 bg-xianyuText text-white rounded-full text-sm hover:bg-xianyuHover" @click="handleSave">
-          保存
+    <header class="header">
+      <div class="headerLeft">
+        <button class="backBtn" @click="goBack">
+          <i class="fa fa-arrow-left"></i>
         </button>
+        <h1 class="title">编辑商品</h1>
       </div>
+      <button class="saveBtn" @click="handleSave">保存</button>
     </header>
 
-    <!-- 表单内容 -->
-    <main class="max-w-[800px] mx-auto px-4 py-6">
+    <!-- 表单 -->
+    <main class="form">
       <!-- 商品图片 -->
-      <section class="mb-6">
-        <h3 class="text-base font-medium text-gray-800 mb-3">商品图片</h3>
-        <div class="grid grid-cols-4 gap-3">
-          <div v-for="(img, index) in form.images" :key="index" class="relative aspect-square rounded-lg overflow-hidden bg-gray-100 group">
-            <img :src="img" class="w-full h-full object-cover">
-            <button @click="removeImage(index)" class="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
-              <i class="fa fa-times text-xs"></i>
+      <section class="formSection">
+        <h3>商品图片</h3>
+        <div class="imageGrid">
+          <div
+            v-for="(img, index) in form.images"
+            :key="index"
+            class="imageItem"
+          >
+            <img :src="img" />
+            <button class="deleteBtn" @click="removeImage(index)">
+              <i class="fa fa-times"></i>
             </button>
-            <div v-if="index === 0" class="absolute bottom-0 left-0 right-0 bg-xianyuText/80 text-white text-xs text-center py-0.5">封面</div>
+            <div v-if="index === 0" class="coverTag">封面</div>
           </div>
-          <label v-if="form.images.length < 9" class="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-xianyuText hover:bg-orange-50/30 transition-colors">
-            <i class="fa fa-plus text-2xl text-gray-400 mb-1"></i>
-            <span class="text-xs text-gray-500">{{ form.images.length }}/9</span>
-            <input type="file" accept="image/*" multiple class="hidden" @change="handleImageUpload">
+          <label v-if="form.images.length < 9" class="uploadArea">
+            <i class="fa fa-plus"></i>
+            <span>{{ form.images.length }}/9</span>
+            <input type="file" accept="image/*" multiple @change="handleImageUpload" />
           </label>
         </div>
-        <p class="text-xs text-gray-500 mt-2">最多上传9张图片，第一张为封面图</p>
+        <p class="hint">最多上传9张图片，第一张为封面图</p>
       </section>
 
       <!-- 商品标题 -->
-      <section class="mb-6">
-        <h3 class="text-base font-medium text-gray-800 mb-2">商品标题</h3>
-        <input v-model="form.title" type="text" placeholder="描述一下你的宝贝品牌、型号、尺寸等信息" maxlength="50"
-          class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-xianyuText focus:ring-2 focus:ring-xianyuText/20 outline-none transition-all">
-        <div class="text-right text-xs text-gray-400 mt-1">{{ form.title.length }}/50</div>
+      <section class="formSection">
+        <h3>商品标题</h3>
+        <input
+          v-model="form.title"
+          type="text"
+          class="input"
+          placeholder="描述一下你的宝贝品牌、型号、尺寸等信息"
+          maxlength="50"
+        />
+        <div class="charCount">{{ form.title.length }}/50</div>
       </section>
 
       <!-- 商品描述 -->
-      <section class="mb-6">
-        <h3 class="text-base font-medium text-gray-800 mb-2">商品描述</h3>
-        <textarea v-model="form.description" placeholder="详细描述宝贝的品牌、型号、入手渠道、转手原因、瑕疵情况等" rows="5" maxlength="500"
-          class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-xianyuText focus:ring-2 focus:ring-xianyuText/20 outline-none transition-all resize-none"></textarea>
-        <div class="text-right text-xs text-gray-400 mt-1">{{ form.description.length }}/500</div>
+      <section class="formSection">
+        <h3>商品描述</h3>
+        <textarea
+          v-model="form.description"
+          class="textarea"
+          placeholder="详细描述宝贝的品牌、型号、入手渠道、转手原因、瑕疵情况等"
+          maxlength="500"
+        ></textarea>
+        <div class="charCount">{{ form.description.length }}/500</div>
       </section>
 
       <!-- 价格设置 -->
-      <section class="mb-6">
-        <h3 class="text-base font-medium text-gray-800 mb-3">价格设置</h3>
-        <div class="flex items-center gap-4 mb-3">
-          <div class="flex-1">
-            <label class="text-sm text-gray-600 mb-1 block">出售价格</label>
-            <div class="relative">
-              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">¥</span>
-              <input v-model="form.price" type="number" placeholder="0.00" min="0" step="0.01"
-                class="w-full pl-8 pr-4 py-3 rounded-lg border border-gray-300 focus:border-xianyuText focus:ring-2 focus:ring-xianyuText/20 outline-none transition-all">
+      <section class="formSection">
+        <h3>价格设置</h3>
+        <div class="priceRow">
+          <div class="priceField">
+            <label>出售价格</label>
+            <div class="priceInput">
+              <span>¥</span>
+              <input v-model="form.price" type="number" placeholder="0.00" min="0" step="0.01" />
             </div>
           </div>
-          <div class="flex-1">
-            <label class="text-sm text-gray-600 mb-1 block">原价（选填）</label>
-            <div class="relative">
-              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">¥</span>
-              <input v-model="form.originalPrice" type="number" placeholder="0.00" min="0" step="0.01"
-                class="w-full pl-8 pr-4 py-3 rounded-lg border border-gray-300 focus:border-xianyuText focus:ring-2 focus:ring-xianyuText/20 outline-none transition-all">
+          <div class="priceField">
+            <label>原价（选填）</label>
+            <div class="priceInput">
+              <span>¥</span>
+              <input v-model="form.originalPrice" type="number" placeholder="0.00" min="0" step="0.01" />
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-4">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" v-model="form.canBargain" class="w-4 h-4 rounded text-xianyuText focus:ring-xianyuText">
-            <span class="text-sm text-gray-700">可议价</span>
+        <div class="checkboxes">
+          <label class="checkbox">
+            <input type="checkbox" v-model="form.canBargain" />
+            <span>可议价</span>
           </label>
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" v-model="form.freeFreight" class="w-4 h-4 rounded text-xianyuText focus:ring-xianyuText">
-            <span class="text-sm text-gray-700">包邮</span>
+          <label class="checkbox">
+            <input type="checkbox" v-model="form.freeFreight" />
+            <span>包邮</span>
           </label>
         </div>
       </section>
 
       <!-- 商品分类 -->
-      <section class="mb-6">
-        <h3 class="text-base font-medium text-gray-800 mb-2">商品分类</h3>
-        <div class="flex flex-wrap gap-2">
-          <button v-for="cat in categories" :key="cat" @click="form.category = cat"
-            class="px-4 py-2 rounded-full text-sm transition-colors"
-            :class="form.category === cat ? 'bg-xianyuText text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">
+      <section class="formSection">
+        <h3>商品分类</h3>
+        <div class="chipGroup">
+          <button
+            v-for="cat in categories"
+            :key="cat"
+            class="chip"
+            :class="{ active: form.category === cat }"
+            @click="form.category = cat"
+          >
             {{ cat }}
           </button>
         </div>
       </section>
 
       <!-- 商品成色 -->
-      <section class="mb-6">
-        <h3 class="text-base font-medium text-gray-800 mb-2">商品成色</h3>
-        <div class="flex flex-wrap gap-2">
-          <button v-for="cond in conditions" :key="cond" @click="form.condition = cond"
-            class="px-4 py-2 rounded-full text-sm transition-colors"
-            :class="form.condition === cond ? 'bg-xianyuText text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">
+      <section class="formSection">
+        <h3>商品成色</h3>
+        <div class="chipGroup">
+          <button
+            v-for="cond in conditions"
+            :key="cond"
+            class="chip"
+            :class="{ active: form.condition === cond }"
+            @click="form.condition = cond"
+          >
             {{ cond }}
           </button>
         </div>
       </section>
 
       <!-- 品牌 -->
-      <section class="mb-6">
-        <h3 class="text-base font-medium text-gray-800 mb-2">品牌（选填）</h3>
-        <input v-model="form.brand" type="text" placeholder="如：Apple、华为、小米等"
-          class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-xianyuText focus:ring-2 focus:ring-xianyuText/20 outline-none transition-all">
+      <section class="formSection">
+        <h3>品牌（选填）</h3>
+        <input
+          v-model="form.brand"
+          type="text"
+          class="input"
+          placeholder="如：Apple、华为、小米等"
+        />
       </section>
 
       <!-- 发货信息 -->
-      <section class="mb-6">
-        <h3 class="text-base font-medium text-gray-800 mb-2">发货信息</h3>
-        <div class="flex items-center gap-4">
-          <div class="flex-1">
-            <label class="text-sm text-gray-600 mb-1 block">发货地</label>
-            <input v-model="form.location" type="text" placeholder="如：北京市朝阳区"
-              class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-xianyuText focus:ring-2 focus:ring-xianyuText/20 outline-none transition-all">
+      <section class="formSection">
+        <h3>发货信息</h3>
+        <div class="shipRow">
+          <div class="field">
+            <label>发货地</label>
+            <input
+              v-model="form.location"
+              type="text"
+              class="input"
+              placeholder="如：北京市朝阳区"
+            />
           </div>
-          <div class="w-32" v-if="!form.freeFreight">
-            <label class="text-sm text-gray-600 mb-1 block">运费</label>
-            <div class="relative">
-              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">¥</span>
-              <input v-model="form.freight" type="number" placeholder="0" min="0" step="1"
-                class="w-full pl-8 pr-4 py-3 rounded-lg border border-gray-300 focus:border-xianyuText focus:ring-2 focus:ring-xianyuText/20 outline-none transition-all">
+          <div v-if="!form.freeFreight" class="field">
+            <label>运费</label>
+            <div class="priceInput">
+              <span>¥</span>
+              <input v-model="form.freight" type="number" placeholder="0" min="0" />
             </div>
           </div>
         </div>
       </section>
 
       <!-- 商品标签 -->
-      <section class="mb-6">
-        <h3 class="text-base font-medium text-gray-800 mb-2">商品标签（选填）</h3>
-        <div class="flex flex-wrap gap-2 mb-2">
-          <span v-for="(tag, index) in form.tags" :key="index"
-            class="inline-flex items-center gap-1 px-3 py-1 bg-orange-50 text-xianyuText rounded-full text-sm">
+      <section class="formSection">
+        <h3>商品标签（选填）</h3>
+        <div class="tags">
+          <span v-for="(tag, index) in form.tags" :key="index" class="tag">
             {{ tag }}
-            <button @click="removeTag(index)" class="hover:text-red-500"><i class="fa fa-times text-xs"></i></button>
+            <button @click="removeTag(index)"><i class="fa fa-times"></i></button>
           </span>
         </div>
-        <div class="flex gap-2">
-          <input v-model="newTag" type="text" placeholder="添加标签后回车" @keypress.enter="addTag"
-            class="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:border-xianyuText focus:ring-2 focus:ring-xianyuText/20 outline-none transition-all text-sm">
-          <button @click="addTag" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">添加</button>
+        <div class="tagInput">
+          <input
+            v-model="newTag"
+            type="text"
+            placeholder="添加标签后回车"
+            @keypress.enter="addTag"
+          />
+          <button @click="addTag">添加</button>
         </div>
-        <div class="flex flex-wrap gap-2 mt-2">
-          <button v-for="tag in suggestedTags" :key="tag" @click="form.tags.push(tag)"
-            class="px-2 py-1 bg-gray-50 text-gray-500 text-xs rounded hover:bg-gray-100">
+        <div class="suggestTags">
+          <button v-for="tag in suggestedTags" :key="tag" @click="form.tags.push(tag)">
             + {{ tag }}
           </button>
         </div>
       </section>
-
-      <!-- 保存按钮 -->
-      <div class="sticky bottom-4 bg-white p-4 rounded-xl shadow-lg">
-        <button @click="handleSave" class="w-full py-3 bg-xianyuText text-white rounded-full font-medium hover:bg-xianyuHover transition-colors">
-          保存修改
-        </button>
-      </div>
     </main>
+
+    <!-- 底部保存 -->
+    <div class="bottomBar">
+      <button class="saveFullBtn" @click="handleSave">保存修改</button>
+    </div>
   </div>
 </template>
 
@@ -174,6 +196,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
+
+defineOptions({ name: 'EditProduct' })
 
 const route = useRoute()
 const router = useRouter()
@@ -269,7 +293,6 @@ const handleSave = () => {
     alert('请至少上传一张商品图片')
     return
   }
-  
   alert('商品信息已保存！')
   router.back()
 }
@@ -283,13 +306,464 @@ onMounted(() => {
 </script>
 
 <style scoped>
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding-bottom: 100px;
+}
+
+/* 顶部导航 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.backBtn {
+  padding: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 18px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
   margin: 0;
 }
-input[type="number"] {
-  appearance: textfield;
-  -moz-appearance: textfield;
+
+.saveBtn {
+  padding: 6px 16px;
+  background: #f97316;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+.saveBtn:hover {
+  background: #ea580c;
+}
+
+/* 表单 */
+.form {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+.formSection {
+  margin-bottom: 28px;
+}
+
+.formSection h3 {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 12px;
+  color: var(--text);
+}
+
+/* 图片上传 */
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.imageItem {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.imageItem img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.deleteBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+.imageItem:hover .deleteBtn {
+  opacity: 1;
+}
+
+.coverTag {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px;
+  background: rgba(249, 115, 22, 0.9);
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+}
+
+.uploadArea {
+  aspect-ratio: 1;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  transition: all 150ms;
+}
+
+.uploadArea:hover {
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.04);
+}
+
+.uploadArea i {
+  font-size: 24px;
+  color: #d1d5db;
+}
+
+.uploadArea input {
+  display: none;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+
+/* 输入框 */
+.input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 150ms;
+  background: #fff;
+}
+
+.input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  resize: vertical;
+  transition: border-color 150ms;
+  background: #fff;
+  line-height: 1.5;
+}
+
+.textarea:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+.charCount {
+  text-align: right;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* 价格 */
+.priceRow {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.priceField {
+  flex: 1;
+}
+
+.priceField label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.priceInput {
+  position: relative;
+}
+
+.priceInput span {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+}
+
+.priceInput input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px 0 28px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 150ms;
+  background: #fff;
+}
+
+.priceInput input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+.checkboxes {
+  display: flex;
+  gap: 20px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: #f97316;
+}
+
+/* 分类标签 */
+.chipGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chip {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #f5f5f5;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 150ms;
+}
+
+.chip:hover {
+  background: #f0f0f0;
+}
+
+.chip.active {
+  background: #f97316;
+  border-color: #f97316;
+  color: #fff;
+}
+
+/* 发货信息 */
+.shipRow {
+  display: flex;
+  gap: 16px;
+}
+
+.field {
+  flex: 1;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.field .input {
+  height: 46px;
+}
+
+/* 标签 */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #fff7ed;
+  color: #f97316;
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+.tag button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 10px;
+}
+
+.tag button:hover {
+  color: #dc2626;
+}
+
+.tagInput {
+  display: flex;
+  gap: 8px;
+}
+
+.tagInput input {
+  flex: 1;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+}
+
+.tagInput input:focus {
+  border-color: #f97316;
+}
+
+.tagInput button {
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f5f5f5;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 150ms;
+}
+
+.tagInput button:hover {
+  background: #e5e5e5;
+}
+
+.suggestTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.suggestTags button {
+  padding: 4px 10px;
+  background: #f9f9f9;
+  border: none;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.suggestTags button:hover {
+  background: #f0f0f0;
+  color: var(--text);
+}
+
+/* 底部保存 */
+.bottomBar {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+}
+
+.saveFullBtn {
+  width: 300px;
+  height: 48px;
+  border: none;
+  border-radius: 24px;
+  background: #f97316;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.3);
+  transition: background 150ms;
+}
+
+.saveFullBtn:hover {
+  background: #ea580c;
+}
+
+/* 响应式 */
+@media (max-width: 600px) {
+  .imageGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .priceRow, .shipRow {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .bottomBar {
+    left: 16px;
+    right: 16px;
+    transform: none;
+  }
+  .saveFullBtn {
+    width: 100%;
+  }
 }
 </style>

@@ -37,6 +37,16 @@ const router = createRouter({
       component: () => import('../views/forum/ForumHome.vue'),
     },
     {
+      path: '/orders',
+      name: 'orders',
+      component: () => import('../views/order/Orders.vue'),
+    },
+    {
+      path: '/checkout',
+      name: 'checkout',
+      component: () => import('../views/order/Checkout.vue'),
+    },
+    {
       path: '/forum/new',
       name: 'forum-create',
       component: () => import('../views/forum/ForumCreate.vue'),
