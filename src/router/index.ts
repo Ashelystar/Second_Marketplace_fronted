@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/product/Home.vue'
 import Detail from '../views/product/Detail.vue'
 import SearchPage from '../views/product/SearchPage.vue'
+import Forum from '../views/forum/ForumHome.vue'
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -34,7 +35,7 @@ const router = createRouter({
     {
       path: '/forum',
       name: 'forum',
-      component: () => import('../views/forum/ForumHome.vue'),
+      component: Forum,
     },
     {
       path: '/orders',
