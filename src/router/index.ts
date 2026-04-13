@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
-import Detail from '../views/Detail.vue'
-import SearchPage from '../views/SearchPage.vue'
+import Detail from '../views/goods/Detail.vue'
+import SearchPage from '../views/goods/SearchPage.vue'
 import Forum from '../views/forum/ForumHome.vue'
 
 const router = createRouter({
@@ -25,12 +25,12 @@ const router = createRouter({
     {
       path: '/publish',
       name: 'publish',
-      component: () => import('../views/EditProduct.vue'),
+      component: () => import('../views/goods/EditProduct.vue'),
     },
     {
       path: '/edit',
       name: 'edit',
-      component: () => import('../views/EditProduct.vue'),
+      component: () => import('../views/goods/EditProduct.vue'),
     },
     {
       path: '/forum',
