@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Home from '../views/Home.vue'
+import Home from '../views/home/Index.vue'
 import Detail from '../views/goods/Detail.vue'
-import SearchPage from '../views/goods/SearchPage.vue'
-import Forum from '../views/forum/ForumHome.vue'
+import SearchPage from '../views/goods/Search.vue'
+import Forum from '../views/forum/Index.vue'
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -25,12 +25,12 @@ const router = createRouter({
     {
       path: '/publish',
       name: 'publish',
-      component: () => import('../views/goods/EditProduct.vue'),
+      component: () => import('../views/goods/Publish.vue'),
     },
     {
       path: '/edit',
       name: 'edit',
-      component: () => import('../views/goods/EditProduct.vue'),
+      component: () => import('../views/goods/Publish.vue'),
     },
     {
       path: '/forum',
@@ -40,18 +40,18 @@ const router = createRouter({
     {
       path: '/forum/new',
       name: 'forum-create',
-      component: () => import('../views/forum/ForumCreate.vue'),
+      component: () => import('../views/forum/Post.vue'),
     },
     {
       path: '/forum/post/:id',
       name: 'forum-detail',
-      component: () => import('../views/forum/ForumDetail.vue'),
+      component: () => import('../views/forum/Detail.vue'),
       props: true,
     },
     {
       path: '/goods/:id',
       name: 'goods-detail',
-      component: () => import('../views/goods/GoodsDetail.vue'),
+      component: () => import('../views/goods/Detail.vue'),
       props: true,
     },
   ],
