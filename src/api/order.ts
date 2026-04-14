@@ -1,4 +1,4 @@
-import type { TradeOrder, Product } from '@/types'
+import type { TradeOrder, OrderProduct } from '@/types'
 
 // 模拟订单数据
 const mockOrders: TradeOrder[] = []
@@ -16,7 +16,7 @@ export async function getOrderDetail(orderId: number): Promise<TradeOrder | null
 }
 
 // 获取订单商品
-export async function getOrderItems(_orderId: number): Promise<Product[]> {
+export async function getOrderItems(_orderId: number): Promise<OrderProduct[]> {
   // TODO: 调用真实 API
   return []
 }
