@@ -23,6 +23,7 @@
             />
             <button @click="performSearch"><i class="fa fa-search"></i></button>
           </div>
+
         </div>
 
         <nav class="navLinks">

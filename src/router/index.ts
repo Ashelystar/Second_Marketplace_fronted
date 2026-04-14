@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import Home from '../views/product/Home.vue'
-import Detail from '../views/product/Detail.vue'
-import SearchPage from '../views/product/SearchPage.vue'
+import Home from '../views/home/Home.vue'
+import Detail from '../views/goods/Detail.vue'
+import SearchPage from '../views/goods/SearchPage.vue'
 import Forum from '../views/forum/Index.vue'
 import GoodsList from '../views/goods/List.vue'
 import Cart from '../views/cart/Index.vue'
@@ -47,12 +47,12 @@ const router = createRouter({
     {
       path: '/publish',
       name: 'publish',
-      component: () => import('../views/product/EditProduct.vue'),
+      component: () => import('../views/goods/EditProduct.vue'),
     },
     {
       path: '/edit',
       name: 'edit',
-      component: () => import('../views/product/EditProduct.vue'),
+      component: () => import('../views/goods/EditProduct.vue'),
     },
 
     // 论坛模块路由
