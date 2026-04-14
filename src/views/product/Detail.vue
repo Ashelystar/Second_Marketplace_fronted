@@ -102,31 +102,31 @@
         </div>
       </div>
 
-      <!-- 图片和商品信息 -->
+      <!-- 图片和商品信息：三列布局 -->
       <div class="detailGrid">
-        <!-- 左侧：图片 -->
-        <div class="gallery">
-          <div class="thumbnails">
-            <button
-              v-for="(img, i) in images"
-              :key="img.id"
-              class="thumb"
-              :class="{ active: i === currentIndex }"
-              @click="currentIndex = i"
-            >
-              <img :src="img.url" :alt="img.alt" />
-            </button>
-          </div>
-          <div class="mainImage">
-            <img :src="currentImage.url" :alt="currentImage.alt" />
-            <button class="navBtn prev" @click="prevImage" :disabled="currentIndex === 0">
-              <i class="fa fa-chevron-left"></i>
-            </button>
-            <button class="navBtn next" @click="nextImage" :disabled="currentIndex === images.length - 1">
-              <i class="fa fa-chevron-right"></i>
-            </button>
-            <div class="imageCounter">{{ currentIndex + 1 }}/{{ images.length }}</div>
-          </div>
+        <!-- 左侧：缩略图 -->
+        <div class="thumbnails">
+          <button
+            v-for="(img, i) in images"
+            :key="img.id"
+            class="thumb"
+            :class="{ active: i === currentIndex }"
+            @click="currentIndex = i"
+          >
+            <img :src="img.url" :alt="img.alt" />
+          </button>
+        </div>
+
+        <!-- 中间：主图 -->
+        <div class="mainImage">
+          <img :src="currentImage.url" :alt="currentImage.alt" />
+          <button class="navBtn prev" @click="prevImage" :disabled="currentIndex === 0">
+            <i class="fa fa-chevron-left"></i>
+          </button>
+          <button class="navBtn next" @click="nextImage" :disabled="currentIndex === images.length - 1">
+            <i class="fa fa-chevron-right"></i>
+          </button>
+          <div class="imageCounter">{{ currentIndex + 1 }}/{{ images.length }}</div>
         </div>
 
         <!-- 右侧：商品信息 -->
@@ -397,7 +397,7 @@ onMounted(() => {
 }
 
 .topInner {
-  padding: 12px 16px;
+  padding: 12px 80px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -510,7 +510,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 10px 80px;
   font-size: 13px;
   color: #374151;
   background: #fff;
@@ -574,7 +574,7 @@ onMounted(() => {
 
 /* 详情主体 */
 .detail {
-  padding: 0 14px;
+  padding: 0 80px;
 }
 
 /* 卖家卡片 */
@@ -672,33 +672,43 @@ onMounted(() => {
   color: var(--text);
 }
 
-/* 商品详情网格 */
+/* 商品详情网格 - 三列布局 */
 .detailGrid {
   display: grid;
-  grid-template-columns: 45% 55%;
+  grid-template-columns: 120px 1fr 1fr;
   gap: 24px;
   margin-bottom: 24px;
+  padding: 16px 60px 16px 32px;
+  align-items: start;
+  background: #fff;
+  border-radius: 12px;
 }
 
-/* 图片画廊 */
-.gallery {
-  display: flex;
-  gap: 12px;
-  position: sticky;
-  top: 80px;
-}
-
+/* 左侧缩略图区域 */
 .thumbnails {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-x: hidden;
   overflow-y: auto;
-  max-height: 500px;
+  max-height: 550px;
+  padding: 2px 12px 2px 0;
+  scrollbar-width: thin;
+  scrollbar-color: #ccc transparent;
+}
+
+.thumbnails::-webkit-scrollbar {
+  width: 4px;
+}
+
+.thumbnails::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 2px;
 }
 
 .thumb {
-  width: 60px;
-  height: 60px;
+  width: 96px;
+  height: 96px;
   border-radius: 6px;
   overflow: hidden;
   border: 2px solid transparent;
@@ -707,16 +717,25 @@ onMounted(() => {
   cursor: pointer;
   transition: all 150ms;
   flex-shrink: 0;
+  margin: 2px;
 }
 
 .thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 4px;
+  transition: transform 150ms;
 }
 
 .thumb:hover {
   transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: #f97316;
+}
+
+.thumb:hover img {
+  transform: scale(1);
 }
 
 .thumb.active {
@@ -724,8 +743,8 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
 }
 
+/* 中间主图区域 */
 .mainImage {
-  flex: 1;
   position: relative;
   aspect-ratio: 1;
   background: #f9f9f9;
@@ -945,7 +964,7 @@ onMounted(() => {
   height: 44px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--panel);
+  background: #f3f4f6;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -961,7 +980,7 @@ onMounted(() => {
 }
 
 .actionBtn:hover {
-  background: #f5f5f5;
+  background: #e5e7eb;
 }
 
 .actionBtn.active {

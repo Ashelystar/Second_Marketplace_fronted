@@ -295,7 +295,7 @@ onMounted(() => {
 }
 
 .topInner {
-  padding: 14px 16px;
+  padding: 14px 80px;
   display: flex;
   align-items: center;
 }
@@ -323,7 +323,7 @@ onMounted(() => {
 
 /* 主体内容 */
 .mainContent {
-  padding: 12px 16px;
+  padding: 12px 80px;
 }
 
 /* 通用区块 */

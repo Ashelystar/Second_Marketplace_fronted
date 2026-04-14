@@ -344,8 +344,7 @@ const goToProductDetail = (order: Order) => {
 }
 
 .topInner {
-  padding: 12px 16px;
-  padding-left: 60px;
+  padding: 12px 80px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -457,13 +456,12 @@ const goToProductDetail = (order: Order) => {
 .mainLayout {
   display: flex;
   gap: 16px;
-  padding: 16px;
-  margin-left: 60px;
+  padding: 0 80px;
 }
 
 /* 左侧边栏 */
 .sidebar {
-  width: 200px;
+  width: 240px;
   flex-shrink: 0;
   background: #fff;
   border-radius: 8px;
@@ -533,7 +531,6 @@ const goToProductDetail = (order: Order) => {
   display: flex;
   flex-direction: column;
   align-self: flex-start;
-  margin-right: 80px;
 }
 
 /* 标签页 */

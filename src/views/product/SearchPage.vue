@@ -372,7 +372,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 }
 
 .topInner {
-  padding: 12px 16px;
+  padding: 12px 80px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -484,7 +484,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 .filters {
   display: flex;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 12px 80px;
   overflow-x: auto;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
@@ -516,7 +516,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
 /* 主体 */
 .main {
-  padding: 0 14px;
+  padding: 0 80px;
 }
 
 /* 结果栏 */

@@ -11,7 +11,11 @@ const mockProducts: Product[] = [
       { id: 1, url: "https://images.unsplash.com/photo-1678685888221-cda773a3dcdb?w=800&h=800&fit=crop&q=80", alt: "iPhone正面" },
       { id: 2, url: "https://images.unsplash.com/photo-1591337676887-a217a6970a8a?w=800&h=800&fit=crop&q=80", alt: "iPhone侧面" },
       { id: 3, url: "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=800&h=800&fit=crop&q=80", alt: "iPhone背面" },
-      { id: 4, url: "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=800&h=800&fit=crop&q=80", alt: "iPhone包装" }
+      { id: 4, url: "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=800&h=800&fit=crop&q=80", alt: "iPhone包装" },
+      { id: 5, url: "https://images.unsplash.com/photo-1556656793-08538906a9f8?w=800&h=800&fit=crop&q=80", alt: "iPhone屏幕" },
+      { id: 6, url: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=800&fit=crop&q=80", alt: "iPhone摄像头" },
+      { id: 7, url: "https://images.unsplash.com/photo-1559526324-593bc073d938?w=800&h=800&fit=crop&q=80", alt: "iPhone侧面" },
+      { id: 8, url: "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&h=800&fit=crop&q=80", alt: "iPhone细节" }
     ],
     location: "北京", condition: "99新", conditionDetail: "屏幕无划痕，机身无磕碰，电池健康度98%，所有功能正常",
     brand: "Apple/苹果", category: "手机",
