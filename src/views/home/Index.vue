@@ -5,7 +5,7 @@
       <div class="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
         <a href="#" class="flex items-center gap-2" @click.prevent>
           <i class="fa fa-fish text-2xl text-xianyuText"></i>
-          <h1 class="text-xl font-bold text-xianyuText">闲鱼</h1>
+          <h1 class="text-xl font-bold text-xianyuText">荔园交易</h1>
         </a>
 
         <div class="flex-1 max-w-xl mx-4">
@@ -28,8 +28,7 @@
         <div class="hidden md:flex items-center gap-5 text-sm text-gray-700">
           <button class="hover:text-xianyuText flex items-center gap-1" @click="router.push('/forum')"><i class="fa fa-comments"></i> 社区</button>
           <template v-if="userStore.isLoggedIn">
-            <button class="hover:text-xianyuText flex items-center gap-1"><i class="fa fa-shopping-bag"></i> 订单</button>
-            <button class="hover:text-xianyuText flex items-center gap-1"><i class="fa fa-user"></i> 我的</button>
+            <button class="hover:text-xianyuText flex items-center gap-1" @click="router.push('/user/center')"><i class="fa fa-user"></i> 我的</button>
           </template>
           <template v-else>
             <button class="hover:text-xianyuText flex items-center gap-1" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</button>
@@ -256,8 +255,8 @@ const mainCategories = [
 ]
 
 const floatingTools = [
-  { id: 1, icon: 'fa fa-plus text-gray-700', label: '发闲置', action: () => alert('正在跳转到发布页面...') },
-  { id: 2, icon: 'fa fa-envelope text-gray-700', label: '消息', action: () => alert('正在跳转到消息页面...') },
+  { id: 1, icon: 'fa fa-plus text-gray-700', label: '发闲置', action: () => router.push('/publish')},
+  { id: 2, icon: 'fa fa-envelope text-gray-700', label: '消息', action: () => router.push('/chat') },
   { id: 3, icon: 'fa fa-mobile text-gray-700', label: 'APP', action: () => alert('打开应用商店下载闲鱼APP') },
   { id: 4, icon: 'fa fa-commenting text-gray-700', label: '反馈', action: () => alert('欢迎提出宝贵意见和建议！') },
   { id: 5, icon: 'fa fa-headphones text-gray-700', label: '客服', action: () => alert('正在为您连接客服...') }

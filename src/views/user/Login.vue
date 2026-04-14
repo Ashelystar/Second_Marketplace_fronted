@@ -44,7 +44,7 @@ async function handleLogin() {
   try {
     loading.value = true
     await userStore.login({ account: account.value, password: password.value })
-    await router.push('/profile')
+    await router.push('/user/center')
   } catch (error) {
     alert((error as Error).message)
   } finally {
