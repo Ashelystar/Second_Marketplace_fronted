@@ -56,3 +56,25 @@ export interface ProductImage {
   url: string
   alt: string
 }
+
+// 订单类型
+export interface TradeOrder {
+  id: number
+  orderNo: string
+  status: string
+  statusText: string
+  totalAmount: string
+  createTime: string
+  payTime?: string
+  shipTime?: string
+  receiveTime?: string
+  products: Product[]
+  address: {
+    receiver: string
+    phone: string
+    province: string
+    city: string
+    district: string
+    detail: string
+  }
+}
