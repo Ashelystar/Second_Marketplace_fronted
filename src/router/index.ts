@@ -9,6 +9,8 @@ import ChatList from '../views/chat/Index.vue'
 import OrderList from '../views/order/List.vue'
 import UserLogin from '../views/user/Login.vue'
 import UserRegister from '../views/user/Register.vue'
+import UserLayout from '../views/user/UserLayout.vue' 
+import Center from '../views/user/center.vue'
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -136,25 +138,41 @@ const router = createRouter({
       name: 'register',
       component: UserRegister,
     },
-    {
-      path: '/user/center',
-      name: 'user-center',
-      component: () => import('../views/user/Center.vue'),
-    },
-    {
-      path: '/user/profile',
-      name: 'user-profile',
-      component: () => import('../views/user/Profile.vue'),
-    },
-    {
-      path: '/user/setting',
-      name: 'user-setting',
-      component: () => import('../views/user/Setting.vue'),
-    },
-    {
-      path: '/user/address',
-      name: 'user-address',
-      component: () => import('../views/user/Address.vue'),
+     {
+      path: '/user',
+      component: UserLayout,
+      children: [
+        {
+          path: 'center',
+          name: 'user-center',  
+          component: Center,
+        },
+        {
+          path: 'profile',
+          name: 'user-profile',
+          component: () => import('../views/user/Profile.vue'),
+        },
+        {
+          path: 'setting',
+          name: 'user-setting',
+          component: () => import('../views/user/Setting.vue'),
+        },
+        {
+          path: 'address',
+          name: 'user-address',
+          component: () => import('../views/user/Address.vue'),
+        },
+         {
+          path: 'orders',
+          name: 'user-orders',
+          component: () => import('../views/user/orders.vue'),
+        },
+        {
+          path: 'favorites',
+          name: 'user-favorites',
+          component: () => import('../views/user/favorites.vue'),
+        },
+      ],
     },
     
     // 错误页面路由
