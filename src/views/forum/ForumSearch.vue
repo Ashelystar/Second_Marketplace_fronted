@@ -6,8 +6,11 @@
         <div class="sub">支持标题/正文/标签/作者昵称</div>
       </div>
       <div class="right">
-        <input v-model.trim="q" class="input" placeholder="搜点什么，比如：验机 / 宿舍 / 穿搭…" @keydown.enter="doSearch" />
-        <button class="btn btn-primary" type="button" @click="doSearch">搜索</button>
+        <div class="searchBox">
+          <span class="icon">⌕</span>
+          <input v-model.trim="q" class="searchInput" placeholder="搜点什么，比如：验机 / 宿舍 / 穿搭…" @keydown.enter="doSearch" />
+          <button class="searchBtn" type="button" @click="doSearch">搜索</button>
+        </div>
       </div>
     </div>
 
@@ -24,7 +27,7 @@
 
       <div v-else class="list">
         <RouterLink v-for="p in results" :key="p.id" class="item card" :to="`/forum/post/${p.id}`">
-          <img class="thumb" :src="p.media[0]?.posterUrl ?? p.media[0]?.url ?? p.author.avatarUrl" :alt="p.title" />
+          <img class="thumb" :src="p.coverUrl ?? p.media[0]?.posterUrl ?? p.media[0]?.url ?? p.author.avatarUrl" :alt="p.title" />
           <div class="meta">
             <div class="title">{{ p.title }}</div>
             <div class="desc">{{ p.content }}</div>
@@ -82,15 +85,17 @@ function quick(x: string) {
 <style scoped>
 .page {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .top {
-  padding: 14px;
+  padding: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 16px;
+  background: #fff;
+  animation: fadeIn 260ms ease both;
 }
 
 .h {
@@ -106,13 +111,57 @@ function quick(x: string) {
 .right {
   display: flex;
   align-items: center;
-  gap: 10px;
   flex: 1;
   justify-content: flex-end;
 }
 
-.right .input {
-  width: min(520px, 100%);
+.searchBox {
+  width: min(560px, 100%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 8px 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.searchBox:focus-within {
+  border-color: rgba(249, 115, 22, 0.62);
+  box-shadow: 0 14px 26px rgba(249, 115, 22, 0.18);
+}
+
+.icon {
+  color: #525252;
+  font-size: 18px;
+}
+
+.searchInput {
+  border: 0;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  height: 100%;
+}
+
+.searchBtn {
+  height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #f97316;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+
+.searchBtn:hover {
+  transform: translateY(-1px);
+  background: #ea580c;
 }
 
 .hint {
@@ -134,9 +183,15 @@ function quick(x: string) {
   height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid rgba(17, 24, 39, 0.10);
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(249, 115, 22, 0.28);
+  background: rgba(249, 115, 22, 0.06);
   cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.chip:hover {
+  transform: translateY(-1px);
+  background: rgba(249, 115, 22, 0.12);
 }
 
 .result {
@@ -145,7 +200,7 @@ function quick(x: string) {
 }
 
 .count {
-  color: rgba(17, 24, 39, 0.62);
+  color: rgba(17, 24, 39, 0.72);
 }
 
 .list {
@@ -158,11 +213,12 @@ function quick(x: string) {
   display: grid;
   grid-template-columns: 128px 1fr;
   gap: 12px;
-  transition: transform 120ms ease;
+  transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
 .item:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(249, 115, 22, 0.16);
 }
 
 .thumb {
@@ -222,6 +278,16 @@ function quick(x: string) {
   }
   .right {
     justify-content: stretch;
+    width: 100%;
+  }
+  .searchBox {
+    width: 100%;
+    height: 44px;
+  }
+  .searchBtn {
+    height: 32px;
+    padding: 0 14px;
+    font-size: 12px;
   }
   .item {
     grid-template-columns: 1fr;
@@ -229,6 +295,17 @@ function quick(x: string) {
   .thumb {
     width: 100%;
     height: 160px;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

@@ -3,7 +3,7 @@
     <section class="left">
       <div class="card main">
         <div class="head-top">
-          <RouterLink class="back-icon" to="/forum" aria-label="返回社区">
+          <RouterLink class="back-icon" to="/forum" aria-label="返回帖子首页">
             <span>←</span>
           </RouterLink>
         </div>
@@ -27,7 +27,7 @@
         </div>
 
         <div v-if="relatedProduct" class="productLink">
-          <RouterLink class="pinner" :to="`/goods/${relatedProduct.id}`">
+          <RouterLink class="pinner" :to="{ path: '/detail', query: { id: String(relatedProduct.id) } }">
             <img class="pcover" :src="relatedProduct.coverUrl" :alt="relatedProduct.name" />
             <div class="pbody">
               <div class="pname">{{ relatedProduct.name }}</div>
@@ -129,7 +129,7 @@
         <div class="st">相关推荐</div>
         <div class="slist">
           <RouterLink v-for="p in related" :key="p.id" class="sitem" :to="`/forum/post/${p.id}`">
-            <img class="simg" :src="p.media[0]?.posterUrl ?? p.media[0]?.url ?? p.author.avatarUrl" :alt="p.title" />
+            <img class="simg" :src="p.coverUrl ?? p.media[0]?.posterUrl ?? p.media[0]?.url ?? p.author.avatarUrl" :alt="p.title" />
             <div class="sm">
               <div class="sn">{{ p.title }}</div>
               <div class="ss">♥ {{ formatCompactNumber(p.likeCount) }} · {{ formatCompactNumber(p.viewCount) }} 浏览</div>
@@ -302,8 +302,9 @@ watch(
 .layout {
   display: grid;
   grid-template-columns: 1.55fr 0.85fr;
-  gap: 14px;
+  gap: 16px;
   align-items: start;
+  animation: fadeIn 280ms ease both;
 }
 
 .left {
@@ -313,6 +314,8 @@ watch(
 
 .main {
   overflow: hidden;
+  border-color: rgba(249, 115, 22, 0.22);
+  box-shadow: 0 16px 32px rgba(249, 115, 22, 0.14);
 }
 
 .head-top {
@@ -320,21 +323,25 @@ watch(
 }
 
 .back-icon {
-  width: 34px;
-  height: 34px;
+  width: 46px;
+  height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(17, 24, 39, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.34);
   background: #fff;
-  color: rgba(17, 24, 39, 0.8);
-  font-size: 18px;
+  color: #ea580c;
+  font-size: 24px;
   line-height: 1;
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.08);
+  transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
 .back-icon:hover {
-  background: rgba(17, 24, 39, 0.04);
+  transform: translateY(-1px);
+  background: rgba(249, 115, 22, 0.08);
+  box-shadow: 0 12px 24px rgba(249, 115, 22, 0.2);
 }
 
 .head {
@@ -352,13 +359,14 @@ watch(
   align-items: center;
   padding: 10px;
   border-radius: 14px;
-  border: 1px solid rgba(17, 24, 39, 0.10);
-  background: rgba(255, 255, 255, 0.80);
-  transition: transform 120ms ease;
+  border: 1px solid rgba(249, 115, 22, 0.22);
+  background: #fff;
+  transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
 .pinner:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 22px rgba(249, 115, 22, 0.16);
 }
 
 .pcover {
@@ -381,13 +389,13 @@ watch(
 }
 
 .goto {
-  color: rgba(0, 164, 187, 0.95);
+  color: #ea580c;
   font-weight: 800;
   font-size: 12px;
 }
 
 .title {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 950;
   letter-spacing: 0.2px;
 }
@@ -437,10 +445,16 @@ watch(
   justify-content: center;
   gap: 6px;
   border-radius: 999px;
-  border: 1px solid rgba(17, 24, 39, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.28);
   background: #fff;
-  color: rgba(17, 24, 39, 0.72);
+  color: #171717;
   cursor: pointer;
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+
+.icon-like:hover {
+  transform: translateY(-1px);
+  background: rgba(249, 115, 22, 0.08);
 }
 
 .icon-like .heart {
@@ -453,9 +467,9 @@ watch(
 }
 
 .icon-like.liked {
-  border-color: rgba(239, 68, 68, 0.35);
-  background: rgba(239, 68, 68, 0.08);
-  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.62);
+  background: #ef4444;
+  color: #fff;
 }
 
 .media {
@@ -518,8 +532,14 @@ watch(
   flex: 1;
   padding: 10px 12px;
   border-radius: 14px;
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  background: #fff;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.cbody:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(249, 115, 22, 0.14);
 }
 
 .crow {
@@ -560,7 +580,7 @@ watch(
 }
 
 .action.liked {
-  color: #ef4444;
+  color: #ea580c;
   font-weight: 700;
 }
 
@@ -572,7 +592,7 @@ watch(
   margin-top: 10px;
   display: grid;
   gap: 6px;
-  border-left: 2px solid #eee;
+  border-left: 2px solid rgba(249, 115, 22, 0.24);
   padding-left: 10px;
 }
 
@@ -589,7 +609,7 @@ watch(
 }
 
 .reply-to {
-  color: #00a4bb;
+  color: #ea580c;
 }
 
 .reply-content {
@@ -609,7 +629,8 @@ watch(
 .modal {
   width: min(720px, 100%);
   padding: 14px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 42px rgba(249, 115, 22, 0.24);
 }
 
 .mtitle {
@@ -647,13 +668,14 @@ watch(
   align-items: center;
   padding: 10px;
   border-radius: 14px;
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  background: rgba(255, 255, 255, 0.78);
-  transition: transform 120ms ease;
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  background: #fff;
+  transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
 .sitem:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(249, 115, 22, 0.16);
 }
 
 .simg {
@@ -731,6 +753,17 @@ watch(
   }
   .grow {
     width: 100%;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

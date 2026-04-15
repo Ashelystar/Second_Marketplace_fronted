@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import Detail from '../views/Detail.vue'
 import SearchPage from '../views/SearchPage.vue'
-import Forum from '../views/forum/ForumHome.vue'
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -34,19 +33,31 @@ const router = createRouter({
     },
     {
       path: '/forum',
-      name: 'forum',
-      component: Forum,
-    },
-    {
-      path: '/forum/new',
-      name: 'forum-create',
-      component: () => import('../views/forum/ForumCreate.vue'),
-    },
-    {
-      path: '/forum/post/:id',
-      name: 'forum-detail',
-      component: () => import('../views/forum/ForumDetail.vue'),
-      props: true,
+      name: 'forum-layout',
+      component: () => import('../views/forum/ForumLayout.vue'),
+      children: [
+        {
+          path: '',
+          name: 'forum',
+          component: () => import('../views/forum/ForumHome.vue'),
+        },
+        {
+          path: 'new',
+          name: 'forum-create',
+          component: () => import('../views/forum/ForumCreate.vue'),
+        },
+        {
+          path: 'post/:id',
+          name: 'forum-detail',
+          component: () => import('../views/forum/ForumDetail.vue'),
+          props: true,
+        },
+        {
+          path: 'search',
+          name: 'forum-search',
+          component: () => import('../views/forum/ForumSearch.vue'),
+        },
+      ],
     },
     {
       path: '/goods/:id',

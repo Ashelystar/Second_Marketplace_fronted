@@ -1,13 +1,13 @@
 /**
- * 论坛模块 HTTP 对接（路径与《论坛1.0》PDF 一致）
+ * 论坛模块 HTTP 对接（路径与 API对接文档.md 一致）
  *
  * 使用方式：
  * 1. 在项目根目录 `.env` / `.env.local` 中配置 `VITE_API_BASE_URL`（如 `http://localhost:8080`，不要末尾斜杠）。
  * 2. 在本文件中取消各函数内被块注释包裹的 fetch 实现，并删除或注释掉对 forumApiDisabled() 的调用。
- * 3. 在 `forumHeaders()` 中取消 `Authorization` 相关注释，接入 JWT。
+ * 3. 在 `forumHeaders()` 中按后端约定补充 `X-User-Id`（以及可选 JWT）。
  * 4. 在 `src/stores/forum.ts` 的 actions 中调用此处方法，并用 `mapApi*` 映射到前端模型（mapper 见下方注释示例）。
  *
- * 与 PDF 对照后，当前前端未单独实现页面/交互的能力（仅 API 预留）：
+ * 当前前端未单独实现页面/交互的能力（仅 API 预留）：
  * - 管理员：标签 CRUD、精华/审核/待审核列表、驳回理由日志
  * - 帖子：发布/隐藏/审核通过、售卖帖 product_id 表单
  * - 媒体：分步上传（先 POST /post/create 再 POST /post/{id}/media）
@@ -36,19 +36,217 @@ export function forumBaseUrl(): string {
 export function forumHeaders(json = true): HeadersInit {
   const h: Record<string, string> = {}
   if (json) h['Content-Type'] = 'application/json'
+  // const userId = localStorage.getItem('userId') ?? '10001'
+  // h['X-User-Id'] = userId
   // const token = localStorage.getItem('token') ?? sessionStorage.getItem('token')
   // if (token) h.Authorization = `Bearer ${token}`
   return h
-}
-
-function forumApiDisabled(): never {
-  throw new Error('[forum-api] 请取消 src/api/forum.ts 中对应函数的 fetch 注释块，并配置 VITE_API_BASE_URL')
 }
 
 async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text()
   if (!text) return {} as T
   return JSON.parse(text) as T
+}
+
+const nowIso = () => new Date().toISOString()
+
+const mockTags: ForumTagDto[] = [
+  { id: 1, tag_name: '二手', is_enabled: 1, created_at: nowIso() },
+  { id: 2, tag_name: '验机', is_enabled: 1, created_at: nowIso() },
+  { id: 3, tag_name: '避坑', is_enabled: 1, created_at: nowIso() },
+]
+
+const mockPosts: ForumPostDto[] = [
+  {
+    id: 101,
+    author_id: 10001,
+    title: '二手手机交易避坑经验',
+    content: '建议面交时完整验机，走平台担保支付。',
+    post_type: 'common',
+    post_status: 'published',
+    like_count: 12,
+    comment_count: 3,
+    share_count: 1,
+    view_count: 278,
+    tags: [{ tag_id: 1, tag_name: '二手' }, { tag_id: 3, tag_name: '避坑' }],
+    tag_ids: [1, 3],
+    created_at: nowIso(),
+    updated_at: nowIso(),
+    published_at: nowIso(),
+    author: { id: 10001, nickname: '测试用户', avatar_url: '' },
+  },
+]
+
+const mockComments: ForumCommentDto[] = [
+  {
+    id: 201,
+    post_id: 101,
+    content: '这条经验很实用，感谢分享！',
+    commenter_id: 10002,
+    comment_status: 'published',
+    like_count: 2,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+    author: { id: 10002, nickname: '路人甲', avatar_url: '' },
+  },
+]
+
+const mockMediaByPostId: Record<string, ForumMediaDto[]> = {
+  '101': [
+    {
+      id: 301,
+      post_id: 101,
+      media_type: 'image',
+      media_url: 'https://picsum.photos/seed/forum101/640/360',
+      sort_no: 1,
+      created_at: nowIso(),
+    },
+  ],
+}
+
+let nextPostId = 1000
+let nextCommentId = 2000
+let nextTagId = 3000
+let nextMediaId = 4000
+
+function pickCallerName(): string {
+  const stack = new Error().stack ?? ''
+  const lines = stack.split('\n').map((line) => line.trim())
+  const caller = lines[2] ?? ''
+  const m = caller.match(/at\s+(?:async\s+)?([^\s(]+)/)
+  return m?.[1] ?? 'unknown'
+}
+
+function paginated<T>(items: T[]): Paginated<T> {
+  return {
+    list: items,
+    items,
+    total: items.length,
+    page: 1,
+    page_size: items.length || 10,
+  }
+}
+
+function forumApiDisabled(): any {
+  const caller = pickCallerName()
+  switch (caller) {
+    case 'getForumTagList':
+      return mockTags
+    case 'createForumTag': {
+      const created: ForumTagDto = {
+        id: nextTagId++,
+        tag_name: `新标签${nextTagId}`,
+        is_enabled: 1,
+        created_at: nowIso(),
+      }
+      mockTags.push(created)
+      return created
+    }
+    case 'updateForumTag':
+      return mockTags[0]
+    case 'deleteForumTag':
+      return undefined
+    case 'createForumPost': {
+      const created: ForumPostDto = {
+        id: nextPostId++,
+        author_id: 10001,
+        title: '模拟新帖',
+        content: '后端未部署时的本地模拟帖子内容。',
+        post_type: 'common',
+        post_status: 'published',
+        like_count: 0,
+        comment_count: 0,
+        share_count: 0,
+        view_count: 1,
+        tags: [{ tag_id: 1, tag_name: '二手' }],
+        tag_ids: [1],
+        created_at: nowIso(),
+        updated_at: nowIso(),
+        published_at: nowIso(),
+        author: { id: 10001, nickname: '测试用户', avatar_url: '' },
+      }
+      mockPosts.unshift(created)
+      return created
+    }
+    case 'getForumPostById':
+    case 'updateForumPost':
+      return mockPosts[0]
+    case 'deleteForumPost':
+      return undefined
+    case 'getForumPostList':
+    case 'getForumMyPosts':
+      return paginated(mockPosts)
+    case 'publishForumPost':
+    case 'hideForumPost':
+    case 'setForumPostTags':
+    case 'approveForumPost':
+      return undefined
+    case 'getForumPendingReviewPosts':
+      return mockPosts.filter((p) => p.post_status === 'pending_review')
+    case 'getForumPostStatusLog':
+      return []
+    case 'featureForumPostAdmin':
+    case 'unfeatureForumPostAdmin':
+    case 'rejectForumPostAdmin':
+      return undefined
+    case 'uploadForumPostMedia': {
+      const postId = String(mockPosts[0]?.id ?? 101)
+      const created: ForumMediaDto = {
+        id: nextMediaId++,
+        post_id: Number(postId),
+        media_type: 'image',
+        media_url: `https://picsum.photos/seed/forum${nextMediaId}/640/360`,
+        sort_no: (mockMediaByPostId[postId]?.length ?? 0) + 1,
+        created_at: nowIso(),
+      }
+      mockMediaByPostId[postId] = [...(mockMediaByPostId[postId] ?? []), created]
+      return created
+    }
+    case 'getForumPostMediaList': {
+      const postId = String(mockPosts[0]?.id ?? 101)
+      return mockMediaByPostId[postId] ?? []
+    }
+    case 'deleteForumPostMedia':
+      return undefined
+    case 'createForumPostComment':
+    case 'replyForumComment': {
+      const created: ForumCommentDto = {
+        id: nextCommentId++,
+        post_id: Number(mockPosts[0]?.id ?? 101),
+        content: '后端未部署时的模拟评论。',
+        commenter_id: 10001,
+        comment_status: 'published',
+        like_count: 0,
+        created_at: nowIso(),
+        updated_at: nowIso(),
+        author: { id: 10001, nickname: '测试用户', avatar_url: '' },
+      }
+      mockComments.unshift(created)
+      return created
+    }
+    case 'getForumPostComments':
+      return paginated(mockComments)
+    case 'getForumCommentById':
+    case 'updateForumComment':
+      return mockComments[0]
+    case 'deleteForumComment':
+    case 'publishForumComment':
+    case 'likeForumPost':
+    case 'unlikeForumPost':
+    case 'likeForumComment':
+    case 'unlikeForumComment':
+    case 'toggleForumPostCollect':
+    case 'shareForumPost':
+      return undefined
+    case 'getForumPostReactions':
+    case 'getForumCommentReactions':
+      return [{ user_id: 10001, nickname: '测试用户', avatar: '' }]
+    case 'recordForumPostView':
+      return undefined
+    default:
+      return undefined
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +265,7 @@ export async function getForumTagList(): Promise<ForumTagDto[]> {
   return forumApiDisabled()
 }
 
-/** POST /api/forum/tag/create — 管理员创建标签 */
+/** POST /api/forum/tag/admin/create — 管理员创建标签 */
 export async function createForumTag(body: { tag_name: string; is_enabled?: number }): Promise<ForumTagDto> {
   /*
   const base = forumBaseUrl()
@@ -82,7 +280,7 @@ export async function createForumTag(body: { tag_name: string; is_enabled?: numb
   return forumApiDisabled()
 }
 
-/** PUT /api/forum/tag/{id} — 更新标签 */
+/** PUT /api/forum/tag/admin/update — 更新标签 */
 export async function updateForumTag(
   id: number | string,
   body: Partial<{ tag_name: string; is_enabled: number }>,
@@ -100,7 +298,7 @@ export async function updateForumTag(
   return forumApiDisabled()
 }
 
-/** DELETE /api/forum/tag/{id} — 删除或禁用标签 */
+/** DELETE /api/forum/tag/admin/{tagId} — 删除标签 */
 export async function deleteForumTag(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -145,7 +343,7 @@ export async function getForumPostById(id: number | string): Promise<ForumPostDt
   return forumApiDisabled()
 }
 
-/** PUT /api/forum/post/{id} */
+/** PUT /api/forum/post/update */
 export async function updateForumPost(
   id: number | string,
   body: Partial<Pick<ForumPostDto, 'title' | 'content' | 'post_status'>>,
@@ -163,7 +361,7 @@ export async function updateForumPost(
   return forumApiDisabled()
 }
 
-/** DELETE /api/forum/post/{id} */
+/** DELETE /api/forum/post/{postId} */
 export async function deleteForumPost(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -176,7 +374,7 @@ export async function deleteForumPost(id: number | string): Promise<void> {
   return forumApiDisabled()
 }
 
-/** GET /api/forum/post/list — 分页、筛选、排序 */
+/** POST /api/forum/post/list — 分页、筛选、排序 */
 export async function getForumPostList(query?: ForumPostListQuery): Promise<Paginated<ForumPostDto>> {
   /*
   const base = forumBaseUrl()
@@ -195,7 +393,7 @@ export async function getForumPostList(query?: ForumPostListQuery): Promise<Pagi
   return forumApiDisabled()
 }
 
-/** GET /api/forum/post/my — 当前用户帖子 */
+/** GET /api/forum/post/user/{authorId} — 用户发布的帖子 */
 export async function getForumMyPosts(query?: Pick<ForumPostListQuery, 'page' | 'page_size'>): Promise<
   Paginated<ForumPostDto>
 > {
@@ -212,7 +410,7 @@ export async function getForumMyPosts(query?: Pick<ForumPostListQuery, 'page' | 
   return forumApiDisabled()
 }
 
-/** PUT /api/forum/post/{id}/publish */
+/** PUT /api/forum/post/admin/audit/{postId}?approved=true&rejectReason=... */
 export async function publishForumPost(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -225,7 +423,7 @@ export async function publishForumPost(id: number | string): Promise<void> {
   return forumApiDisabled()
 }
 
-/** PUT /api/forum/post/{id}/hide */
+/** PUT /api/forum/post/admin/top/{postId}?top=true */
 export async function hideForumPost(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -238,7 +436,7 @@ export async function hideForumPost(id: number | string): Promise<void> {
   return forumApiDisabled()
 }
 
-/** POST /api/forum/post/{id}/tags — 为帖子选择标签（文档） */
+/** PUT /api/forum/post/admin/feature/{postId}?featured=true */
 export async function setForumPostTags(
   id: number | string,
   body: { tag_ids: Array<number | string> },
@@ -255,7 +453,7 @@ export async function setForumPostTags(
   return forumApiDisabled()
 }
 
-/** GET /api/forum/post/pending-review — 管理员 */
+/** GET /api/forum/audit/pending-posts?pageNum=1&pageSize=10 */
 export async function getForumPendingReviewPosts(): Promise<ForumPostDto[]> {
   /*
   const base = forumBaseUrl()
@@ -267,7 +465,7 @@ export async function getForumPendingReviewPosts(): Promise<ForumPostDto[]> {
   return forumApiDisabled()
 }
 
-/** PUT /api/forum/post/{id}/approve — 审核通过 */
+/** PUT /api/forum/audit/post/review */
 export async function approveForumPost(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -280,7 +478,7 @@ export async function approveForumPost(id: number | string): Promise<void> {
   return forumApiDisabled()
 }
 
-/** GET /api/forum/post/status-log/{id} — 驳回等状态日志 */
+/** GET /api/forum/audit/logs?targetType=post&pageNum=1&pageSize=10 */
 export async function getForumPostStatusLog(id: number | string): Promise<unknown[]> {
   /*
   const base = forumBaseUrl()
@@ -297,7 +495,7 @@ export async function getForumPostStatusLog(id: number | string): Promise<unknow
 // 管理员帖子
 // ---------------------------------------------------------------------------
 
-/** PUT /api/admin/forum/post/{id}/feature */
+/** 保留：旧版管理端接口（后端文档未提供，等待删除） */
 export async function featureForumPostAdmin(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -310,7 +508,7 @@ export async function featureForumPostAdmin(id: number | string): Promise<void> 
   return forumApiDisabled()
 }
 
-/** PUT /api/admin/forum/post/{id}/unfeature */
+/** 保留：旧版管理端接口（后端文档未提供，等待删除） */
 export async function unfeatureForumPostAdmin(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -323,7 +521,7 @@ export async function unfeatureForumPostAdmin(id: number | string): Promise<void
   return forumApiDisabled()
 }
 
-/** PUT /api/admin/forum/post/{id}/reject — PDF 路径不完整，按常见命名约定 */
+/** 保留：旧版管理端接口（后端文档未提供，等待删除） */
 export async function rejectForumPostAdmin(
   id: number | string,
   body: { reject_reason: string },
@@ -401,7 +599,7 @@ export async function deleteForumPostMedia(mediaId: number | string): Promise<vo
 // 评论 forum_comment
 // ---------------------------------------------------------------------------
 
-/** POST /api/forum/post/{id}/comment */
+/** POST /api/forum/comment/create */
 export async function createForumPostComment(
   postId: number | string,
   body: ForumCommentCreateBody,
@@ -419,7 +617,7 @@ export async function createForumPostComment(
   return forumApiDisabled()
 }
 
-/** POST /api/forum/comment/{id}/reply */
+/** POST /api/forum/comment/create（回复由 parent_comment_id 区分） */
 export async function replyForumComment(
   commentId: number | string,
   body: ForumCommentReplyBody,
@@ -437,7 +635,7 @@ export async function replyForumComment(
   return forumApiDisabled()
 }
 
-/** GET /api/forum/post/{id}/comments */
+/** GET /api/forum/comment/post/{postId}?pageNum=1&pageSize=10 */
 export async function getForumPostComments(
   postId: number | string,
   query?: { page?: number; page_size?: number },
@@ -471,7 +669,7 @@ export async function getForumCommentById(id: number | string): Promise<ForumCom
   return forumApiDisabled()
 }
 
-/** PUT /api/forum/comment/{id} */
+/** PUT /api/forum/comment/update */
 export async function updateForumComment(
   id: number | string,
   body: Pick<ForumCommentCreateBody, 'content'>,
@@ -489,7 +687,7 @@ export async function updateForumComment(
   return forumApiDisabled()
 }
 
-/** DELETE /api/forum/comment/{id} */
+/** DELETE /api/forum/comment/{commentId} */
 export async function deleteForumComment(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -502,7 +700,7 @@ export async function deleteForumComment(id: number | string): Promise<void> {
   return forumApiDisabled()
 }
 
-/** PUT /api/forum/comment/{id}/publish */
+/** PUT /api/forum/comment/admin/audit/{commentId}?approved=true&rejectReason=... */
 export async function publishForumComment(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -519,7 +717,7 @@ export async function publishForumComment(id: number | string): Promise<void> {
 // 点赞 forum_reaction
 // ---------------------------------------------------------------------------
 
-/** POST /api/forum/post/{id}/like */
+/** POST /api/forum/post/{postId}/like（同一路径切换点赞/取消点赞） */
 export async function likeForumPost(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -532,7 +730,7 @@ export async function likeForumPost(id: number | string): Promise<void> {
   return forumApiDisabled()
 }
 
-/** DELETE /api/forum/post/{id}/like */
+/** POST /api/forum/post/{postId}/like（旧版：DELETE 取消点赞） */
 export async function unlikeForumPost(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -545,7 +743,7 @@ export async function unlikeForumPost(id: number | string): Promise<void> {
   return forumApiDisabled()
 }
 
-/** POST /api/forum/comment/{id}/like */
+/** POST /api/forum/comment/{commentId}/like（同一路径切换点赞/取消点赞） */
 export async function likeForumComment(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -558,7 +756,7 @@ export async function likeForumComment(id: number | string): Promise<void> {
   return forumApiDisabled()
 }
 
-/** DELETE /api/forum/comment/{id}/like */
+/** POST /api/forum/comment/{commentId}/like（旧版：DELETE 取消点赞） */
 export async function unlikeForumComment(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -567,6 +765,38 @@ export async function unlikeForumComment(id: number | string): Promise<void> {
     headers: forumHeaders(),
   })
   if (!res.ok) throw new Error(`unlikeForumComment: ${res.status}`)
+  */
+  return forumApiDisabled()
+}
+
+/** POST /api/forum/post/{postId}/collect（同一路径切换收藏/取消收藏） */
+export async function toggleForumPostCollect(id: number | string): Promise<number> {
+  /*
+  const base = forumBaseUrl()
+  const res = await fetch(`${base}/api/forum/post/${encodeURIComponent(String(id))}/collect`, {
+    method: 'POST',
+    headers: forumHeaders(),
+  })
+  if (!res.ok) throw new Error(`toggleForumPostCollect: ${res.status}`)
+  const data = await parseJson<{ code?: number; data?: number } | number>(res)
+  return typeof data === 'number' ? data : (data.data ?? 0)
+  */
+  return forumApiDisabled()
+}
+
+/** POST /api/forum/post/{postId}/share?channel=wechat|qq|weibo|copy_link|in_app */
+export async function shareForumPost(
+  id: number | string,
+  channel: 'wechat' | 'qq' | 'weibo' | 'copy_link' | 'in_app' = 'copy_link',
+): Promise<void> {
+  /*
+  const base = forumBaseUrl()
+  const q = new URLSearchParams({ channel }).toString()
+  const res = await fetch(`${base}/api/forum/post/${encodeURIComponent(String(id))}/share?${q}`, {
+    method: 'POST',
+    headers: forumHeaders(),
+  })
+  if (!res.ok) throw new Error(`shareForumPost: ${res.status}`)
   */
   return forumApiDisabled()
 }
