@@ -35,21 +35,25 @@
 
       <!-- 商品信息 -->
       <div class="section productSection">
-        <div class="productItem">
-          <img :src="product?.image" :alt="product?.title" class="productImg" />
+        <div 
+          class="productItem" 
+          v-for="(item, index) in products" 
+          :key="item.id"
+        >
+          <img :src="item.image" :alt="item.title" class="productImg" />
           <div class="productInfo">
-            <div class="productTitle">{{ product?.title }}</div>
-            <div class="productDesc" v-if="product?.description">{{ product?.description }}</div>
+            <div class="productTitle">{{ item.title }}</div>
+            <div class="productDesc" v-if="item.description">{{ item.description }}</div>
             <div class="productPrice">
-              <span class="price">¥{{ product?.price }}</span>
+              <span class="price">¥{{ item.price }}</span>
             </div>
           </div>
           <div class="quantityControl">
-            <button class="qtyBtn" @click="decreaseQty" :disabled="quantity <= 1">
+            <button class="qtyBtn" @click="decreaseQty(index)" :disabled="item.quantity <= 1">
               <i class="fa fa-minus"></i>
             </button>
-            <span class="qtyNum">{{ quantity }}</span>
-            <button class="qtyBtn" @click="increaseQty">
+            <span class="qtyNum">{{ item.quantity }}</span>
+            <button class="qtyBtn" @click="increaseQty(index)">
               <i class="fa fa-plus"></i>
             </button>
           </div>
@@ -72,11 +76,11 @@
       <div class="section priceSection">
         <div class="priceRow">
           <span class="label">商品价格</span>
-          <span class="value">¥{{ product?.price }}</span>
+          <span class="value">¥{{ goodsPrice }}</span>
         </div>
         <div class="priceRow">
           <span class="label">数量</span>
-          <span class="value">x{{ quantity }}</span>
+          <span class="value">x{{ totalQuantity }}</span>
         </div>
         <div class="priceRow">
           <span class="label">运费</span>
@@ -114,9 +118,15 @@
         <span class="totalLabel">合计：</span>
         <span class="totalPrice">¥{{ totalPrice }}</span>
       </div>
-      <button class="submitBtn" @click="submitOrder" :disabled="!selectedAddress">
-        提交订单
-      </button>
+      <div class="buttonGroup">
+        <button class="cartBtn" @click="addToCart" v-if="!fromCart">
+          <i class="fa fa-cart-plus"></i>
+          加入购物车
+        </button>
+        <button class="submitBtn" @click="submitOrder" :disabled="!selectedAddress">
+          提交订单
+        </button>
+      </div>
     </div>
 
     <!-- 地址选择弹窗 -->
@@ -178,18 +188,19 @@ interface Address {
   isDefault: boolean
 }
 
-interface Product {
+interface CartProduct {
   id: number
   title: string
   description?: string
   price: number
   image: string
+  quantity: number
 }
 
-const product = ref<Product | null>(null)
-const quantity = ref(1)
+const products = ref<CartProduct[]>([])
 const remark = ref('')
 const showAddressPicker = ref(false)
+const fromCart = ref(false)
 
 const selectedAddress = ref<Address | null>(null)
 const selectedPayment = ref('alipay')
@@ -217,18 +228,36 @@ const addressList = ref<Address[]>([
   }
 ])
 
-const totalPrice = computed(() => {
-  if (!product.value) return 0
-  return (product.value.price * quantity.value).toFixed(2)
+// 商品总数量
+const totalQuantity = computed(() => {
+  return products.value.reduce((sum, item) => sum + item.quantity, 0)
 })
 
-const increaseQty = () => {
-  quantity.value++
+// 总价
+const totalPrice = computed(() => {
+  return products.value
+    .reduce((sum, item) => sum + Number(item.price) * item.quantity, 0)
+    .toFixed(2)
+})
+
+// 商品总价（不含运费）
+const goodsPrice = computed(() => {
+  return products.value
+    .reduce((sum, item) => sum + Number(item.price) * item.quantity, 0)
+    .toFixed(2)
+})
+
+const increaseQty = (index: number) => {
+  const item = products.value[index]
+  if (item) {
+    item.quantity++
+  }
 }
 
-const decreaseQty = () => {
-  if (quantity.value > 1) {
-    quantity.value--
+const decreaseQty = (index: number) => {
+  const item = products.value[index]
+  if (item && item.quantity > 1) {
+    item.quantity--
   }
 }
 
@@ -250,9 +279,15 @@ const submitOrder = () => {
     alert('请选择收货地址')
     return
   }
-  alert(`订单提交成功！\n商品：${product.value?.title}\n数量：${quantity.value}\n总价：¥${totalPrice.value}\n收货人：${selectedAddress.value.receiver}`)
+  const productNames = products.value.map(p => p.title).join('、')
+  alert(`订单提交成功！\n商品：${productNames}\n数量：${totalQuantity.value}\n总价：¥${totalPrice.value}\n收货人：${selectedAddress.value.receiver}`)
   // 使用 replace 跳转，这样返回键不会回到下单页面
   router.replace('/orders')
+}
+
+const addToCart = () => {
+  alert('已加入购物车')
+  router.push('/cart')
 }
 
 onMounted(() => {
@@ -262,14 +297,54 @@ onMounted(() => {
     router.push('/')
     return
   }
-  // 模拟获取商品信息
-  const productId = route.query.productId || 1
-  product.value = {
-    id: Number(productId),
-    title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
-    description: '2024年3月购买，使用不到一年，功能完好',
-    price: 6999,
-    image: 'https://picsum.photos/id/1/200/200'
+
+  // 检查是否来自购物车
+  const productIdsStr = route.query.productIds as string
+  fromCart.value = route.query.fromCart === 'true'
+
+  if (productIdsStr) {
+    // 从购物车来的情况，传递了多个商品
+    const productIds = productIdsStr.split(',').map(Number)
+    // 模拟根据ID获取商品信息
+    const mockProducts: CartProduct[] = [
+      {
+        id: 1,
+        title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
+        description: '2024年3月购买，使用不到一年，功能完好',
+        price: 6999,
+        image: 'https://picsum.photos/id/1/200/200',
+        quantity: 1
+      },
+      {
+        id: 2,
+        title: 'AirPods Pro 2 全新未拆封 国行正品',
+        description: '官方在保，支持验货',
+        price: 1599,
+        image: 'https://picsum.photos/id/119/200/200',
+        quantity: 1
+      },
+      {
+        id: 3,
+        title: 'MacBook Pro 14寸 M2 Pro 16+512G 银色',
+        description: '2023年购买，电池循环次数少',
+        price: 12999,
+        image: 'https://picsum.photos/id/45/200/200',
+        quantity: 1
+      }
+    ]
+    // 只获取选中的商品
+    products.value = mockProducts.filter(p => productIds.includes(p.id))
+  } else {
+    // 单独购买的情况
+    const productId = route.query.productId || 1
+    products.value = [{
+      id: Number(productId),
+      title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
+      description: '2024年3月购买，使用不到一年，功能完好',
+      price: 6999,
+      image: 'https://picsum.photos/id/1/200/200',
+      quantity: 1
+    }]
   }
 
   // 设置默认地址
@@ -415,6 +490,15 @@ onMounted(() => {
 .productItem {
   display: flex;
   gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.productItem:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
 }
 
 .productImg {
@@ -646,6 +730,31 @@ onMounted(() => {
   justify-content: space-between;
   padding: 0 16px;
   z-index: 50;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 10px;
+}
+
+.cartBtn {
+  height: 44px;
+  padding: 0 18px;
+  background: #fff;
+  color: #f97316;
+  border: 1px solid #f97316;
+  border-radius: 22px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 200ms;
+}
+
+.cartBtn:hover {
+  background: #fef3e6;
 }
 
 .totalInfo {

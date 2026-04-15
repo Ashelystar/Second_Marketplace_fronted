@@ -92,7 +92,7 @@ const router = createRouter({
     {
       path: '/cart',
       name: 'cart',
-      component: Cart,
+      component: () => import('../views/goods/Cart.vue'),
     },
 
     // 订单模块路由
