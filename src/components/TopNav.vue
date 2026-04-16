@@ -1,127 +1,268 @@
+<!-- TopNavbar.vue -->
 <template>
-  <header class="header">
-    <div class="container row">
-      <RouterLink class="brand" to="/">
-        <span class="logo">闲置</span>
-      </RouterLink>
+  <!-- 顶部导航栏 -->
+  <header class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+    <div class="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
+      <!-- 左侧Logo -->
+      <a href="#" class="flex items-center gap-2" @click.prevent>
+        <h1 class="text-xl font-bold text-xianyuText"  @click.prevent="goToHome">荔园交易</h1>
+      </a>
 
-      <nav class="nav" aria-label="主导航">
-        <RouterLink class="link" to="/">首页</RouterLink>
-        <RouterLink class="link" to="/forum">社区</RouterLink>
-      </nav>
-
-      <div class="user">
-        <img class="uavatar" :src="store.currentUserAvatarUrl" alt="avatar" />
-        <span class="uname">{{ store.currentUserName }}</span>
+      <!-- 中间搜索区域 -->
+      <div class="searchBox">
+        <div class="searchRow">
+          <input
+            type="text"
+            v-model="searchInput"
+            placeholder="搜索闲置物品"
+            @keypress.enter="handleSearch"
+          />
+          <button @click="handleSearch"><i class="fa fa-search"></i></button>
+        </div>
+        <div class="hotTags">
+          <span>热门：</span>
+          <a
+            href="#"
+            v-for="tag in hotTags"
+            :key="tag"
+            @click.prevent="searchTag(tag)"
+            >{{ tag }}</a
+          >
+        </div>
       </div>
+
+      <!-- 右侧导航链接 -->
+      <nav class="navLinks">
+        <a href="#" @click.prevent="goToForum"
+          ><i class="fa fa-comments"></i> 社区</a
+        >
+        <!-- 根据登录状态显示不同内容 -->
+        <template v-if="userStore.isLoggedIn">
+          <button
+            class="hover:text-xianyuText flex items-center gap-1"
+            @click="goToUserCenter"
+          >
+            <i class="fa fa-user"></i> 我的
+          </button>
+        </template>
+        <template v-else>
+          <a href="#" @click="goToLogin"
+            ><i class="fa fa-user"></i> 登录/注册</a
+          >
+        </template>
+      </nav>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
-import { useForumStore } from '../stores/forum'
+// 导入Vue组合式API和状态管理
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/userStore' // 请根据您的实际路径调整
 
-const store = useForumStore()
+// 初始化路由和状态管理
+const router = useRouter()
+const userStore = useUserStore()
+
+// 搜索输入框的响应式数据
+const searchInput = ref('')
+
+// 热门标签数据
+const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+
+/**
+ * 处理搜索功能
+ * 当点击搜索按钮或按下回车时触发
+ */
+const handleSearch = () => {
+  if (searchInput.value.trim()) {
+    // 跳转到搜索页面，并携带查询参数
+    router.push({ path: '/search', query: { q: searchInput.value.trim() } })
+  }
+}
+
+/**
+ * 点击热门标签进行搜索
+ * @param tag - 被点击的标签文本
+ */
+const searchTag = (tag: string) => {
+  searchInput.value = tag
+  handleSearch()
+}
+
+/**
+ * 导航到论坛页面
+ */
+const goToForum = () => {
+  router.push('/forum')
+}
+
+const goToHome = () => {
+  router.push('/')
+}
+/**
+ * 导航到用户中心页面
+ */
+const goToUserCenter = () => {
+  router.push('/user/center')
+}
+
+/**
+ * 导航到登录页面
+ */
+const goToLogin = () => {
+  router.push('/user/login')
+}
 </script>
 
 <style scoped>
-.header {
+/* 容器样式 */
+header {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 50;
   background: #fff;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.row {
-  height: 56px;
+/* 内部布局容器 */
+div.max-w-\\[1600px\\] {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 24px;
 }
 
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.logo {
-  width: 38px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: #0b1220;
-  background: rgba(0, 188, 212, 0.16);
-  border: 1px solid rgba(0, 188, 212, 0.36);
-}
-
-.nav {
+/* Logo样式 */
+a.flex.items-center.gap-2 {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+h1.text-xl {
+  font-size: 22px;
+  font-weight: bold;
+  color: #f97316; /* 与原文档中的 --xianyuText 颜色一致 */
+}
+
+/* 搜索框容器 */
+.searchBox {
   flex: 1;
-  justify-content: center;
+  max-width: 560px;
+  margin: 0 auto;
 }
 
-.link {
-  padding: 8px 10px;
-  border-radius: 10px;
-  color: rgba(17, 24, 39, 0.75);
-  transition: background-color 120ms ease, color 120ms ease;
+/* 搜索输入行 */
+.searchRow {
+  display: flex;
 }
 
-.link:hover {
-  background: rgba(17, 24, 39, 0.04);
-  color: rgba(17, 24, 39, 0.92);
+.searchRow input {
+  flex: 1;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid #d1d5db;
+  border-right: none;
+  border-radius: 20px 0 0 20px;
+  background: #f3f4f6;
+  outline: none;
+  font-size: 14px;
 }
 
-.link.router-link-active {
-  background: rgba(0, 188, 212, 0.10);
-  border: 1px solid rgba(0, 188, 212, 0.22);
-  color: rgba(17, 24, 39, 0.92);
+.searchRow input:focus {
+  background: #fff;
+  border-color: #3b82f6; /* 聚焦时边框变蓝 */
 }
 
-.user {
+.searchRow button {
+  width: 56px;
+  height: 40px;
+  border: none;
+  border-radius: 0 20px 20px 0;
+  background: #f97316; /* 主色调橙色 */
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 200ms;
+}
+
+.searchRow button:hover {
+  background: #ea580c; /* 悬停时深橙色 */
+}
+
+/* 热门标签区域 */
+.hotTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280; /* 灰色文字 */
+}
+
+.hotTags a {
+  color: #6b7280;
+  text-decoration: none;
+  transition: color 200ms;
+}
+
+.hotTags a:hover {
+  color: #f97316; /* 悬停时变为主题橙色 */
+}
+
+/* 右侧导航链接 */
+.navLinks {
+  display: flex;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.navLinks a,
+.navLinks button {
   display: flex;
   align-items: center;
-  gap: 10px;
-  justify-content: flex-end;
-  flex: none;
-}
-
-.uavatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  object-fit: cover;
-  border: 1px solid rgba(17, 24, 39, 0.10);
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.uname {
-  color: rgba(17, 24, 39, 0.75);
-  font-weight: 800;
+  gap: 4px;
   font-size: 14px;
-  max-width: 120px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  color: #374151;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 200ms;
+  padding: 0;
 }
 
-@media (max-width: 720px) {
-  .nav {
-    display: none;
-  }
+.navLinks a:hover,
+.navLinks button:hover {
+  color: #f97316; /* 悬停时变为主题橙色 */
+}
 
-  .uname {
-    display: none;
+/* 响应式设计 */
+@media (max-width: 900px) {
+  div.max-w-\\[1600px\\] {
+    flex-wrap: wrap;
+  }
+  .searchBox {
+    order: 3;
+    flex-basis: 100%;
+    margin-top: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .navLinks {
+    font-size: 13px;
+    gap: 15px;
+  }
+  h1.text-xl {
+    font-size: 20px;
   }
 }
 </style>
-

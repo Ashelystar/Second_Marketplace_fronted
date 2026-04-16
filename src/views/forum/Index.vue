@@ -1,21 +1,7 @@
 <template>
   <div class="page">
-    <div class="top card">
-      <div>
-        <div class="h">社区</div>
-      </div>
-      <div class="search">
-        <div class="searchRow">
-          <input
-            v-model.trim="keyword"
-            class="input"
-            placeholder="点击搜索内容"
-            @keydown.enter="doSearch"
-          />
-          <button class="btn btn-primary searchBtn" type="button" @click="doSearch">搜索</button>
-        </div>
-      </div>
-    </div>
+    
+    <Topnav v-if="showNav" />
 
     <div class="filters">
       <button class="chip" :class="{ active: activeTag === '' }" type="button" @click="activeTag = ''">全部</button>
@@ -45,6 +31,13 @@
 import { computed, ref } from 'vue'
 import PostCard from '../../components/forum/PostCard.vue'
 import { useForumStore } from '../../stores/forum'
+import { useRoute} from 'vue-router'
+import Topnav from '@/components/TopNav.vue' 
+
+const route = useRoute()
+const hideNavRoutes = ['/user/login', '/user/register']
+const showNav = computed(() => !hideNavRoutes.includes(route.path))
+ console.log(route.path, showNav.value)
 
 const store = useForumStore()
 const activeTag = ref('')

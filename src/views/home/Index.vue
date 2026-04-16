@@ -1,40 +1,7 @@
 <template>
   <div class="bg-pageBg min-h-screen">
     <!-- 顶部导航栏 -->
-    <header class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      <div class="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
-        <a href="#" class="flex items-center gap-2" @click.prevent>
-          <h1 class="text-xl font-bold text-xianyuText">荔园交易</h1>
-        </a>
-
-        <div class="searchBox">
-          <div class="searchRow">
-            <input
-              type="text"
-              v-model="searchInput"
-              placeholder="搜索闲置物品"
-              @keypress.enter="handleSearch"
-            />
-            <button @click="handleSearch"><i class="fa fa-search"></i></button>
-          </div>
-          <div class="hotTags">
-            <span>热门：</span>
-            <a href="#" v-for="tag in hotTags" :key="tag" @click.prevent="searchTag(tag)">{{ tag }}</a>
-          </div>
-        </div>
-
-        <nav class="navLinks">
-          <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
-          <template v-if="userStore.isLoggedIn">
-            <button class="hover:text-xianyuText flex items-center gap-1" @click="router.push('/user/center')"><i class="fa fa-user"></i> 我的</button>
-          </template>
-          <template v-else>
-            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
-          </template>
-        </nav>
-      </div>
-    </header>
-
+    <Topnav v-if="showNav" />
     <!-- 主体内容 -->
     <div class="main">
       <!-- 左侧分类 -->
@@ -130,11 +97,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
-
+import Topnav from '@/components/TopNav.vue' 
 defineOptions({ name: 'HomePage' })
+
+const route = useRoute()
+const hideNavRoutes = ['/user/login', '/user/register']
+const showNav = computed(() => !hideNavRoutes.includes(route.path))
 
 const router = useRouter()
 const store = useProductStore()
