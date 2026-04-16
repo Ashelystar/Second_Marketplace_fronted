@@ -32,7 +32,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
+import { useUserStore } from '@/stores/userStore'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -43,7 +43,14 @@ const loading = ref(false)
 async function handleLogin() {
   try {
     loading.value = true
-    await userStore.login({ account: account.value, password: password.value })
+    if (!account.value.trim() || !password.value.trim()) {
+      throw new Error('请输入账号和密码')
+    }
+    userStore.login({
+      id: 1,
+      username: account.value.trim(),
+      avatar: 'https://i.pravatar.cc/120?img=12',
+    })
     await router.push('/user/center')
   } catch (error) {
     alert((error as Error).message)

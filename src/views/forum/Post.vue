@@ -47,12 +47,15 @@
           3) 合并去重后渲染下拉选项，value 使用商品 id
           4) 发帖时将选中值写入 createForumPost 的 product_id
         -->
-        <select v-model="productId" class="input">
+        <select v-model="productId" class="input" :disabled="isLoadingMyTrades">
           <option value="">不关联商品</option>
-          <option v-for="g in goods" :key="g.id" :value="g.id">
+          <option v-for="g in goodsFromMyTrades" :key="g.id" :value="g.id">
             {{ g.name }}
           </option>
         </select>
+        <div v-if="!isLoadingMyTrades && goodsFromMyTrades.length === 0" class="tip">
+          暂无可关联商品
+        </div>
       </div>
 
       <div class="field">
@@ -96,24 +99,51 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ForumMedia } from '../../types/forum'
 import { useForumStore } from '../../stores/forum'
+import { useOrderStore } from '../../stores/order'
+import { useUserStore } from '@/stores/userStore'
 import { forumMockTags } from '../../mocks/forum'
-import { mockGoods } from '../../mocks/goods'
+import { mockCartItems } from '@/mocks/cart'
 
 const router = useRouter()
 const store = useForumStore()
+const orderStore = useOrderStore()
+const userStore = useUserStore()
 
 const title = ref('')
 const content = ref('')
 const selectedTags = ref<string[]>([])
 const err = ref('')
 const adminTags = forumMockTags
-// 对接预留：后续由购物车/订单接口返回的商品列表替换 mockGoods。
-const goods = mockGoods
 const productId = ref<string>('')
+const isLoadingMyTrades = ref(false)
+
+const goodsFromMyTrades = computed(() => {
+  const userId = Number(userStore.userInfo?.id ?? 0)
+  const fromOrders = orderStore.orders.flatMap((order) =>
+    (order.products ?? []).map((item) => ({
+      id: String(item.product_id),
+      name: item.product_title,
+    })),
+  )
+  const fromCart = mockCartItems
+    .filter((item) => item.userId === userId)
+    .map((item) => ({
+      id: String(item.id),
+      name: item.title,
+    }))
+  const merged = [...fromOrders, ...fromCart]
+
+  // 相同商品仅保留一份，避免下拉框重复
+  const uniqueById = new Map<string, { id: string; name: string }>()
+  for (const item of merged) {
+    if (!uniqueById.has(item.id)) uniqueById.set(item.id, item)
+  }
+  return [...uniqueById.values()]
+})
 
 const fileEl = ref<HTMLInputElement | null>(null)
 const media = ref<ForumMedia[]>([])
@@ -266,6 +296,16 @@ async function submit() {
 
   await router.push(`/forum/post/${created.id}`)
 }
+
+onMounted(async () => {
+  if (!userStore.isLoggedIn) return
+  try {
+    isLoadingMyTrades.value = true
+    await orderStore.loadOrders()
+  } finally {
+    isLoadingMyTrades.value = false
+  }
+})
 </script>
 
 <style scoped>

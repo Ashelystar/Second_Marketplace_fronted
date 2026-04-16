@@ -279,20 +279,24 @@ const loadError = ref('')
 const isFavorited = ref(false)
 
 const toggleFavorite = () => {
+  if (!ensureLoggedIn('收藏商品')) return
   isFavorited.value = !isFavorited.value
 }
 
 const goToCheckout = () => {
-  if (!userStore.isLoggedIn) {
-    alert('请先登录后再下单')
-    return
-  }
+  if (!ensureLoggedIn('购买商品')) return
   router.push({ path: '/checkout', query: { productId: route.query.id } })
 }
 
 const handleLogin = () => {
-  userStore.login({ id: 1, username: '用户' })
-  alert('登录成功！')
+  router.push({ path: '/user/login', query: { redirect: route.fullPath } })
+}
+
+const ensureLoggedIn = (actionText: string) => {
+  if (userStore.isLoggedIn) return true
+  alert(`请先登录后再${actionText}`)
+  router.push({ path: '/user/login', query: { redirect: route.fullPath } })
+  return false
 }
 
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })

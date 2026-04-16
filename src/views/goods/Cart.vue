@@ -92,10 +92,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/userStore'
+import { mockCartItems } from '@/mocks/cart'
 
 defineOptions({ name: 'CartPage' })
 
 const router = useRouter()
+const userStore = useUserStore()
 
 interface CartItem {
   id: number
@@ -107,36 +110,12 @@ interface CartItem {
   selected: boolean
 }
 
-// 模拟购物车数据
-const cartItems = ref<CartItem[]>([
-  {
-    id: 1,
-    title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
-    price: '6999',
-    image: 'https://picsum.photos/id/1/200/200',
-    condition: '99新',
-    quantity: 1,
-    selected: false
-  },
-  {
-    id: 2,
-    title: 'AirPods Pro 2 全新未拆封 国行正品',
-    price: '1599',
-    image: 'https://picsum.photos/id/119/200/200',
-    condition: '全新',
-    quantity: 1,
-    selected: false
-  },
-  {
-    id: 3,
-    title: 'MacBook Pro 14寸 M2 Pro 16+512G 银色',
-    price: '12999',
-    image: 'https://picsum.photos/id/45/200/200',
-    condition: '95新',
-    quantity: 1,
-    selected: false
-  }
-])
+const currentUserId = computed(() => Number(userStore.userInfo?.id ?? 0))
+const cartItems = ref<CartItem[]>(
+  mockCartItems
+    .filter((item) => item.userId === currentUserId.value)
+    .map((item) => ({ ...item, selected: false })),
+)
 
 const selectedCount = computed(() => cartItems.value.filter(item => item.selected).length)
 const isAllSelected = computed(() => cartItems.value.length > 0 && selectedCount.value === cartItems.value.length)

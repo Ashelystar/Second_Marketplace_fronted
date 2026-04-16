@@ -41,19 +41,23 @@
       <RouterLink class="fab fab-home" to="/" aria-label="首页" data-tip="首页">
         <span class="fabIcon">⌂</span>
       </RouterLink>
-      <RouterLink class="fab fab-upload" to="/forum/new" aria-label="上传" data-tip="上传">
+      <button class="fab fab-upload" type="button" aria-label="上传" data-tip="上传" @click="goCreatePost">
         <span class="fabPlus">＋</span>
-      </RouterLink>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import PostCard from '../../components/forum/PostCard.vue'
 import { useForumStore } from '../../stores/forum'
+import { useUserStore } from '@/stores/userStore'
 
+const router = useRouter()
 const store = useForumStore()
+const userStore = useUserStore()
 const activeTag = ref('')
 const keyword = ref('')
 const searchQuery = ref('')
@@ -79,6 +83,15 @@ const filtered = computed(() => {
 
 function doSearch() {
   searchQuery.value = keyword.value
+}
+
+function goCreatePost() {
+  if (!userStore.isLoggedIn) {
+    alert('请先登录后再上传内容')
+    router.push({ path: '/user/login', query: { redirect: '/forum/new' } })
+    return
+  }
+  router.push('/forum/new')
 }
 </script>
 

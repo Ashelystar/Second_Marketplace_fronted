@@ -4,56 +4,43 @@
       <div class="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
         <a href="#" class="flex items-center gap-2" @click.prevent="router.push('/')">
           <i class="fa fa-fish text-2xl text-xianyuText"></i>
-          <h1 class="text-xl font-bold text-xianyuText">闲鱼</h1>
+          <h1 class="text-xl font-bold text-xianyuText">荔园交易</h1>
         </a>
 
-        <div class="flex-1 max-w-xl mx-4">
-          <div class="relative">
+        <div class="searchBox">
+          <div class="searchRow">
             <input
               v-model="searchInput"
               type="text"
               placeholder="搜索闲置物品"
-              class="w-full h-10 px-4 pr-10 rounded-full bg-gray-100 border border-gray-300 placeholder-gray-500 focus:bg-white focus:border-accentBlue focus:outline-none transition-all"
               @keypress.enter="handleSearch"
             />
-            <button
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-xianyuText"
-              @click="handleSearch"
-            >
-              <i class="fa fa-search"></i>
-            </button>
+            <button @click="handleSearch"><i class="fa fa-search"></i></button>
           </div>
-          <div class="flex flex-wrap gap-2 mt-2 text-xs text-gray-600">
+          <div class="hotTags">
             <span>热门：</span>
-            <a href="#" class="hover:text-xianyuText" @click.prevent="searchTag('iPhone')">iPhone</a>
-            <a href="#" class="hover:text-xianyuText" @click.prevent="searchTag('小米手机')">小米手机</a>
-            <a href="#" class="hover:text-xianyuText" @click.prevent="searchTag('数码相机')">数码相机</a>
-            <a href="#" class="hover:text-xianyuText" @click.prevent="searchTag('闲置衣服')">闲置衣服</a>
+            <a href="#" v-for="tag in hotTags" :key="tag" @click.prevent="searchTag(tag)">{{ tag }}</a>
           </div>
         </div>
 
-        <div class="hidden md:flex items-center gap-5 text-sm text-gray-700">
-          <button class="hover:text-xianyuText flex items-center gap-1" @click="router.push('/forum')">
+        <nav class="navLinks">
+          <a href="#" @click.prevent="router.push('/forum')">
             <i class="fa fa-comments"></i>
             社区
-          </button>
+          </a>
           <template v-if="userStore.isLoggedIn">
-            <button class="hover:text-xianyuText flex items-center gap-1">
-              <i class="fa fa-shopping-bag"></i>
-              订单
-            </button>
-            <button class="hover:text-xianyuText flex items-center gap-1">
+            <a href="#" @click.prevent="router.push('/user/center')">
               <i class="fa fa-user"></i>
               我的
-            </button>
+            </a>
           </template>
           <template v-else>
-            <button class="hover:text-xianyuText flex items-center gap-1" @click="handleLogin">
+            <a href="#" @click.prevent="handleLogin">
               <i class="fa fa-user"></i>
               登录/注册
-            </button>
+            </a>
           </template>
-        </div>
+        </nav>
       </div>
     </header>
     <main class="container forum-main">
@@ -70,6 +57,7 @@ import { useUserStore } from '@/stores/userStore'
 const router = useRouter()
 const userStore = useUserStore()
 const searchInput = ref('')
+const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
 
 const handleSearch = () => {
   const keyword = searchInput.value.trim()
@@ -83,8 +71,7 @@ const searchTag = (tag: string) => {
 }
 
 const handleLogin = () => {
-  userStore.login({ id: 1, username: '用户' })
-  alert('登录成功！')
+  router.push('/user/login')
 }
 </script>
 
@@ -96,6 +83,88 @@ const handleLogin = () => {
 .forum-main {
   padding-top: 18px;
   padding-bottom: 24px;
+}
+
+.searchBox {
+  flex: 1;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.searchRow {
+  display: flex;
+}
+
+.searchRow input {
+  flex: 1;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid #d1d5db;
+  border-right: none;
+  border-radius: 20px 0 0 20px;
+  background: #f3f4f6;
+  outline: none;
+  font-size: 14px;
+}
+
+.searchRow input:focus {
+  background: #fff;
+  border-color: #3b82f6;
+}
+
+.searchRow button {
+  width: 56px;
+  height: 40px;
+  border: none;
+  border-radius: 0 20px 20px 0;
+  background: #f97316;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 200ms;
+}
+
+.searchRow button:hover {
+  background: #ea580c;
+}
+
+.hotTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.hotTags a {
+  color: #6b7280;
+  text-decoration: none;
+  transition: color 200ms;
+}
+
+.hotTags a:hover {
+  color: #f97316;
+}
+
+.navLinks {
+  display: flex;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.navLinks a {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: #374151;
+  text-decoration: none;
+  transition: color 200ms;
+}
+
+.navLinks a:hover {
+  color: #f97316;
 }
 
 .forum-main :deep(.btn-primary) {

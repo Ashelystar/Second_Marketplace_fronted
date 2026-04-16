@@ -169,18 +169,36 @@ import MediaViewer from '../../components/forum/MediaViewer.vue'
 import TagPill from '../../components/forum/TagPill.vue'
 import { formatCompactNumber, formatDateShort } from '../../mocks/forum'
 import { useForumStore } from '../../stores/forum'
+import { useProductStore } from '@/stores/productStore'
 import type { ForumComment } from '../../types/forum'
 import { mockGoods } from '../../mocks/goods'
 
 const props = defineProps<{ id?: string }>()
 const route = useRoute()
 const store = useForumStore()
+const productStore = useProductStore()
 
 const postId = computed(() => (props.id as string) ?? (route.params.id as string) ?? '')
 const post = computed(() => store.postById(postId.value))
 const relatedProduct = computed(() => {
   if (!post.value?.productId) return null
   const pid = String(post.value.productId)
+  const pidNum = Number(pid)
+
+  // 优先使用商品模块数据（订单/购物车关联来的就是这里的商品 ID）
+  if (!Number.isNaN(pidNum)) {
+    const p = productStore.getProductById(pidNum)
+    if (p) {
+      return {
+        id: pidNum,
+        name: p.title,
+        coverUrl: p.image,
+        priceText: `¥${p.price}`,
+      }
+    }
+  }
+
+  // 兼容旧 mock 商品（g1/g2/g3）
   return mockGoods.find((g) => g.id === pid) ?? null
 })
 
@@ -437,9 +455,9 @@ watch(
 }
 
 .icon-like {
-  min-width: 66px;
+  min-width: 72px;
   height: 32px;
-  padding: 0 10px;
+  padding: 0 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -447,7 +465,7 @@ watch(
   border-radius: 999px;
   border: 1px solid rgba(249, 115, 22, 0.28);
   background: #fff;
-  color: #171717;
+  color: #262626;
   cursor: pointer;
   transition: transform 140ms ease, background-color 140ms ease;
 }
@@ -467,9 +485,9 @@ watch(
 }
 
 .icon-like.liked {
-  border-color: rgba(239, 68, 68, 0.62);
-  background: #ef4444;
-  color: #fff;
+  border-color: rgba(239, 68, 68, 0.58);
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.12);
 }
 
 .media {

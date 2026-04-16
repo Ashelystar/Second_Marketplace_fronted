@@ -1,8 +1,8 @@
 <template>
   <div>
     <!-- 页面标题 -->
-    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-      <h1 class="text-2xl font-semibold mb-6 flex items-center gap-2">
+    <div class="user-page-card p-6 mb-6">
+      <h1 class="user-page-title text-gray-900">
         <i class="fa fa-cog text-xianyuText"></i>
         账号与安全
       </h1>
@@ -141,7 +141,7 @@
     </div>
     
     <!-- 操作记录 -->
-    <div class="bg-white rounded-lg shadow-sm p-6">
+    <div class="user-page-card p-6">
       <h3 class="text-lg font-semibold mb-4">最近操作记录</h3>
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
