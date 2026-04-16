@@ -161,8 +161,8 @@
               <button class="actionBtn" @click="shareProduct">
                 <i class="fa fa-share-alt"></i> 分享
               </button>
-              <button class="actionBtn" @click="refreshStats">
-                <i class="fa fa-refresh"></i> 刷新
+              <button class="actionBtn" @click="goToConsult">
+                <i class="fa fa-comment"></i> 咨询
               </button>
             </div>
             <div class="actionRow">
@@ -210,13 +210,46 @@
                 <span class="buyerName">{{ consult.buyerName }}</span>
                 <span class="consultTime">{{ consult.time }}</span>
               </div>
-              <button class="replyBtn" @click="replyConsult(consult)">
+              <button class="replyBtn" @click="toggleReplyInput(consult)">
                 <i class="fa fa-reply"></i> 回复
               </button>
             </div>
             <div class="consultContent">{{ consult.content }}</div>
-            <div v-if="consult.reply" class="consultReply">
-              <i class="fa fa-angle-double-right"></i> 您的回复：{{ consult.reply }}
+            
+            <!-- 回复列表 -->
+            <div class="consultReplies" v-if="consult.replies && consult.replies.length > 0">
+              <div v-for="reply in getDisplayReplies(consult)" :key="reply.id" class="consultReply" :class="{ seller: reply.isSeller }">
+                <div class="replyHeader">
+                  <img v-if="reply.avatar" :src="reply.avatar" class="replyAvatar" />
+                  <div v-else class="replyAvatar default">{{ reply.name?.charAt(0) }}</div>
+                  <span class="replyName" :class="{ seller: reply.isSeller }">{{ reply.name }}</span>
+                  <span class="replyBadge" v-if="reply.isSeller">卖家</span>
+                  <span class="replyTime">{{ reply.time }}</span>
+                  <button class="subReplyBtn" @click="openSubReply(consult, reply)">
+                    <i class="fa fa-commenting"></i> 回复
+                  </button>
+                </div>
+                <div class="replyContent">{{ reply.content }}</div>
+              </div>
+              
+              <!-- 查看更多回复 -->
+              <button v-if="consult.replies.length > 3" class="toggleRepliesBtn" @click="consult.showReplies = !consult.showReplies">
+                <i :class="consult.showReplies ? 'fa fa-chevron-up' : 'fa fa-chevron-down'"></i>
+                {{ consult.showReplies ? '收起回复' : `查看全部 ${consult.replies.length} 条回复` }}
+              </button>
+            </div>
+            
+            <!-- 回复输入框 -->
+            <div v-if="activeConsultId === consult.id" class="consultReplyInput">
+              <textarea 
+                v-model="consultReplyContent" 
+                :placeholder="replyToUser ? `回复 @${replyToUser}...` : `回复 @${consult.buyerName}...`" 
+                rows="2"
+              ></textarea>
+              <div class="replyActions">
+                <button class="cancelBtn" @click="cancelConsultReply">取消</button>
+                <button class="submitBtn" @click="submitConsultReply(consult)" :disabled="!consultReplyContent.trim()">发送</button>
+              </div>
             </div>
           </div>
         </div>
@@ -316,7 +349,17 @@ interface Consult {
   buyerAvatar: string
   time: string
   content: string
-  reply?: string
+  replies?: ConsultReply[]
+  showReplies?: boolean
+}
+
+interface ConsultReply {
+  id: number
+  isSeller: boolean
+  name: string
+  avatar?: string
+  time: string
+  content: string
 }
 
 interface Intention {
@@ -355,6 +398,55 @@ const currentIndex = ref(0)
 const images = ref<ProductImage[]>([])
 const isLoading = ref(true)
 
+// 咨询回复相关
+const activeConsultId = ref<number | null>(null)
+const consultReplyContent = ref('')
+const replyToUser = ref<string | null>(null)
+
+const toggleReplyInput = (consult: Consult) => {
+  activeConsultId.value = activeConsultId.value === consult.id ? null : consult.id
+  consultReplyContent.value = ''
+  replyToUser.value = null
+}
+
+const openSubReply = (consult: Consult, reply: ConsultReply) => {
+  activeConsultId.value = consult.id
+  replyToUser.value = reply.name
+  consultReplyContent.value = ''
+}
+
+const cancelConsultReply = () => {
+  consultReplyContent.value = ''
+  activeConsultId.value = null
+  replyToUser.value = null
+}
+
+const submitConsultReply = (consult: Consult) => {
+  if (!consultReplyContent.value.trim()) return
+  
+  if (!consult.replies) consult.replies = []
+  
+  const reply: ConsultReply = {
+    id: Date.now(),
+    isSeller: true,
+    name: userStore.userInfo?.username || '卖家',
+    avatar: userStore.userInfo?.avatar,
+    time: '刚刚',
+    content: consultReplyContent.value.trim()
+  }
+  
+  consult.replies.push(reply)
+  cancelConsultReply()
+}
+
+const getDisplayReplies = (consult: Consult) => {
+  if (!consult.replies) return []
+  if (consult.replies.length <= 3 || consult.showReplies) {
+    return consult.replies
+  }
+  return consult.replies.slice(0, 3)
+}
+
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })
 
 const getPublishTime = (id: number) => {
@@ -392,21 +484,66 @@ const loadDetails = () => {
         buyerAvatar: 'https://picsum.photos/id/100/50/50',
         time: '10分钟前',
         content: '您好，请问可以便宜点吗？',
-        reply: '您好，价格已经是最低了，诚心要的话可以包邮。'
+        replies: [
+          {
+            id: 101,
+            isSeller: true,
+            name: '卖家小李',
+            avatar: 'https://picsum.photos/id/101/50/50',
+            time: '5分钟前',
+            content: '您好，价格已经是最低了，诚心要的话可以包邮。'
+          },
+          {
+            id: 102,
+            isSeller: false,
+            name: '买家小李',
+            avatar: 'https://picsum.photos/id/100/50/50',
+            time: '2分钟前',
+            content: '好的，我考虑一下'
+          }
+        ]
       },
       {
         id: 2,
         buyerName: '买家小王',
         buyerAvatar: 'https://picsum.photos/id/101/50/50',
         time: '30分钟前',
-        content: '电池健康度具体是多少？'
+        content: '电池健康度具体是多少？',
+        replies: []
       },
       {
         id: 3,
         buyerName: '买家小张',
         buyerAvatar: 'https://picsum.photos/id/102/50/50',
         time: '1小时前',
-        content: '请问支持当面交易吗？'
+        content: '请问支持当面交易吗？',
+        replies: [
+          {
+            id: 301,
+            isSeller: true,
+            name: '卖家小李',
+            avatar: 'https://picsum.photos/id/101/50/50',
+            time: '50分钟前',
+            content: '支持的，周末在大学城附近'
+          },
+          {
+            id: 302,
+            isSeller: false,
+            name: '买家小张',
+            avatar: 'https://picsum.photos/id/102/50/50',
+            time: '40分钟前',
+            content: '周六下午方便吗？'
+          },
+          {
+            id: 303,
+            isSeller: true,
+            name: '卖家小李',
+            avatar: 'https://picsum.photos/id/101/50/50',
+            time: '30分钟前',
+            content: '可以的，下午2点到5点都行'
+          }
+        ],
+        showReplies: false
       }
     ],
     intentions: [
@@ -475,16 +612,11 @@ const shareProduct = () => {
   alert('复制商品链接成功！')
 }
 
-const refreshStats = () => {
-  alert('数据已刷新')
-}
-
-const replyConsult = (consult: Consult) => {
-  const reply = prompt('请输入回复内容：')
-  if (reply) {
-    consult.reply = reply
-    alert('回复成功')
-  }
+const goToConsult = () => {
+  // 切换到咨询标签页
+  activeTab.value = 'consult'
+  // 滚动到咨询区域
+  document.querySelector('.manageSection')?.scrollIntoView({ behavior: 'smooth' })
 }
 
 const contactBuyer = (item: Intention) => {
@@ -1268,14 +1400,133 @@ onMounted(() => {
 
 .consultReply {
   margin-top: 8px;
-  padding: 8px 10px;
-  background: #fef3c7;
+  padding: 10px 12px;
+  background: #fff;
   border-radius: 6px;
-  font-size: 12px;
-  color: #92400e;
+  font-size: 13px;
+  color: #374151;
+  border-left: 3px solid #6b7280;
+}
+
+.consultReply.seller {
+  border-left-color: #f97316;
+  background: #fff7f0;
+}
+
+.replyHeader {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.replyAvatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.replyAvatar.default {
+  background: #6b7280;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.replyName {
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.replyName.seller {
+  color: #f97316;
+}
+
+.replyBadge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #f97316;
+  color: #fff;
+  border-radius: 4px;
+}
+
+.replyTime {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.replyContent {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #4b5563;
+}
+
+.subReplyBtn {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 150ms;
+}
+
+.subReplyBtn:hover {
+  color: #f97316;
+}
+
+.toggleRepliesBtn {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.toggleRepliesBtn:hover {
+  color: #f97316;
+}
+
+.consultReplyInput {
+  margin-top: 10px;
+}
+
+.consultReplyInput textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  resize: none;
+  font-size: 13px;
+  outline: none;
+}
+
+.consultReplyInput textarea:focus {
+  border-color: #f97316;
+}
+
+.replyActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .intentionNote {
