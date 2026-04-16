@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import Home from '../views/home/Home.vue'
+import Home from '../views/home/Index.vue'
 import Detail from '../views/goods/Detail.vue'
 import SearchPage from '../views/goods/SearchPage.vue'
 import Forum from '../views/forum/Index.vue'
@@ -11,7 +11,7 @@ import OrderList from '../views/order/List.vue'
 import UserLogin from '../views/user/Login.vue'
 import UserRegister from '../views/user/Register.vue'
 import UserLayout from '../views/user/UserLayout.vue' 
-import Center from '../views/user/center.vue'
+import Center from '../views/user/Center.vue'
 
 
 const router = createRouter({

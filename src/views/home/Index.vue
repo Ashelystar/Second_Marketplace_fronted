@@ -34,7 +34,7 @@
           </template>
         </nav>
       </div>
-    </div>
+    </header>
 
     <!-- 主体内容 -->
     <div class="main">
@@ -126,6 +126,7 @@
       </button>
     </div>
   </div>
+
 </template>
 
 <script setup lang="ts">

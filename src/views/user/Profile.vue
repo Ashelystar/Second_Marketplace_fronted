@@ -232,7 +232,7 @@
 import { ref, onMounted } from 'vue'
 
 // 模拟数据
-const originalUser = {
+let originalUser = {
   avatar: '',
   nickname: '小明同学',
   username: 'xiaoming123',
