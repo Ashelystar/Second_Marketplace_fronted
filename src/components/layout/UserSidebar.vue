@@ -73,7 +73,7 @@
         <i class="fa fa-plus"></i>
         <span>卖闲置</span>
       </button>
-    </div>
+
     
     <!-- 信用评价卡片 -->
     <div class="bg-white rounded-lg shadow-sm p-6 mt-6">
@@ -102,6 +102,7 @@
         查看详情 >
       </button>
     </div>
+  </div>
   </div>
 </template>
 
