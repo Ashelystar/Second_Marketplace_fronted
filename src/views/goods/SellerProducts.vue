@@ -286,8 +286,7 @@ const performSearch = () => {
 }
 
 const handleLogin = () => {
-  userStore.login({ id: 1, username: '卖家用户' })
-  alert('登录成功！')
+  router.push('/user/login')
 }
 
 const goToDetail = (id: number) => {
