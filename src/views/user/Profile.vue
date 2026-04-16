@@ -1,244 +1,304 @@
 <template>
-  <section class="page-panel profile-panel">
-    <div class="profile-top-card">
-      <div class="profile-avatar">
-        <span>{{ shortName }}</span>
-      </div>
-      <div class="profile-info">
-        <strong>{{ profile?.nickname || '销售人员' }}</strong>
-        <p>{{ profile?.username || 'sales_user' }}</p>
-        <div class="status-badges">
-          <span class="badge">{{ profile?.user_status || 'active' }}</span>
-          <span class="badge">权限: {{ profile?.can_buy ? '买家' : '' }} {{ profile?.can_sell ? '卖家' : '' }}</span>
+  <div>
+    <!-- 页面标题 -->
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+      <h1 class="text-2xl font-semibold mb-6 flex items-center gap-2">
+        <i class="fa fa-user-circle text-xianyuText"></i>
+        个人资料
+      </h1>
+      
+      <!-- 基本信息 -->
+      <div class="max-w-3xl">
+        <!-- 头像上传 -->
+        <div class="mb-8">
+          <label class="block text-sm font-medium text-gray-700 mb-3">头像</label>
+          <div class="flex items-center gap-6">
+            <div class="relative">
+              <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow">
+                <img 
+                  v-if="user.avatar" 
+                  :src="user.avatar" 
+                  alt="头像"
+                  class="w-full h-full object-cover"
+                >
+                <div v-else class="w-full h-full bg-gray-300 flex items-center justify-center text-white text-3xl">
+                  {{ user.nickname?.charAt(0) || '用' }}
+                </div>
+              </div>
+              <label for="avatar-upload" class="absolute bottom-0 right-0 w-8 h-8 bg-xianyuText text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-xianyuText/90">
+                <i class="fa fa-camera text-sm"></i>
+                <input 
+                  id="avatar-upload" 
+                  type="file" 
+                  accept="image/*" 
+                  class="hidden" 
+                  @change="handleAvatarUpload"
+                >
+              </label>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500 mb-2">支持 jpg、png 格式，大小不超过 2MB</p>
+              <button 
+                @click="$refs.avatarUpload.click()"
+                class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+              >
+                更换头像
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="profile-actions">
-        <button class="small-button" @click="refreshProfile">刷新</button>
-        <button class="small-button secondary" @click="handleLogout">退出登录</button>
+        
+        <!-- 个人资料表单 -->
+        <form @submit.prevent="saveProfile" class="space-y-6">
+          <!-- 昵称 -->
+          <div>
+            <label for="nickname" class="block text-sm font-medium text-gray-700 mb-2">昵称</label>
+            <input
+              id="nickname"
+              v-model="user.nickname"
+              type="text"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+              placeholder="请输入昵称"
+              maxlength="20"
+            >
+            <p class="mt-1 text-sm text-gray-500">昵称长度为2-20个字符</p>
+          </div>
+          
+          <!-- 用户名 -->
+          <div>
+            <label for="username" class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+            <input
+              id="username"
+              v-model="user.username"
+              type="text"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+              placeholder="请输入用户名"
+              disabled
+            >
+            <p class="mt-1 text-sm text-gray-500">用户名不可修改</p>
+          </div>
+          
+          <!-- 性别 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">性别</label>
+            <div class="flex gap-4">
+              <label class="flex items-center">
+                <input 
+                  v-model="user.gender" 
+                  type="radio" 
+                  value="male" 
+                  class="mr-2"
+                >
+                <span>男</span>
+              </label>
+              <label class="flex items-center">
+                <input 
+                  v-model="user.gender" 
+                  type="radio" 
+                  value="female" 
+                  class="mr-2"
+                >
+                <span>女</span>
+              </label>
+              <label class="flex items-center">
+                <input 
+                  v-model="user.gender" 
+                  type="radio" 
+                  value="secret" 
+                  class="mr-2"
+                >
+                <span>保密</span>
+              </label>
+            </div>
+          </div>
+          
+          <!-- 生日 -->
+          <div>
+            <label for="birthday" class="block text-sm font-medium text-gray-700 mb-2">生日</label>
+            <input
+              id="birthday"
+              v-model="user.birthday"
+              type="date"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            >
+          </div>
+          
+          <!-- 所在地 -->
+          <div>
+            <label for="location" class="block text-sm font-medium text-gray-700 mb-2">所在地</label>
+            <div class="grid grid-cols-2 gap-4">
+              <select 
+                v-model="user.province"
+                class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+              >
+                <option value="">请选择省份</option>
+                <option v-for="province in provinces" :key="province" :value="province">{{ province }}</option>
+              </select>
+              <select 
+                v-model="user.city"
+                :disabled="!user.province"
+                class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+              >
+                <option value="">请选择城市</option>
+                <option v-for="city in getCities(user.province)" :key="city" :value="city">{{ city }}</option>
+              </select>
+            </div>
+          </div>
+          
+          <!-- 个性签名 -->
+          <div>
+            <label for="bio" class="block text-sm font-medium text-gray-700 mb-2">个性签名</label>
+            <textarea
+              id="bio"
+              v-model="user.bio"
+              rows="3"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+              placeholder="介绍一下自己吧～"
+              maxlength="100"
+            ></textarea>
+            <div class="flex justify-between mt-1">
+              <p class="text-sm text-gray-500">最多100个字符</p>
+              <span class="text-sm" :class="user.bio.length > 100 ? 'text-red-500' : 'text-gray-500'">
+                {{ user.bio.length }}/100
+              </span>
+            </div>
+          </div>
+          
+          <!-- 保存按钮 -->
+          <div class="flex justify-end gap-4 pt-6 border-t border-gray-200">
+            <button 
+              type="button" 
+              @click="resetForm"
+              class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button 
+              type="submit"
+              class="px-6 py-2 bg-xianyuText text-white rounded-lg hover:bg-xianyuText/90"
+            >
+              保存修改
+            </button>
+          </div>
+        </form>
       </div>
     </div>
-
-    <div class="stats-grid">
-      <article class="stat-card">
-        <p>我的订单</p>
-        <strong>{{ stats.total_orders }}</strong>
-      </article>
-      <article class="stat-card">
-        <p>我的客户</p>
-        <strong>{{ stats.total_customers }}</strong>
-      </article>
-      <article class="stat-card">
-        <p>收藏商品</p>
-        <strong>{{ stats.total_favorites }}</strong>
-      </article>
-      <article class="stat-card">
-        <p>好评率</p>
-        <strong>{{ stats.positive_rate }}%</strong>
-      </article>
-    </div>
-
-    <div class="profile-panel-card">
-      <h3>个人资料</h3>
-      <div class="profile-detail-grid">
-        <div>
-          <label>用户名</label>
-          <p>{{ profile?.username || '-' }}</p>
+    
+    <!-- 账号安全卡片 -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+      <h3 class="font-semibold text-lg mb-4">账号安全</h3>
+      <div class="space-y-4">
+        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+              <i class="fa fa-phone text-blue-600"></i>
+            </div>
+            <div>
+              <p class="font-medium">手机绑定</p>
+              <p class="text-sm text-gray-500">{{ user.phone || '未绑定' }}</p>
+            </div>
+          </div>
+          <button 
+            @click="$router.push('/user/setting')"
+            class="px-4 py-2 text-xianyuText border border-xianyuText rounded-lg hover:bg-xianyuText/5"
+          >
+            管理
+          </button>
         </div>
-        <div>
-          <label>手机号</label>
-          <p>{{ profile?.phone || '未绑定' }}</p>
-        </div>
-        <div>
-          <label>注册时间</label>
-          <p>{{ profile?.registered_at?.slice(0, 10) }}</p>
-        </div>
-        <div>
-          <label>最后登录</label>
-          <p>{{ profile?.last_login_at?.slice(0, 16) || '-' }}</p>
+        
+        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+              <i class="fa fa-envelope text-green-600"></i>
+            </div>
+            <div>
+              <p class="font-medium">邮箱绑定</p>
+              <p class="text-sm text-gray-500">{{ user.email || '未绑定' }}</p>
+            </div>
+          </div>
+          <button 
+            @click="$router.push('/user/setting')"
+            class="px-4 py-2 text-xianyuText border border-xianyuText rounded-lg hover:bg-xianyuText/5"
+          >
+            管理
+          </button>
         </div>
       </div>
     </div>
-
-    <div class="profile-panel-card">
-      <h3>快速入口</h3>
-      <div class="profile-actions-grid">
-        <RouterLink to="/orders" class="action-card">交易订单</RouterLink>
-        <RouterLink to="/orders?status=pending_payment" class="action-card">待付款</RouterLink>
-        <RouterLink to="/orders?status=shipped" class="action-card">待收货</RouterLink>
-        <RouterLink to="/orders?status=completed" class="action-card">已完成</RouterLink>
-      </div>
-    </div>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
+import { ref, onMounted } from 'vue'
 
-const userStore = useUserStore()
-const router = useRouter()
+// 模拟数据
+let originalUser = {
+  avatar: '',
+  nickname: '小明同学',
+  username: 'xiaoming123',
+  gender: 'male',
+  birthday: '1995-05-15',
+  province: '广东省',
+  city: '广州市',
+  bio: '热爱生活，喜欢分享，让闲置物品找到新主人！',
+  phone: '138****5678',
+  email: 'xiaoming@example.com'
+}
 
-const profile = computed(() => userStore.profile)
-const stats = computed(() => userStore.stats)
-const shortName = computed(() => profile.value?.nickname?.slice(0, 2) || '销')
+const user = ref({ ...originalUser })
 
-async function refreshProfile() {
-  try {
-    await userStore.fetchProfile()
-    await userStore.fetchStats()
-  } catch (error) {
-    alert('请先登录')
-    router.push('/login')
+// 省份城市数据
+const provinces = ref([
+  '北京市', '上海市', '天津市', '重庆市',
+  '河北省', '山西省', '辽宁省', '吉林省', '黑龙江省',
+  '江苏省', '浙江省', '安徽省', '福建省', '江西省', '山东省',
+  '河南省', '湖北省', '湖南省', '广东省', '海南省',
+  '四川省', '贵州省', '云南省', '陕西省', '甘肃省',
+  '青海省', '台湾省', '内蒙古自治区', '广西壮族自治区',
+  '西藏自治区', '宁夏回族自治区', '新疆维吾尔自治区', '香港特别行政区', '澳门特别行政区'
+])
+
+const cities = {
+  '广东省': ['广州市', '深圳市', '珠海市', '汕头市', '佛山市', '韶关市', '湛江市', '肇庆市', '江门市', '茂名市', '惠州市', '梅州市', '汕尾市', '河源市', '阳江市', '清远市', '东莞市', '中山市', '潮州市', '揭阳市', '云浮市'],
+  '北京市': ['东城区', '西城区', '朝阳区', '丰台区', '石景山区', '海淀区', '门头沟区', '房山区', '通州区', '顺义区', '昌平区', '大兴区', '怀柔区', '平谷区', '密云区', '延庆区'],
+  '上海市': ['黄浦区', '徐汇区', '长宁区', '静安区', '普陀区', '虹口区', '杨浦区', '闵行区', '宝山区', '嘉定区', '浦东新区', '金山区', '松江区', '青浦区', '奉贤区', '崇明区']
+  // 其他省份的城市数据...
+}
+
+const getCities = (province: string) => {
+  return cities[province as keyof typeof cities] || []
+}
+
+const handleAvatarUpload = (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (file) {
+    if (file.size > 2 * 1024 * 1024) {
+      alert('图片大小不能超过2MB')
+      return
+    }
+    
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      user.value.avatar = e.target?.result as string
+    }
+    reader.readAsDataURL(file)
   }
 }
 
-async function handleLogout() {
-  await userStore.logout()
-  router.push('/login')
+const saveProfile = () => {
+  // 这里调用API保存用户资料
+  console.log('保存用户资料:', user.value)
+  alert('资料保存成功！')
+  originalUser = { ...user.value }
 }
 
-onMounted(async () => {
-  try {
-    await refreshProfile()
-  } catch {
-    router.push('/login')
+const resetForm = () => {
+  if (confirm('确定要放弃修改吗？所有未保存的更改都会丢失。')) {
+    user.value = { ...originalUser }
   }
+}
+
+onMounted(() => {
+  // 这里可以加载用户资料
 })
 </script>
-
-<style scoped>
-.page-panel {
-  display: grid;
-  gap: 24px;
-}
-
-.profile-top-card,
-.profile-panel-card {
-  background: #fff;
-  border-radius: 24px;
-  padding: 28px;
-  box-shadow: 0 12px 32px rgba(19, 23, 33, 0.08);
-}
-
-.profile-top-card {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 24px;
-  align-items: center;
-}
-
-.profile-avatar {
-  width: 88px;
-  height: 88px;
-  border-radius: 24px;
-  background: #ffdfb3;
-  display: grid;
-  place-items: center;
-  color: #ba5600;
-  font-size: 2rem;
-  font-weight: 800;
-}
-
-.profile-info strong {
-  display: block;
-  font-size: 1.7rem;
-  margin-bottom: 8px;
-}
-
-.profile-info p {
-  margin: 0;
-  color: #6a6a6a;
-}
-
-.status-badges {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 14px;
-}
-
-.badge {
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: #fff3db;
-  color: #b25600;
-  font-size: 0.88rem;
-}
-
-.profile-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.small-button {
-  padding: 12px 16px;
-  border: none;
-  border-radius: 999px;
-  background: #ff7e00;
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.small-button.secondary {
-  background: #f2f2f4;
-  color: #333;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 18px;
-}
-
-.stat-card {
-  background: #fff7e5;
-  padding: 22px;
-  border-radius: 20px;
-}
-
-.stat-card p {
-  margin: 0 0 10px;
-  color: #6a6a6a;
-}
-
-.stat-card strong {
-  font-size: 2rem;
-}
-
-.profile-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 18px;
-}
-
-.profile-detail-grid label {
-  display: block;
-  margin-bottom: 8px;
-  color: #666;
-}
-
-.profile-detail-grid p {
-  margin: 0;
-  color: #222;
-  font-weight: 600;
-}
-
-.profile-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 16px;
-}
-
-.action-card {
-  display: block;
-  padding: 18px 20px;
-  border-radius: 20px;
-  background: #fff8ee;
-  color: #343434;
-  text-decoration: none;
-  font-weight: 700;
-}
-</style>

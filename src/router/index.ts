@@ -1,7 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
 import Home from '../views/home/Index.vue'
 import Detail from '../views/goods/Detail.vue'
-import SearchPage from '../views/goods/Search.vue'
+import SearchPage from '../views/goods/SearchPage.vue'
 import Forum from '../views/forum/Index.vue'
 import GoodsList from '../views/goods/List.vue'
 import Cart from '../views/cart/Index.vue'
@@ -9,6 +10,9 @@ import ChatList from '../views/chat/Index.vue'
 import OrderList from '../views/order/List.vue'
 import UserLogin from '../views/user/Login.vue'
 import UserRegister from '../views/user/Register.vue'
+import UserLayout from '../views/user/UserLayout.vue' 
+import Center from '../views/user/Center.vue'
+
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -19,7 +23,7 @@ const router = createRouter({
       name: 'home',
       component: Home,
     },
-    
+
     // 商品模块路由
     {
       path: '/goods',
@@ -45,19 +49,29 @@ const router = createRouter({
     {
       path: '/publish',
       name: 'publish',
-      component: () => import('../views/goods/Publish.vue'),
+      component: () => import('../views/goods/EditProduct.vue'),
     },
     {
       path: '/edit',
       name: 'edit',
-      component: () => import('../views/goods/Publish.vue'),
+      component: () => import('../views/goods/EditProduct.vue'),
     },
-    
+
     // 论坛模块路由
     {
       path: '/forum',
       name: 'forum',
       component: Forum,
+    },
+    {
+      path: '/orders',
+      name: 'orders',
+      component: () => import('../views/order/Orders.vue'),
+    },
+    {
+      path: '/checkout',
+      name: 'checkout',
+      component: () => import('../views/order/Checkout.vue'),
     },
     {
       path: '/forum/new',
@@ -75,14 +89,14 @@ const router = createRouter({
       name: 'forum-search',
       component: () => import('../views/forum/ForumSearch.vue'),
     },
-    
+
     // 购物车模块路由
     {
       path: '/cart',
       name: 'cart',
-      component: Cart,
+      component: () => import('../views/goods/Cart.vue'),
     },
-    
+
     // 订单模块路由
     {
       path: '/order',
@@ -111,7 +125,7 @@ const router = createRouter({
       name: 'orders',
       component: () => import('../views/order/Orders.vue'),
     },
-    
+
     // 聊天模块路由
     {
       path: '/chat',
@@ -124,7 +138,7 @@ const router = createRouter({
       component: () => import('../views/chat/Room.vue'),
       props: true,
     },
-    
+
     // 用户模块路由
     {
       path: '/user/login',
@@ -136,27 +150,43 @@ const router = createRouter({
       name: 'register',
       component: UserRegister,
     },
-    {
-      path: '/user/center',
-      name: 'user-center',
-      component: () => import('../views/user/Center.vue'),
+     {
+      path: '/user',
+      component: UserLayout,
+      children: [
+        {
+          path: 'center',
+          name: 'user-center',  
+          component: Center,
+        },
+        {
+          path: 'profile',
+          name: 'user-profile',
+          component: () => import('../views/user/Profile.vue'),
+        },
+        {
+          path: 'setting',
+          name: 'user-setting',
+          component: () => import('../views/user/Setting.vue'),
+        },
+        {
+          path: 'address',
+          name: 'user-address',
+          component: () => import('../views/user/Address.vue'),
+        },
+         {
+          path: 'orders',
+          name: 'user-orders',
+          component: () => import('../views/user/orders.vue'),
+        },
+        {
+          path: 'favorites',
+          name: 'user-favorites',
+          component: () => import('../views/user/favorites.vue'),
+        },
+      ],
     },
-    {
-      path: '/user/profile',
-      name: 'user-profile',
-      component: () => import('../views/user/Profile.vue'),
-    },
-    {
-      path: '/user/setting',
-      name: 'user-setting',
-      component: () => import('../views/user/Setting.vue'),
-    },
-    {
-      path: '/user/address',
-      name: 'user-address',
-      component: () => import('../views/user/Address.vue'),
-    },
-    
+
     // 错误页面路由
     {
       path: '/:pathMatch(.*)*',
