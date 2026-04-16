@@ -1,17 +1,19 @@
 <template>
-  <div class="app">
-    <main class="main">
-      <RouterView />
-    </main>
+  <div id="app">
+    <!-- 路由出口 -->
+    <RouterView />
   </div>
 </template>
 
-<style scoped>
-.app {
-  min-height: 100vh;
-}
+<script setup lang="ts">
+// 主组件逻辑
+</script>
 
-.main {
-  padding: 0;
+<style>
+#app {
+  font-family: Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #2c3e50;
 }
 </style>
