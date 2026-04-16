@@ -278,7 +278,18 @@ const loadError = ref('')
 const isFavorited = ref(false)
 
 const toggleFavorite = () => {
-  isFavorited.value = !isFavorited.value
+  if (product.value) {
+    userStore.toggleFavorite({
+      id: product.value.id,
+      title: product.value.title,
+      price: product.value.price,
+      image: product.value.image,
+      condition: product.value.condition,
+      location: product.value.location,
+      addTime: new Date().toLocaleString()
+    })
+    isFavorited.value = userStore.isFavorited(product.value.id)
+  }
 }
 
 const goToCheckout = () => {
@@ -374,8 +385,19 @@ watch(() => route.query.id, (id) => {
   }
 }, { immediate: true })
 
+// 监听商品变化，更新收藏状态
+watch(() => product.value?.id, (newId) => {
+  if (newId) {
+    isFavorited.value = userStore.isFavorited(newId)
+  }
+})
+
 onMounted(() => {
   store.initialize()
+  // 初始化收藏状态
+  if (product.value) {
+    isFavorited.value = userStore.isFavorited(product.value.id)
+  }
 })
 </script>
 

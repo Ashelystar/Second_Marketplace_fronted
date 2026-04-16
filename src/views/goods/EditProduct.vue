@@ -1,15 +1,26 @@
 <template>
   <div class="page">
     <!-- 顶部导航 -->
-    <header class="header">
-      <div class="headerLeft">
-        <button class="backBtn" @click="goBack">
-          <i class="fa fa-arrow-left"></i>
-        </button>
-        <h1 class="title">编辑商品</h1>
+    <div class="top">
+      <div class="topInner">
+        <div class="left">
+          <button class="backBtn" @click="goBack">
+            <i class="fa fa-arrow-left"></i>
+          </button>
+          <span class="pageTitle">编辑商品</span>
+        </div>
+
+        <nav class="navLinks">
+          <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
+          <template v-if="userStore.isLoggedIn">
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+          </template>
+          <template v-else>
+            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
+          </template>
+        </nav>
       </div>
-      <button class="saveBtn" @click="handleSave">保存</button>
-    </header>
+    </div>
 
     <!-- 表单 -->
     <main class="form">
@@ -162,32 +173,36 @@
       <!-- 商品标签 -->
       <section class="formSection">
         <h3>商品标签（选填）</h3>
-        <div class="tags">
-          <span v-for="(tag, index) in form.tags" :key="index" class="tag">
-            {{ tag }}
-            <button @click="removeTag(index)"><i class="fa fa-times"></i></button>
-          </span>
-        </div>
-        <div class="tagInput">
-          <input
-            v-model="newTag"
-            type="text"
-            placeholder="添加标签后回车"
-            @keypress.enter="addTag"
-          />
-          <button @click="addTag">添加</button>
-        </div>
-        <div class="suggestTags">
-          <button v-for="tag in suggestedTags" :key="tag" @click="form.tags.push(tag)">
-            + {{ tag }}
-          </button>
+        <div class="tagsContainer">
+          <div class="tags">
+            <span v-for="(tag, index) in form.tags" :key="index" class="tag">
+              {{ tag }}
+              <button @click="removeTag(index)"><i class="fa fa-times"></i></button>
+            </span>
+          </div>
+          <div class="tagInput">
+            <input
+              v-model="newTag"
+              type="text"
+              placeholder="添加标签后回车"
+              @keypress.enter="addTag"
+            />
+            <button @click="addTag">添加</button>
+          </div>
+          <div class="suggestTags">
+            <button v-for="tag in suggestedTags" :key="tag" @click="form.tags.push(tag)">
+              + {{ tag }}
+            </button>
+          </div>
         </div>
       </section>
     </main>
 
     <!-- 底部保存 -->
     <div class="bottomBar">
-      <button class="saveFullBtn" @click="handleSave">保存修改</button>
+      <button class="saveFullBtn" @click="handleSave">
+        {{ isEditing ? '保存修改' : '保存并发布' }}
+      </button>
     </div>
   </div>
 </template>
@@ -196,14 +211,17 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
+import { useUserStore } from '@/stores/userStore'
 
 defineOptions({ name: 'EditProduct' })
 
 const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
+const userStore = useUserStore()
 
 const productId = ref<number | null>(null)
+const isEditing = ref(false)
 const newTag = ref('')
 
 const categories = ['手机数码', '电脑办公', '数码配件', '家用电器', '服饰鞋包', '美妆护肤', '图书音像', '家居用品', '运动户外', '其他闲置']
@@ -229,6 +247,7 @@ const form = reactive({
 const loadProduct = () => {
   const id = parseInt(route.query.id as string)
   if (!isNaN(id)) {
+    isEditing.value = true
     productId.value = id
     const product = store.getProductById(id)
     if (product) {
@@ -299,6 +318,10 @@ const handleSave = () => {
 
 const goBack = () => router.back()
 
+const handleLogin = () => {
+  router.push('/user/login')
+}
+
 onMounted(() => {
   store.initialize()
   loadProduct()
@@ -308,24 +331,29 @@ onMounted(() => {
 <style scoped>
 .page {
   min-height: 100vh;
-  background: var(--bg);
+  background: #f5f5f5;
   padding-bottom: 100px;
 }
 
 /* 顶部导航 */
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
+.top {
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 100;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.headerLeft {
+.topInner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.left {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -336,47 +364,56 @@ onMounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text);
+  color: #374151;
   font-size: 18px;
 }
 
-.title {
-  font-size: 18px;
+.pageTitle {
+  font-size: 17px;
   font-weight: 600;
-  margin: 0;
+  color: #1f2937;
+  padding-left: 12px;
+  border-left: 1px solid #e5e7eb;
 }
 
-.saveBtn {
-  padding: 6px 16px;
-  background: #f97316;
-  color: #fff;
-  border: none;
-  border-radius: 999px;
+.navLinks {
+  display: flex;
+  gap: 20px;
+}
+
+.navLinks a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: #6b7280;
   font-size: 14px;
-  cursor: pointer;
-  transition: background 150ms;
+  transition: color 150ms;
 }
 
-.saveBtn:hover {
-  background: #ea580c;
+.navLinks a:hover {
+  color: #f97316;
 }
 
 /* 表单 */
 .form {
   max-width: 800px;
   margin: 0 auto;
-  padding: 20px 16px;
+  padding: 20px;
 }
 
 .formSection {
-  margin-bottom: 28px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
 }
 
 .formSection h3 {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   margin: 0 0 12px;
-  color: var(--text);
+  color: #1f2937;
 }
 
 /* 图片上传 */
@@ -437,7 +474,7 @@ onMounted(() => {
 
 .uploadArea {
   aspect-ratio: 1;
-  border: 2px dashed var(--border);
+  border: 2px dashed #d1d5db;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -445,7 +482,7 @@ onMounted(() => {
   justify-content: center;
   gap: 4px;
   cursor: pointer;
-  color: var(--muted);
+  color: #9ca3af;
   font-size: 12px;
   transition: all 150ms;
 }
@@ -466,7 +503,7 @@ onMounted(() => {
 
 .hint {
   font-size: 12px;
-  color: var(--muted);
+  color: #9ca3af;
   margin: 8px 0 0;
 }
 
@@ -475,7 +512,7 @@ onMounted(() => {
   width: 100%;
   height: 46px;
   padding: 0 14px;
-  border: 1px solid var(--border);
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
   font-size: 14px;
   outline: none;
@@ -492,7 +529,7 @@ onMounted(() => {
   width: 100%;
   min-height: 120px;
   padding: 12px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
   font-size: 14px;
   outline: none;
@@ -510,7 +547,7 @@ onMounted(() => {
 .charCount {
   text-align: right;
   font-size: 12px;
-  color: var(--muted);
+  color: #9ca3af;
   margin-top: 6px;
 }
 
@@ -528,7 +565,7 @@ onMounted(() => {
 .priceField label {
   display: block;
   font-size: 13px;
-  color: var(--muted);
+  color: #6b7280;
   margin-bottom: 6px;
 }
 
@@ -541,14 +578,14 @@ onMounted(() => {
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--muted);
+  color: #6b7280;
 }
 
 .priceInput input {
   width: 100%;
   height: 46px;
   padding: 0 14px 0 28px;
-  border: 1px solid var(--border);
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
   font-size: 14px;
   outline: none;
@@ -572,6 +609,7 @@ onMounted(() => {
   gap: 6px;
   cursor: pointer;
   font-size: 14px;
+  color: #374151;
 }
 
 .checkbox input {
@@ -591,16 +629,17 @@ onMounted(() => {
   height: 36px;
   padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #f5f5f5;
-  color: var(--text);
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
   cursor: pointer;
   font-size: 14px;
   transition: all 150ms;
 }
 
 .chip:hover {
-  background: #f0f0f0;
+  border-color: #f97316;
+  color: #f97316;
 }
 
 .chip.active {
@@ -622,7 +661,7 @@ onMounted(() => {
 .field label {
   display: block;
   font-size: 13px;
-  color: var(--muted);
+  color: #6b7280;
   margin-bottom: 6px;
 }
 
@@ -630,36 +669,47 @@ onMounted(() => {
   height: 46px;
 }
 
-/* 标签 */
+/* 标签区域 */
+.tagsContainer {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
+  min-height: 32px;
 }
 
 .tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  background: #fff7ed;
-  color: #f97316;
-  border-radius: 999px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: #fff;
+  border-radius: 16px;
   font-size: 13px;
+  font-weight: 500;
 }
 
 .tag button {
   background: none;
   border: none;
-  color: inherit;
+  color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   padding: 0;
-  font-size: 10px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
 }
 
 .tag button:hover {
-  color: #dc2626;
+  color: #fff;
 }
 
 .tagInput {
@@ -671,7 +721,7 @@ onMounted(() => {
   flex: 1;
   height: 38px;
   padding: 0 12px;
-  border: 1px solid var(--border);
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 13px;
   outline: none;
@@ -685,40 +735,45 @@ onMounted(() => {
 .tagInput button {
   height: 38px;
   padding: 0 14px;
-  border: 1px solid var(--border);
+  border: 1px solid #f97316;
   border-radius: 8px;
-  background: #f5f5f5;
-  color: var(--text);
+  background: #fff;
+  color: #f97316;
   cursor: pointer;
   font-size: 13px;
-  transition: background 150ms;
+  font-weight: 500;
+  transition: all 150ms;
 }
 
 .tagInput button:hover {
-  background: #e5e5e5;
+  background: #f97316;
+  color: #fff;
 }
 
 .suggestTags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e5e7eb;
 }
 
 .suggestTags button {
-  padding: 4px 10px;
-  background: #f9f9f9;
-  border: none;
-  border-radius: 4px;
-  color: var(--muted);
+  padding: 4px 12px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 16px;
+  color: #6b7280;
   font-size: 12px;
   cursor: pointer;
   transition: all 150ms;
 }
 
 .suggestTags button:hover {
-  background: #f0f0f0;
-  color: var(--text);
+  border-color: #f97316;
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.05);
 }
 
 /* 底部保存 */
@@ -750,18 +805,33 @@ onMounted(() => {
 
 /* 响应式 */
 @media (max-width: 600px) {
+  .topInner {
+    padding: 10px 12px;
+  }
+  
+  .navLinks {
+    gap: 12px;
+  }
+  
+  .navLinks a span {
+    display: none;
+  }
+
   .imageGrid {
     grid-template-columns: repeat(3, 1fr);
   }
+  
   .priceRow, .shipRow {
     flex-direction: column;
     gap: 12px;
   }
+  
   .bottomBar {
     left: 16px;
     right: 16px;
     transform: none;
   }
+  
   .saveFullBtn {
     width: 100%;
   }
