@@ -53,7 +53,9 @@
             <i class="fa fa-chevron-down arrow"></i>
           </div>
           <div class="subMenu">
-            <a href="#" class="subItem">我发布的</a>
+            <a href="#" class="subItem" @click.prevent="router.push('/seller/products')">
+              <i class="fa fa-cube"></i> 我发布的
+            </a>
             <a href="#" class="subItem">我卖出的</a>
             <a href="#" class="subItem active">我买到的</a>
           </div>

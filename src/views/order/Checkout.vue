@@ -156,7 +156,7 @@
             </div>
             <i class="fa fa-check-circle checkIcon" v-if="selectedAddress?.id === addr.id"></i>
           </div>
-          <button class="addAddressBtn">
+          <button class="addAddressBtn" @click="goToAddAddress">
             <i class="fa fa-plus"></i>
             添加新地址
           </button>
@@ -290,12 +290,31 @@ const addToCart = () => {
   router.push('/cart')
 }
 
+const goToAddAddress = () => {
+  // 跳转到地址管理页面，带上返回参数
+  router.push('/user/address?returnTo=checkout')
+}
+
 onMounted(() => {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
     alert('请先登录后再下单')
     router.push('/')
     return
+  }
+
+  // 处理从地址页面返回的选中地址
+  const savedAddress = localStorage.getItem('selectedAddress')
+  if (savedAddress) {
+    const addr = JSON.parse(savedAddress)
+    selectedAddress.value = addr
+    // 更新地址列表中的选中状态
+    const existAddr = addressList.value.find(a => a.id === addr.id)
+    if (!existAddr) {
+      // 如果是新添加的地址，添加到列表中
+      addressList.value.push(addr)
+    }
+    localStorage.removeItem('selectedAddress')
   }
 
   // 检查是否来自购物车
