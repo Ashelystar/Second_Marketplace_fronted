@@ -8,8 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
-            <i class="fa fa-fish"></i>
-            <span>闲鱼</span>
+            <span>荔园交易</span>
           </a>
         </div>
 
@@ -29,7 +28,7 @@
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <template v-if="userStore.isLoggedIn">
             <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
-            <a href="#"><i class="fa fa-user"></i> 我的</a>
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
           </template>
           <template v-else>
             <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
@@ -270,7 +269,7 @@ const locations = ['北京', '上海', '深圳', '广州', '杭州', '南京', '
 const floatingTools = [
   { id: 1, icon: 'fa fa-plus', label: '发闲置', action: () => alert('正在跳转到发布页面...') },
   { id: 2, icon: 'fa fa-envelope', label: '消息', action: () => alert('正在跳转到消息页面...') },
-  { id: 3, icon: 'fa fa-mobile', label: 'APP', action: () => alert('打开应用商店下载闲鱼APP') },
+  { id: 3, icon: 'fa fa-mobile', label: 'APP', action: () => alert('打开应用商店下载荔园APP') },
   { id: 4, icon: 'fa fa-commenting', label: '反馈', action: () => alert('欢迎提出宝贵意见和建议！') },
   { id: 5, icon: 'fa fa-headphones', label: '客服', action: () => alert('正在为您连接客服...') }
 ]
@@ -336,8 +335,7 @@ const handleClickOutside = (e: MouseEvent) => {
 }
 
 const handleLogin = () => {
-  userStore.login({ id: 1, username: '用户' })
-  alert('登录成功！')
+  router.push('/user/login')
 }
 
 onMounted(() => {

@@ -4,7 +4,6 @@
     <header class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
       <div class="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
         <a href="#" class="flex items-center gap-2" @click.prevent>
-          <i class="fa fa-fish text-2xl text-xianyuText"></i>
           <h1 class="text-xl font-bold text-xianyuText">荔园交易</h1>
         </a>
 
@@ -265,7 +264,7 @@ const mainCategories = [
 const floatingTools = [
   { id: 1, icon: 'fa fa-plus text-gray-700', label: '发闲置', action: () => router.push('/publish')},
   { id: 2, icon: 'fa fa-envelope text-gray-700', label: '消息', action: () => router.push('/chat') },
-  { id: 3, icon: 'fa fa-mobile text-gray-700', label: 'APP', action: () => alert('打开应用商店下载闲鱼APP') },
+  { id: 3, icon: 'fa fa-mobile text-gray-700', label: 'APP', action: () => alert('打开应用商店下载荔园APP') },
   { id: 4, icon: 'fa fa-commenting text-gray-700', label: '反馈', action: () => alert('欢迎提出宝贵意见和建议！') },
   { id: 5, icon: 'fa fa-headphones text-gray-700', label: '客服', action: () => alert('正在为您连接客服...') }
 ]

@@ -8,8 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
-            <i class="fa fa-fish"></i>
-            <span>闲鱼</span>
+            <span>荔园交易</span>
           </a>
         </div>
 
@@ -28,7 +27,7 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <template v-if="userStore.isLoggedIn">
-            <a href="#"><i class="fa fa-user"></i> 我的</a>
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
           </template>
           <template v-else>
             <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
@@ -43,7 +42,7 @@
       <aside class="sidebar">
         <div class="menuSection">
           <div class="menuTitle">
-            <i class="fa fa-user-circle"></i> 我的闲鱼
+            <i class="fa fa-user-circle"></i> 我的荔园
           </div>
         </div>
 
@@ -53,7 +52,9 @@
             <i class="fa fa-chevron-down arrow"></i>
           </div>
           <div class="subMenu">
-            <a href="#" class="subItem">我发布的</a>
+            <a href="#" class="subItem" @click.prevent="router.push('/seller/products')">
+              <i class="fa fa-cube"></i> 我发布的
+            </a>
             <a href="#" class="subItem">我卖出的</a>
             <a href="#" class="subItem active">我买到的</a>
           </div>
@@ -286,8 +287,7 @@ const performSearch = () => {
 }
 
 const handleLogin = () => {
-  userStore.login({ id: 1, username: '用户' })
-  alert('登录成功！')
+  router.push('/user/login')
 }
 
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')

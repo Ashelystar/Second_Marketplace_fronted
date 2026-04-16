@@ -10,6 +10,9 @@
           <a href="#" class="logo" @click.prevent="router.push('/')">
             <span>荔园交易</span>
           </a>
+          <span class="sellerBadge">
+            <i class="fa fa-store"></i> 卖家中心
+          </span>
         </div>
 
         <div class="searchBox">
@@ -22,7 +25,6 @@
             />
             <button @click="performSearch"><i class="fa fa-search"></i></button>
           </div>
-
         </div>
 
         <nav class="navLinks">
@@ -42,9 +44,9 @@
     <div class="breadcrumb">
       <a href="#" @click.prevent="router.push('/')">首页</a>
       <i class="fa fa-angle-right"></i>
-      <span class="muted">{{ product?.category || '手机数码' }}</span>
+      <span class="muted">卖家中心</span>
       <i class="fa fa-angle-right"></i>
-      <span>{{ product?.title || '商品详情' }}</span>
+      <span>商品管理</span>
     </div>
 
     <!-- 加载中 -->
@@ -53,51 +55,22 @@
       <p>加载商品详情中...</p>
     </div>
 
-    <!-- 错误状态 -->
-    <div v-else-if="loadError" class="error">
-      <i class="fa fa-exclamation-triangle"></i>
-      <p>{{ loadError }}</p>
-      <button class="btn btn-primary" @click="loadDetails">重试</button>
-    </div>
-
     <!-- 商品详情 -->
     <main v-else-if="product" class="detail">
-      <!-- 卖家信息 -->
+      <!-- 商品状态卡片 -->
       <div class="sellerCard card">
         <div class="sellerMain">
-          <div class="sellerInfo">
-            <img v-if="product.sellerAvatar" :src="product.sellerAvatar" :alt="product.sellerName" class="avatar" />
-            <div v-else class="avatar avatarDefault">{{ product.sellerName?.charAt(0) }}</div>
-            <div class="sellerText">
-              <div class="sellerName">
-                <strong>{{ product.sellerName }}</strong>
-                <span v-if="product.sellerVerified" class="verified">
-                  <i class="fa fa-check-circle"></i> 已实名
-                </span>
-              </div>
-              <div class="sellerMeta">
-                <span v-if="product.sellerRating" class="rating">
-                  <i class="fa fa-star"></i> {{ product.sellerRating }}
-                </span>
-                <span v-if="product.sellerGoodRate" class="goodRate">
-                  好评率 {{ product.sellerGoodRate }}%
-                </span>
-                <span><i class="fa fa-map-marker"></i> {{ product.location }}</span>
-              </div>
-            </div>
+          <div class="productStatus">
+            <span class="statusTag" :class="product.status === '在售' ? 'onSale' : 'offSale'">
+              <i :class="product.status === '在售' ? 'fa fa-check-circle' : 'fa fa-pause-circle'"></i>
+              {{ product.status }}
+            </span>
+            <span class="productTitle">{{ product.title }}</span>
           </div>
-          <button class="viewProfileBtn">
-            <i class="fa fa-user"></i> 查看主页
-          </button>
-        </div>
-        <div class="sellerStats">
-          <div>在售 <strong>{{ product.sellerOnSale || 0 }}</strong></div>
-          <div>已售 <strong>{{ product.sellerSold || 0 }}</strong></div>
-          <div v-if="product.sellerDeliverySpeed">
-            发货速度 <strong>{{ product.sellerDeliverySpeed }}</strong>
-          </div>
-          <div v-if="product.sellerServiceAttitude">
-            服务态度 <strong>{{ product.sellerServiceAttitude }}</strong>
+          <div class="quickStats">
+            <span><i class="fa fa-eye"></i> {{ product.viewCount }} 浏览</span>
+            <span><i class="fa fa-heart"></i> {{ product.favoriteCount }} 收藏</span>
+            <span><i class="fa fa-comment"></i> {{ product.consultCount }} 咨询</span>
           </div>
         </div>
       </div>
@@ -149,8 +122,8 @@
 
           <!-- 数据统计 -->
           <div class="stats">
-            <span><i class="fa fa-eye"></i> {{ product.viewCount || 0 }}人想要</span>
-            <span><i class="fa fa-heart"></i> {{ product.favoriteCount || 0 }}人收藏</span>
+            <span><i class="fa fa-eye"></i> {{ product.viewCount }}人想要</span>
+            <span><i class="fa fa-heart"></i> {{ product.favoriteCount }}人收藏</span>
             <span><i class="fa fa-clock-o"></i> {{ getPublishTime(product.id) }}</span>
           </div>
 
@@ -182,56 +155,119 @@
             </div>
           </div>
 
-          <!-- 操作按钮 -->
+          <!-- 卖家操作按钮 -->
           <div class="actions">
             <div class="actionRow">
-              <button class="actionBtn" :class="{ active: isFavorited }" @click="toggleFavorite">
-                <i :class="isFavorited ? 'fas fa-star' : 'far fa-star'"></i>
-                {{ isFavorited ? '已收藏' : '收藏' }}
-              </button>
-              <button class="actionBtn">
+              <button class="actionBtn" @click="shareProduct">
                 <i class="fa fa-share-alt"></i> 分享
+              </button>
+              <button class="actionBtn" @click="refreshStats">
+                <i class="fa fa-refresh"></i> 刷新
               </button>
             </div>
             <div class="actionRow">
-              <button class="actionBtn secondary">
-                <i class="fa fa-comment"></i> 聊一聊
+              <button class="actionBtn secondary" @click="toggleStatus">
+                <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
+                {{ product.status === '在售' ? '下架商品' : '重新上架' }}
               </button>
-              <button class="actionBtn primary" @click="goToCheckout">
-                立即购买
+              <button class="actionBtn primary" @click="editProduct">
+                <i class="fa fa-edit"></i> 编辑商品
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 猜你喜欢 -->
-      <section class="recommendations">
-        <div class="recHeader">
-          <div>
-            <h2>猜你喜欢</h2>
-            <p>根据您的浏览记录推荐</p>
-          </div>
-          <button @click="loadRecs"><i class="fa fa-refresh"></i> 换一批</button>
-        </div>
-        <div class="recGrid">
-          <div
-            v-for="r in recommendations"
-            :key="r.id"
-            class="recCard card"
-            @click="goToDetail(r.id)"
+      <!-- 咨询与意向管理 -->
+      <section class="manageSection">
+        <div class="manageTabs">
+          <button 
+            class="tabBtn" 
+            :class="{ active: activeTab === 'consult' }"
+            @click="activeTab = 'consult'"
           >
-            <div class="recImg">
-              <img :src="r.image" :alt="r.title" />
-              <span class="recCondition">{{ r.condition }}</span>
+            <i class="fa fa-comment"></i> 买家咨询 ({{ product.consults?.length || 0 }})
+          </button>
+          <button 
+            class="tabBtn" 
+            :class="{ active: activeTab === 'intention' }"
+            @click="activeTab = 'intention'"
+          >
+            <i class="fa fa-hand-paper"></i> 意向购买 ({{ product.intentions?.length || 0 }})
+          </button>
+        </div>
+
+        <!-- 咨询列表 -->
+        <div v-if="activeTab === 'consult'" class="consultList">
+          <div v-if="!product.consults?.length" class="emptyState">
+            <i class="fa fa-comment-dots"></i>
+            <p>暂无买家咨询</p>
+          </div>
+          <div v-else v-for="consult in product.consults" :key="consult.id" class="consultItem card">
+            <div class="consultHeader">
+              <img :src="consult.buyerAvatar" class="buyerAvatar" />
+              <div class="buyerInfo">
+                <span class="buyerName">{{ consult.buyerName }}</span>
+                <span class="consultTime">{{ consult.time }}</span>
+              </div>
+              <button class="replyBtn" @click="replyConsult(consult)">
+                <i class="fa fa-reply"></i> 回复
+              </button>
             </div>
-            <div class="recInfo">
-              <h4>{{ r.title }}</h4>
-              <span class="recPrice">¥{{ r.price }}</span>
+            <div class="consultContent">{{ consult.content }}</div>
+            <div v-if="consult.reply" class="consultReply">
+              <i class="fa fa-angle-double-right"></i> 您的回复：{{ consult.reply }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 意向列表 -->
+        <div v-if="activeTab === 'intention'" class="intentionList">
+          <div v-if="!product.intentions?.length" class="emptyState">
+            <i class="fa fa-hand-paper"></i>
+            <p>暂无意向买家</p>
+          </div>
+          <div v-else v-for="item in product.intentions" :key="item.id" class="intentionItem card">
+            <div class="intentionHeader">
+              <img :src="item.buyerAvatar" class="buyerAvatar" />
+              <div class="buyerInfo">
+                <span class="buyerName">{{ item.buyerName }}</span>
+                <span class="intentionPrice">出价 ¥{{ item.price }}</span>
+              </div>
+              <div class="intentionActions">
+                <button class="contactBtn" @click="contactBuyer(item)">
+                  <i class="fa fa-comment"></i> 联系
+                </button>
+                <button class="rejectBtn" @click="rejectIntention(item)">
+                  <i class="fa fa-times"></i> 婉拒
+                </button>
+              </div>
+            </div>
+            <div class="intentionNote" v-if="item.note">
+              备注：{{ item.note }}
             </div>
           </div>
         </div>
       </section>
+
+      <!-- 底部操作栏 -->
+      <div class="bottomBar">
+        <button class="deleteBtn" @click="deleteProduct">
+          <i class="fa fa-trash-alt"></i> 删除商品
+        </button>
+        <div class="bottomRight">
+          <button class="shareBtn" @click="shareProduct">
+            <i class="fa fa-share"></i> 分享
+          </button>
+          <button class="editBtn" @click="editProduct">
+            <i class="fa fa-edit"></i> 编辑信息
+          </button>
+          <button class="toggleBtn" :class="product.status === '在售' ? 'off' : 'on'" @click="toggleStatus">
+            <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
+            {{ product.status === '在售' ? '下架' : '上架' }}
+          </button>
+        </div>
+      </div>
     </main>
 
     <!-- 商品不存在 -->
@@ -239,8 +275,8 @@
       <div class="notFoundIcon">
         <i class="fa fa-exclamation-triangle"></i>
       </div>
-      <h3>商品不存在或已下架</h3>
-      <p>该商品可能已被卖家删除或下架</p>
+      <h3>商品不存在或已删除</h3>
+      <p>该商品可能已被删除</p>
       <RouterLink class="btn btn-primary" to="/">返回首页</RouterLink>
     </div>
 
@@ -255,54 +291,71 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
-import type { Product, ProductImage } from '@/types'
 
-defineOptions({ name: 'ProductDetail' })
+defineOptions({ name: 'SellerProductDetail' })
 
 const route = useRoute()
 const router = useRouter()
-const store = useProductStore()
 const userStore = useUserStore()
 
 const searchInput = ref('')
-const product = ref<Product | null>(null)
+const activeTab = ref('consult')
+
+interface ProductImage {
+  id: number
+  url: string
+  alt: string
+}
+
+interface Consult {
+  id: number
+  buyerName: string
+  buyerAvatar: string
+  time: string
+  content: string
+  reply?: string
+}
+
+interface Intention {
+  id: number
+  buyerName: string
+  buyerAvatar: string
+  price: number
+  note?: string
+}
+
+interface ProductData {
+  id: number
+  title: string
+  category: string
+  price: number
+  originalPrice: number
+  image: string
+  images?: ProductImage[]
+  description: string
+  condition: string
+  isNew: boolean
+  canBargain: boolean
+  freight: number
+  status: '在售' | '已下架'
+  viewCount: number
+  favoriteCount: number
+  consultCount: number
+  soldCount: number
+  tags: string[]
+  consults?: Consult[]
+  intentions?: Intention[]
+}
+
+const product = ref<ProductData | null>(null)
 const currentIndex = ref(0)
 const images = ref<ProductImage[]>([])
-const recommendations = ref<Product[]>([])
 const isLoading = ref(true)
-const loadError = ref('')
-const isFavorited = ref(false)
-
-const toggleFavorite = () => {
-  isFavorited.value = !isFavorited.value
-}
-
-const goToCheckout = () => {
-  if (!userStore.isLoggedIn) {
-    alert('请先登录后再下单')
-    return
-  }
-  router.push({ path: '/checkout', query: { productId: route.query.id } })
-}
-
-const handleLogin = () => {
-  router.push('/user/login')
-}
 
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })
-
-const floatingTools = [
-  { id: 1, icon: 'fa fa-plus', label: '发闲置', action: 'publish' },
-  { id: 2, icon: 'fa fa-envelope', label: '消息', action: 'message' },
-  { id: 3, icon: 'fa fa-qrcode', label: '二维码', action: 'qrcode' },
-  { id: 4, icon: 'fa fa-mobile', label: 'APP', action: 'app' },
-  { id: 5, icon: 'fa fa-commenting', label: '反馈', action: 'feedback' },
-  { id: 6, icon: 'fa fa-headphones', label: '客服', action: 'service' }
-]
 
 const getPublishTime = (id: number) => {
   if (id >= 21 && id <= 24) return '今天发布'
@@ -312,35 +365,76 @@ const getPublishTime = (id: number) => {
 }
 
 const loadDetails = () => {
-  const id = parseInt(route.query.id as string)
-  if (isNaN(id)) {
-    loadError.value = '无效的商品ID'
-    isLoading.value = false
-    return
-  }
-  const found = store.getProductById(id)
-  if (found) {
-    product.value = found
-    if (found.images && found.images.length > 0) {
-      images.value = found.images
-    } else {
-      images.value = [
-        { id: 1, url: found.image, alt: found.title },
-        { id: 2, url: `https://picsum.photos/id/${id * 10}/800/800`, alt: found.title + ' 细节图' },
-        { id: 3, url: `https://picsum.photos/id/${id * 20}/800/800`, alt: found.title + ' 包装图' }
-      ]
-    }
-    currentIndex.value = 0
-    isLoading.value = false
-  } else {
-    loadError.value = `未找到商品ID: ${id}`
-    isLoading.value = false
-  }
-}
+  const id = parseInt(route.query.id as string) || 1
 
-const loadRecs = () => {
-  const id = parseInt(route.query.id as string)
-  if (!isNaN(id)) recommendations.value = store.getRecommendations(id, 18)
+  product.value = {
+    id,
+    title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
+    category: '手机数码',
+    price: 6999,
+    originalPrice: 8999,
+    image: 'https://picsum.photos/id/1/800/800',
+    description: '2024年3月购买，使用不到一年，功能完好，配件齐全。因为换了新手机，所以出售。屏幕无划痕，电池健康度95%以上。',
+    condition: '95新',
+    isNew: false,
+    canBargain: true,
+    freight: 0,
+    status: '在售',
+    viewCount: 128,
+    favoriteCount: 23,
+    consultCount: 5,
+    soldCount: 0,
+    tags: ['手机', '苹果', '数码'],
+    consults: [
+      {
+        id: 1,
+        buyerName: '买家小李',
+        buyerAvatar: 'https://picsum.photos/id/100/50/50',
+        time: '10分钟前',
+        content: '您好，请问可以便宜点吗？',
+        reply: '您好，价格已经是最低了，诚心要的话可以包邮。'
+      },
+      {
+        id: 2,
+        buyerName: '买家小王',
+        buyerAvatar: 'https://picsum.photos/id/101/50/50',
+        time: '30分钟前',
+        content: '电池健康度具体是多少？'
+      },
+      {
+        id: 3,
+        buyerName: '买家小张',
+        buyerAvatar: 'https://picsum.photos/id/102/50/50',
+        time: '1小时前',
+        content: '请问支持当面交易吗？'
+      }
+    ],
+    intentions: [
+      {
+        id: 1,
+        buyerName: '买家小明',
+        buyerAvatar: 'https://picsum.photos/id/200/50/50',
+        price: 6500,
+        note: '诚心购买，可以今天交易'
+      },
+      {
+        id: 2,
+        buyerName: '买家小红',
+        buyerAvatar: 'https://picsum.photos/id/201/50/50',
+        price: 6200,
+        note: '学生党，预算有限'
+      }
+    ]
+  }
+
+  images.value = [
+    { id: 1, url: 'https://picsum.photos/id/1/800/800', alt: '商品主图' },
+    { id: 2, url: 'https://picsum.photos/id/10/800/800', alt: '细节图1' },
+    { id: 3, url: 'https://picsum.photos/id/20/800/800', alt: '细节图2' },
+    { id: 4, url: 'https://picsum.photos/id/30/800/800', alt: '细节图3' }
+  ]
+
+  isLoading.value = false
 }
 
 const prevImage = () => { if (currentIndex.value > 0) currentIndex.value-- }
@@ -350,32 +444,81 @@ const performSearch = () => {
   if (searchInput.value.trim()) router.push({ path: '/search', query: { q: searchInput.value.trim() } })
 }
 
-const handleTool = (t: { action: string }) => {
-  const msgs: Record<string, string> = {
-    publish: '正在跳转到发布页面...',
-    message: '正在跳转到消息页面...',
-    qrcode: `商品码功能：扫描二维码查看"${product.value?.title || '当前商品'}"的详细信息`,
-    app: '打开应用商店下载荔园APP',
-    feedback: '欢迎提出宝贵意见和建议！',
-    service: '正在为您连接客服...'
-  }
-  alert(msgs[t.action])
+const handleLogin = () => {
+  router.push('/user/login')
 }
 
-const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
 
-watch(() => route.query.id, (id) => {
-  if (id) {
-    isLoading.value = true
-    store.initialize()
-    loadDetails()
-    loadRecs()
+const toggleStatus = () => {
+  if (!product.value) return
+  if (confirm(product.value.status === '在售' ? '确定要下架该商品吗？' : '确定要重新上架该商品吗？')) {
+    product.value.status = product.value.status === '在售' ? '已下架' : '在售'
+    alert(product.value.status === '在售' ? '商品已上架' : '商品已下架')
   }
-}, { immediate: true })
+}
+
+const editProduct = () => {
+  if (!product.value) return
+  router.push({ path: '/edit', query: { id: product.value.id.toString() } })
+}
+
+const deleteProduct = () => {
+  if (!product.value) return
+  if (confirm('确定要删除该商品吗？删除后不可恢复！')) {
+    alert('商品已删除')
+    router.push('/')
+  }
+}
+
+const shareProduct = () => {
+  alert('复制商品链接成功！')
+}
+
+const refreshStats = () => {
+  alert('数据已刷新')
+}
+
+const replyConsult = (consult: Consult) => {
+  const reply = prompt('请输入回复内容：')
+  if (reply) {
+    consult.reply = reply
+    alert('回复成功')
+  }
+}
+
+const contactBuyer = (item: Intention) => {
+  alert(`正在与 ${item.buyerName} 联系...`)
+}
+
+const rejectIntention = (item: Intention) => {
+  if (confirm(`确定要婉拒 ${item.buyerName} 的购买意向吗？`)) {
+    if (product.value?.intentions) {
+      product.value.intentions = product.value.intentions.filter(i => i.id !== item.id)
+    }
+    alert('已婉拒')
+  }
+}
+
+const floatingTools = [
+  { id: 1, icon: 'fa fa-plus', label: '发布商品' },
+  { id: 2, icon: 'fa fa-list', label: '商品列表' },
+  { id: 3, icon: 'fa fa-chart-bar', label: '数据统计' },
+  { id: 4, icon: 'fa fa-headphones', label: '客服' }
+]
+
+const handleTool = (t: { id: number }) => {
+  const actions: Record<number, string> = {
+    1: '正在跳转到发布页面...',
+    2: '正在跳转到商品列表...',
+    3: '正在跳转到数据统计...',
+    4: '正在为您连接客服...'
+  }
+  alert(actions[t.id])
+}
 
 onMounted(() => {
-  store.initialize()
+  loadDetails()
 })
 </script>
 
@@ -405,7 +548,7 @@ onMounted(() => {
 .left {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -439,6 +582,17 @@ onMounted(() => {
   font-size: 20px;
   font-weight: bold;
   color: #f97316;
+}
+
+.sellerBadge {
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 12px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .searchBox {
@@ -538,7 +692,7 @@ onMounted(() => {
 .spinner {
   width: 48px;
   height: 48px;
-  border: 3px solid var(--border);
+  border: 3px solid #e5e7eb;
   border-top-color: #f97316;
   border-radius: 50%;
   margin: 0 auto 16px;
@@ -551,12 +705,12 @@ onMounted(() => {
 
 .error i, .notFoundIcon {
   font-size: 48px;
-  color: var(--muted);
+  color: #9ca3af;
   margin-bottom: 16px;
 }
 
 .error p, .notFound p {
-  color: var(--muted);
+  color: #9ca3af;
   margin-bottom: 20px;
 }
 
@@ -573,7 +727,7 @@ onMounted(() => {
 
 /* 详情主体 */
 .detail {
-  padding: 0 80px;
+  padding: 0 80px 80px;
 }
 
 /* 卖家卡片 */
@@ -588,87 +742,47 @@ onMounted(() => {
   align-items: center;
 }
 
-.sellerInfo {
+.productStatus {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid rgba(249, 115, 22, 0.2);
-}
-
-.avatarDefault {
-  background: #f97316;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: bold;
-}
-
-.sellerName {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.sellerName strong {
-  font-size: 16px;
-}
-
-.verified {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 12px;
-  color: #22c55e;
-}
-
-.sellerMeta {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.rating {
-  color: #f97316;
-}
-
-.viewProfileBtn {
-  padding: 6px 14px;
-  border: 1px solid #f97316;
-  border-radius: 999px;
-  background: transparent;
-  color: #f97316;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 150ms;
-}
-
-.viewProfileBtn:hover {
-  background: rgba(249, 115, 22, 0.08);
-}
-
-.sellerStats {
-  display: flex;
-  gap: 24px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+.statusTag {
+  padding: 4px 12px;
+  border-radius: 4px;
   font-size: 13px;
-  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.sellerStats strong {
-  color: var(--text);
+.statusTag.onSale {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.statusTag.offSale {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.productTitle {
+  font-size: 14px;
+  color: #374151;
+}
+
+.quickStats {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.quickStats span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* 商品详情网格 - 三列布局 */
@@ -770,7 +884,7 @@ onMounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   cursor: pointer;
   font-size: 16px;
-  color: var(--text);
+  color: #374151;
   transition: opacity 150ms;
 }
 
@@ -818,7 +932,7 @@ onMounted(() => {
 
 .originalPrice {
   font-size: 16px;
-  color: var(--muted);
+  color: #9ca3af;
   text-decoration: line-through;
 }
 
@@ -849,16 +963,16 @@ onMounted(() => {
   font-size: 20px;
   font-weight: bold;
   margin: 0 0 16px;
-  color: var(--text);
+  color: #374151;
 }
 
 .stats {
   display: flex;
   gap: 16px;
   font-size: 13px;
-  color: var(--muted);
+  color: #9ca3af;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #e5e7eb;
   margin-bottom: 16px;
 }
 
@@ -877,7 +991,7 @@ onMounted(() => {
 
 .label {
   font-size: 14px;
-  color: var(--muted);
+  color: #9ca3af;
 }
 
 .conditionTag {
@@ -922,7 +1036,7 @@ onMounted(() => {
 .desc {
   font-size: 14px;
   line-height: 1.6;
-  color: var(--text);
+  color: #374151;
   white-space: pre-line;
   margin: 0;
 }
@@ -941,7 +1055,7 @@ onMounted(() => {
 .tagItem {
   padding: 4px 10px;
   background: #f3f4f6;
-  color: var(--muted);
+  color: #9ca3af;
   font-size: 12px;
   border-radius: 4px;
 }
@@ -962,7 +1076,7 @@ onMounted(() => {
   flex: 1;
   height: 44px;
   border-radius: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid #e5e7eb;
   background: #f3f4f6;
   cursor: pointer;
   display: flex;
@@ -982,18 +1096,13 @@ onMounted(() => {
   background: #e5e7eb;
 }
 
-.actionBtn.active {
-  border-color: #eab308;
-  background: #fefce8;
-  color: #ca8a04;
-}
-
-.actionBtn.active i {
-  color: #eab308;
-}
-
 .actionBtn.secondary {
   background: #f5f5f5;
+  color: #dc2626;
+}
+
+.actionBtn.secondary i {
+  color: #dc2626;
 }
 
 .actionBtn.primary {
@@ -1003,107 +1112,280 @@ onMounted(() => {
   font-weight: 500;
 }
 
+.actionBtn.primary i {
+  color: #fff;
+}
+
 .actionBtn.primary:hover {
   background: #ea580c;
 }
 
-/* 猜你喜欢 */
-.recommendations {
-  padding: 20px;
-  background: #f9f9f9;
+/* 咨询与意向管理 */
+.manageSection {
+  background: #fff;
   border-radius: 12px;
+  margin-bottom: 80px;
 }
 
-.recHeader {
+.manageTabs {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.recHeader h2 {
-  font-size: 18px;
-  margin: 0 0 4px;
-}
-
-.recHeader p {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 0;
-}
-
-.recHeader button {
-  padding: 6px 12px;
+.tabBtn {
+  flex: 1;
+  padding: 14px;
+  background: none;
   border: none;
-  background: transparent;
-  color: #f97316;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  color: #6b7280;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 150ms;
+}
+
+.tabBtn:hover {
+  color: #f97316;
+}
+
+.tabBtn.active {
+  color: #f97316;
+  border-bottom-color: #f97316;
+}
+
+.consultList,
+.intentionList {
+  padding: 16px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 40px;
+  color: #9ca3af;
+}
+
+.emptyState i {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.consultItem,
+.intentionItem {
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.consultHeader,
+.intentionHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.buyerAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.buyerInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.buyerName {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.consultTime {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.intentionPrice {
   font-size: 13px;
+  color: #f97316;
+}
+
+.replyBtn,
+.contactBtn {
+  padding: 6px 12px;
+  background: #f97316;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.recGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
-  gap: 14px;
+.replyBtn:hover,
+.contactBtn:hover {
+  background: #ea580c;
 }
 
-.recCard {
-  overflow: hidden;
+.rejectBtn {
+  padding: 6px 12px;
+  background: none;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  color: #dc2626;
+  font-size: 12px;
   cursor: pointer;
-  transition: transform 200ms, box-shadow 200ms;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.recCard:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+.rejectBtn:hover {
+  background: #fef2f2;
 }
 
-.recImg {
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
+.intentionActions {
+  display: flex;
+  gap: 8px;
 }
 
-.recImg img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.recCondition {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.9);
-  font-size: 9px;
-  border-radius: 4px;
-  color: var(--text);
-}
-
-.recInfo {
-  padding: 8px;
-}
-
-.recInfo h4 {
-  font-size: 11px;
-  font-weight: 500;
-  margin: 0 0 4px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 1.4;
-}
-
-.recPrice {
+.consultContent {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f9fafb;
+  border-radius: 6px;
   font-size: 13px;
-  font-weight: bold;
+  color: #374151;
+}
+
+.consultReply {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #fef3c7;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.intentionNote {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* 底部操作栏 */
+.bottomBar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 80px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+  z-index: 50;
+}
+
+.deleteBtn {
+  padding: 10px 16px;
+  background: none;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.deleteBtn:hover {
+  background: #fef2f2;
+}
+
+.bottomRight {
+  display: flex;
+  gap: 10px;
+}
+
+.shareBtn {
+  padding: 10px 16px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  color: #374151;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shareBtn:hover {
+  background: #e5e7eb;
+}
+
+.editBtn {
+  padding: 10px 16px;
+  background: #fff;
+  border: 1px solid #f97316;
+  border-radius: 8px;
   color: #f97316;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editBtn:hover {
+  background: #fff7ed;
+}
+
+.toggleBtn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toggleBtn.off {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.toggleBtn.off:hover {
+  background: #fee2e2;
+}
+
+.toggleBtn.on {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.toggleBtn.on:hover {
+  background: #dcfce7;
 }
 
 /* 悬浮工具栏 */
@@ -1122,7 +1404,7 @@ onMounted(() => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--panel);
+  background: #fff;
   border: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   cursor: pointer;
@@ -1130,7 +1412,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  color: var(--text);
+  color: #374151;
   position: relative;
   transition: transform 120ms ease, background 120ms ease;
 }
@@ -1163,9 +1445,6 @@ onMounted(() => {
   .detailGrid {
     grid-template-columns: 1fr;
   }
-  .gallery {
-    position: static;
-  }
   .floatTools {
     display: none;
   }
@@ -1180,9 +1459,6 @@ onMounted(() => {
     flex: 1 1 100%;
     max-width: 100%;
     margin-top: 8px;
-  }
-  .recGrid {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>
