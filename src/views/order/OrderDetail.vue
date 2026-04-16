@@ -36,14 +36,14 @@
           <h4>{{ item.product_title }}</h4>
           <p>数量：{{ item.quantity }}</p>
         </div>
-        <div class="item-price">¥{{ item.subtotal_amount.toFixed(2) }}</div>
+        <div class="item-price">¥{{ formatPrice(item.subtotal_amount) }}</div>
       </article>
     </section>
 
     <section class="summary-card">
-      <div class="summary-row"><span>商品总额</span><span>¥{{ order?.total_amount.toFixed(2) }}</span></div>
-      <div class="summary-row"><span>运费</span><span>¥{{ order?.freight_amount.toFixed(2) }}</span></div>
-      <div class="summary-row total"><span>实际支付</span><span>¥{{ order?.pay_amount.toFixed(2) }}</span></div>
+      <div class="summary-row"><span>商品总额</span><span>¥{{ formatPrice(order?.total_amount) }}</span></div>
+      <div class="summary-row"><span>运费</span><span>¥{{ formatPrice(order?.freight_amount) }}</span></div>
+      <div class="summary-row total"><span>实际支付</span><span>¥{{ formatPrice(order?.pay_amount) }}</span></div>
       <p class="order-remark">买家备注：{{ order?.remark || '无备注' }}</p>
     </section>
   </section>
@@ -76,6 +76,10 @@ function statusLabel(status?: string) {
     closed: '已关闭',
   }
   return status ? map[status] || status : '-'
+}
+
+function formatPrice(amount?: string) {
+  return amount ? Number(amount).toFixed(2) : '0.00'
 }
 
 async function loadOrder() {
