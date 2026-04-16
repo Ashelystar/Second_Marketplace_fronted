@@ -8,8 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
-            <i class="fa fa-fish"></i>
-            <span>闲鱼</span>
+            <span>荔园交易</span>
           </a>
           <span class="pageTitle">我发布的商品</span>
         </div>

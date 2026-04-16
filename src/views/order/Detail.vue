@@ -5,6 +5,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'OrderDetail' })
 // 组件逻辑
 </script>
 

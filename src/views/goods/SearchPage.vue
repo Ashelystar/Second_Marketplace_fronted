@@ -8,8 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
-            <i class="fa fa-fish"></i>
-            <span>闲鱼</span>
+            <span>荔园交易</span>
           </a>
         </div>
 
@@ -270,7 +269,7 @@ const locations = ['北京', '上海', '深圳', '广州', '杭州', '南京', '
 const floatingTools = [
   { id: 1, icon: 'fa fa-plus', label: '发闲置', action: () => alert('正在跳转到发布页面...') },
   { id: 2, icon: 'fa fa-envelope', label: '消息', action: () => alert('正在跳转到消息页面...') },
-  { id: 3, icon: 'fa fa-mobile', label: 'APP', action: () => alert('打开应用商店下载闲鱼APP') },
+  { id: 3, icon: 'fa fa-mobile', label: 'APP', action: () => alert('打开应用商店下载荔园APP') },
   { id: 4, icon: 'fa fa-commenting', label: '反馈', action: () => alert('欢迎提出宝贵意见和建议！') },
   { id: 5, icon: 'fa fa-headphones', label: '客服', action: () => alert('正在为您连接客服...') }
 ]

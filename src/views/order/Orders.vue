@@ -8,8 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
-            <i class="fa fa-fish"></i>
-            <span>闲鱼</span>
+            <span>荔园交易</span>
           </a>
         </div>
 
@@ -43,7 +42,7 @@
       <aside class="sidebar">
         <div class="menuSection">
           <div class="menuTitle">
-            <i class="fa fa-user-circle"></i> 我的闲鱼
+            <i class="fa fa-user-circle"></i> 我的荔园
           </div>
         </div>
 

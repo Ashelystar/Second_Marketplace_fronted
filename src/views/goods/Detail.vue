@@ -8,8 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
-            <i class="fa fa-fish"></i>
-            <span>闲鱼</span>
+            <span>荔园交易</span>
           </a>
         </div>
 
@@ -357,7 +356,7 @@ const handleTool = (t: { action: string }) => {
     publish: '正在跳转到发布页面...',
     message: '正在跳转到消息页面...',
     qrcode: `商品码功能：扫描二维码查看"${product.value?.title || '当前商品'}"的详细信息`,
-    app: '打开应用商店下载闲鱼APP',
+    app: '打开应用商店下载荔园APP',
     feedback: '欢迎提出宝贵意见和建议！',
     service: '正在为您连接客服...'
   }
