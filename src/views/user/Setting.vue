@@ -219,7 +219,6 @@ const operationLogs = ref([
   },
   {
     id: 3,
-    id: 3,
     time: '2024-01-12 18:45:12',
     action: '登录',
     ip: '192.168.1.101',
