@@ -5,7 +5,9 @@
       <div class="error-title">页面不存在</div>
       <div class="error-desc">抱歉，您访问的页面不存在或已被移除</div>
       <div class="error-actions">
-        <RouterLink to="/" class="btn btn-primary">返回首页</RouterLink>
+        <RouterLink to="/" class="btn btn-primary">返回 首页</RouterLink>
+
+
         <button @click="goBack" class="btn btn-outline">返回上一页</button>
       </div>
     </div>
