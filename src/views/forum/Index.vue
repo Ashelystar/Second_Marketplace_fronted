@@ -1,24 +1,9 @@
 <template>
   <div class="page">
-    <!-- 社区模块专属区域：与顶部全局导航分离，不参与合并 -->
     <section class="top communityStrip" aria-label="社区广场">
       <div class="left">
         <h2 class="h">社区广场</h2>
         <p class="sub">真实经验、交易建议、避坑分享</p>
-      </div>
-      <div class="search">
-        <div class="searchRow">
-          <i class="fa fa-search searchIcon" aria-hidden="true" />
-          <input
-            v-model="keyword"
-            class="input"
-            type="search"
-            autocomplete="off"
-            placeholder="搜索帖子标题、标签、作者"
-            @keydown.enter.prevent="doSearch"
-          />
-          <button type="button" class="searchBtn" @click="doSearch">搜索</button>
-        </div>
       </div>
     </section>
 
@@ -62,8 +47,6 @@ const router = useRouter()
 const store = useForumStore()
 const userStore = useUserStore()
 const activeTag = ref('')
-const keyword = ref('')
-const searchQuery = ref('')
 
 const hotTags = computed(() => {
   const m = new Map<string, number>()
@@ -77,16 +60,12 @@ const hotTags = computed(() => {
 const filtered = computed(() => {
   return store.posts.filter((p) => {
     const tagMatch = !activeTag.value || p.tags.includes(activeTag.value)
-    const k = searchQuery.value.trim().toLowerCase()
+    const k = store.squareSearchQuery.trim().toLowerCase()
     if (!k) return tagMatch
     const text = `${p.title} ${p.tags.join(' ')} ${p.author.name}`.toLowerCase()
     return tagMatch && text.includes(k)
   })
 })
-
-function doSearch() {
-  searchQuery.value = keyword.value
-}
 
 function goCreatePost() {
   if (!userStore.isLoggedIn) {
@@ -110,10 +89,6 @@ function goCreatePost() {
 
 .top {
   padding: 20px 22px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
   background: #fff;
   border-radius: 12px;
   border: 1px solid rgba(249, 115, 22, 0.22);
@@ -141,65 +116,6 @@ function goCreatePost() {
   color: #525252;
   font-size: 14px;
   line-height: 1.45;
-}
-
-.search {
-  width: min(520px, 100%);
-}
-
-.searchRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  height: 48px;
-  padding: 0 8px 0 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(249, 115, 22, 0.28);
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
-  transition: box-shadow 160ms ease, border-color 160ms ease;
-}
-
-.searchRow:focus-within {
-  border-color: rgba(249, 115, 22, 0.62);
-  box-shadow: 0 12px 24px rgba(249, 115, 22, 0.18);
-}
-
-.searchIcon {
-  font-size: 18px;
-  color: #525252;
-}
-
-.searchRow .input {
-  flex: 1;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-}
-
-.searchRow .input:focus {
-  box-shadow: none;
-  border: 0;
-}
-
-.searchBtn {
-  height: 36px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 999px;
-  background: #f97316;
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 140ms ease, background-color 140ms ease;
-}
-
-.searchBtn:hover {
-  transform: translateY(-1px);
-  background: #ea580c;
 }
 
 .filters {
@@ -253,15 +169,10 @@ function goCreatePost() {
 
 @media (max-width: 720px) {
   .top {
-    flex-direction: column;
-    align-items: stretch;
     padding: 16px 18px;
   }
   .masonry {
     column-count: 2;
-  }
-  .search {
-    width: 100%;
   }
 }
 
@@ -350,14 +261,6 @@ function goCreatePost() {
 }
 
 @media (max-width: 720px) {
-  .searchRow {
-    height: 44px;
-  }
-  .searchBtn {
-    height: 32px;
-    padding: 0 14px;
-    font-size: 12px;
-  }
   .fab {
     width: 62px;
     height: 62px;

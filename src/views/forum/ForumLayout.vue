@@ -7,7 +7,19 @@
           <h1 class="text-xl font-bold text-xianyuText m-0">荔园交易</h1>
         </a>
 
-        <div class="searchBox">
+        <div v-if="isForumSquare" class="searchBox">
+          <div class="searchRow">
+            <input
+              v-model="squareSearchDraft"
+              type="text"
+              autocomplete="off"
+              placeholder="搜索帖子标题、标签、作者"
+              @keypress.enter="applySquareSearch"
+            />
+            <button type="button" @click="applySquareSearch"><i class="fa fa-search" aria-hidden="true"></i></button>
+          </div>
+        </div>
+        <div v-else class="searchBox">
           <div class="searchRow">
             <input
               v-model="searchInput"
@@ -50,14 +62,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { useForumStore } from '@/stores/forum'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
+const forumStore = useForumStore()
 const searchInput = ref('')
 const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+
+const isForumSquare = computed(() => route.name === 'forum')
+const squareSearchDraft = ref(forumStore.squareSearchQuery)
+
+watch(isForumSquare, (on) => {
+  if (on) squareSearchDraft.value = forumStore.squareSearchQuery
+})
+
+watch(
+  () => forumStore.squareSearchQuery,
+  (q) => {
+    if (isForumSquare.value) squareSearchDraft.value = q
+  },
+)
+
+function applySquareSearch() {
+  forumStore.setSquareSearchQuery(squareSearchDraft.value.trim())
+}
 
 const handleSearch = () => {
   const keyword = searchInput.value.trim()
