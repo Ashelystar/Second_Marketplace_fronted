@@ -82,7 +82,7 @@
       >
         退出登录
       </button>
-    </div>
+
 
     <div class="bg-white rounded-xl shadow-sm p-6 mt-6 border border-gray-100">
       <h3 class="font-semibold text-lg mb-4">信用及评价</h3>
@@ -110,6 +110,7 @@
         查看详情 >
       </button>
     </div>
+        </div>
   </div>
 </template>
 
