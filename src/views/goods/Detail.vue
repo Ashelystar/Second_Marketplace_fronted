@@ -8,8 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
-            <i class="fa fa-fish"></i>
-            <span>闲鱼</span>
+            <span>荔园交易</span>
           </a>
         </div>
 
@@ -30,7 +29,7 @@
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <template v-if="userStore.isLoggedIn">
             <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
-            <a href="#"><i class="fa fa-user"></i> 我的</a>
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
           </template>
           <template v-else>
             <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
@@ -206,6 +205,103 @@
         </div>
       </div>
 
+      <!-- 商品评论区 -->
+      <section class="commentSection">
+        <div class="commentHeader">
+          <h3><i class="fa fa-comments"></i> 商品评论</h3>
+          <span class="commentCount">{{ comments.length }} 条评论</span>
+        </div>
+        
+        <!-- 评论输入框 -->
+        <div class="commentInput">
+          <img v-if="userStore.userInfo?.avatar" :src="userStore.userInfo.avatar" class="commentAvatar" />
+          <div v-else class="commentAvatar avatarDefault">{{ userStore.userInfo?.username?.charAt(0) || '游' }}</div>
+          <div class="inputWrapper">
+            <textarea 
+              v-model="newComment" 
+              placeholder="发表你的看法..." 
+              rows="3"
+              @focus="handleCommentFocus"
+            ></textarea>
+            <div class="inputActions" v-if="showCommentInput">
+              <button class="cancelBtn" @click="cancelComment">取消</button>
+              <button class="submitBtn" @click="submitComment" :disabled="!newComment.trim()">发表评论</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 评论列表 -->
+        <div class="commentList" v-if="comments.length > 0">
+          <div v-for="comment in displayedComments" :key="comment.id" class="commentItem">
+            <div class="commentUser">
+              <img v-if="comment.avatar" :src="comment.avatar" class="commentAvatar" />
+              <div v-else class="commentAvatar avatarDefault">{{ comment.name?.charAt(0) }}</div>
+              <div class="commentMeta">
+                <span class="commentName">{{ comment.name }}</span>
+                <span class="commentTime">{{ comment.time }}</span>
+              </div>
+            </div>
+            <div class="commentContent">{{ comment.content }}</div>
+            
+            <!-- 回复列表 -->
+            <div class="replyList" v-if="comment.replies && comment.replies.length > 0">
+              <div v-for="reply in getDisplayReplies(comment)" :key="reply.id" class="replyItem">
+                <div class="replyUser">
+                  <img v-if="reply.avatar" :src="reply.avatar" class="replyAvatar" />
+                  <div v-else class="replyAvatar avatarDefaultSm">{{ reply.name?.charAt(0) }}</div>
+                  <div class="replyMeta">
+                    <span class="replyName">{{ reply.name }}</span>
+                    <span class="replyTime">{{ reply.time }}</span>
+                    <button class="subReplyBtn" @click="openSubReply(comment.id, reply)">
+                      <i class="fa fa-commenting"></i> 回复
+                    </button>
+                  </div>
+                </div>
+                <div class="replyContent">{{ reply.content }}</div>
+              </div>
+              
+              <!-- 查看更多子回复 -->
+              <button v-if="comment.replies.length > 3" class="toggleSubRepliesBtn" @click="comment.showAllReplies = !comment.showAllReplies">
+                <i :class="comment.showAllReplies ? 'fa fa-chevron-up' : 'fa fa-chevron-down'"></i>
+                {{ comment.showAllReplies ? '收起回复' : `查看全部 ${comment.replies.length} 条回复` }}
+              </button>
+            </div>
+            
+            <!-- 回复按钮 -->
+            <button class="replyBtn" @click="toggleReplyInput(comment.id, null)">
+              <i class="fa fa-commenting"></i> 回复 ({{ comment.replies?.length || 0 }})
+            </button>
+            
+            <!-- 回复输入框 -->
+            <div v-if="activeReplyId === comment.id" class="replyInput">
+              <textarea 
+                v-model="replyContent" 
+                :placeholder="replyToUser ? `回复 @${replyToUser}...` : `回复 @${comment.name}...`" 
+                rows="2"
+              ></textarea>
+              <div class="inputActions">
+                <button class="cancelBtn" @click="cancelReply">取消</button>
+                <button class="submitBtn" @click="submitReply(comment.id)" :disabled="!replyContent.trim()">回复</button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 查看更多按钮 -->
+          <div v-if="comments.length > 3" class="loadMore">
+            <button class="loadMoreBtn" @click="showAllComments = !showAllComments">
+              <i :class="showAllComments ? 'fa fa-chevron-up' : 'fa fa-chevron-down'"></i>
+              {{ showAllComments ? '收起评论' : `查看全部 ${comments.length} 条评论` }}
+            </button>
+          </div>
+        </div>
+        
+        <!-- 无评论状态 -->
+        <div v-else class="noComments">
+          <i class="fa fa-comments-o"></i>
+          <p>暂无评论，来发表第一条评论吧</p>
+        </div>
+      </section>
+
       <!-- 猜你喜欢 -->
       <section class="recommendations">
         <div class="recHeader">
@@ -269,6 +365,13 @@ const router = useRouter()
 const store = useProductStore()
 const userStore = useUserStore()
 
+const ensureLoggedIn = (actionHint: string) => {
+  if (userStore.isLoggedIn) return true
+  alert(`请先登录后再${actionHint}`)
+  router.push('/user/login')
+  return false
+}
+
 const searchInput = ref('')
 const product = ref<Product | null>(null)
 const currentIndex = ref(0)
@@ -278,9 +381,246 @@ const isLoading = ref(true)
 const loadError = ref('')
 const isFavorited = ref(false)
 
+// 评论相关
+const comments = ref<Comment[]>([])
+const newComment = ref('')
+const replyContent = ref('')
+const activeReplyId = ref<number | null>(null)
+const showCommentInput = ref(false)
+const showAllComments = ref(false)
+const replyToUser = ref<string | null>(null)
+
+interface Comment {
+  id: number
+  name: string
+  avatar?: string
+  time: string
+  content: string
+  replies?: Reply[]
+  showAllReplies?: boolean
+}
+
+interface Reply {
+  id: number
+  name: string
+  avatar?: string
+  time: string
+  content: string
+}
+
+const handleCommentFocus = () => {
+  if (!userStore.isLoggedIn) {
+    alert('请先登录后再评论')
+    router.push('/user/login')
+    return
+  }
+  showCommentInput.value = true
+}
+
+const cancelComment = () => {
+  newComment.value = ''
+  showCommentInput.value = false
+}
+
+const submitComment = () => {
+  if (!newComment.value.trim()) return
+  
+  const comment: Comment = {
+    id: Date.now(),
+    name: userStore.userInfo?.username || '匿名用户',
+    avatar: userStore.userInfo?.avatar,
+    time: '刚刚',
+    content: newComment.value.trim(),
+    replies: []
+  }
+  
+  comments.value.unshift(comment)
+  cancelComment()
+}
+
+const submitReply = (commentId: number) => {
+  if (!replyContent.value.trim()) return
+  
+  const comment = comments.value.find(c => c.id === commentId)
+  if (comment) {
+    if (!comment.replies) comment.replies = []
+    
+    const reply: Reply = {
+      id: Date.now(),
+      name: userStore.userInfo?.username || '匿名用户',
+      avatar: userStore.userInfo?.avatar,
+      time: '刚刚',
+      content: replyContent.value.trim()
+    }
+    
+    comment.replies.push(reply)
+  }
+  
+  cancelReply()
+}
+
+// 模拟加载评论数据
+const loadComments = () => {
+  comments.value = [
+    {
+      id: 1,
+      name: '买家小明',
+      avatar: 'https://picsum.photos/id/100/50/50',
+      time: '2小时前',
+      content: '东西看起来不错，成色怎么样？',
+      replies: [
+        {
+          id: 101,
+          name: '卖家小李',
+          avatar: 'https://picsum.photos/id/101/50/50',
+          time: '1小时前',
+          content: '95新，无划痕无磕碰，电池健康度95%'
+        }
+      ]
+    },
+    {
+      id: 2,
+      name: '买家小红',
+      avatar: 'https://picsum.photos/id/102/50/50',
+      time: '3小时前',
+      content: '可以便宜点吗？诚心想要',
+      replies: []
+    },
+    {
+      id: 3,
+      name: '买家小王',
+      avatar: 'https://picsum.photos/id/103/50/50',
+      time: '1天前',
+      content: '请问支持当面交易吗？',
+      replies: [
+        {
+          id: 301,
+          name: '卖家小李',
+          avatar: 'https://picsum.photos/id/101/50/50',
+          time: '23小时前',
+          content: '可以的，周末在大学城附近'
+        },
+        {
+          id: 302,
+          name: '买家小王',
+          avatar: 'https://picsum.photos/id/103/50/50',
+          time: '22小时前',
+          content: '好的，周六下午方便吗？'
+        }
+      ]
+    },
+    {
+      id: 4,
+      name: '买家小赵',
+      avatar: 'https://picsum.photos/id/104/50/50',
+      time: '1天前',
+      content: '这个还在吗？',
+      replies: [
+        {
+          id: 401,
+          name: '卖家小李',
+          avatar: 'https://picsum.photos/id/101/50/50',
+          time: '20小时前',
+          content: '在的，欢迎来问'
+        }
+      ]
+    },
+    {
+      id: 5,
+      name: '买家小钱',
+      avatar: 'https://picsum.photos/id/105/50/50',
+      time: '2天前',
+      content: '包装盒还在吗？',
+      replies: []
+    },
+    {
+      id: 6,
+      name: '买家小孙',
+      avatar: 'https://picsum.photos/id/106/50/50',
+      time: '2天前',
+      content: '有发票吗？',
+      replies: [
+        {
+          id: 601,
+          name: '卖家小李',
+          avatar: 'https://picsum.photos/id/101/50/50',
+          time: '2天前',
+          content: '有的，当时购买的小票还在'
+        },
+        {
+          id: 602,
+          name: '买家小孙',
+          avatar: 'https://picsum.photos/id/106/50/50',
+          time: '2天前',
+          content: '那就好，诚心要'
+        }
+      ]
+    },
+    {
+      id: 7,
+      name: '买家小周',
+      avatar: 'https://picsum.photos/id/107/50/50',
+      time: '3天前',
+      content: '走咸鱼交易可以吗？',
+      replies: []
+    }
+  ]
+}
+
+// 计算属性：显示的评论
+const displayedComments = computed(() => {
+  if (showAllComments.value || comments.value.length <= 3) {
+    return comments.value
+  }
+  return comments.value.slice(0, 3)
+})
+
+// 获取显示的回复列表
+const getDisplayReplies = (comment: Comment) => {
+  if (!comment.replies) return []
+  if (comment.replies.length <= 3 || comment.showAllReplies) {
+    return comment.replies
+  }
+  return comment.replies.slice(0, 3)
+}
+
+// 打开子回复输入框
+const openSubReply = (commentId: number, reply: Reply) => {
+  activeReplyId.value = commentId
+  replyToUser.value = reply.name
+  replyContent.value = ''
+}
+
+// 切换回复输入框
+const toggleReplyInput = (commentId: number, reply: Reply | null) => {
+  if (reply) {
+    openSubReply(commentId, reply)
+  } else {
+    activeReplyId.value = activeReplyId.value === commentId ? null : commentId
+    replyToUser.value = null
+    replyContent.value = ''
+  }
+}
+
+const cancelReply = () => {
+  replyContent.value = ''
+  activeReplyId.value = null
+  replyToUser.value = null
+}
+
 const toggleFavorite = () => {
-  if (!ensureLoggedIn('收藏商品')) return
-  isFavorited.value = !isFavorited.value
+  if (product.value) {
+    userStore.toggleFavorite({
+      id: product.value.id,
+      title: product.value.title,
+      price: product.value.price,
+      image: product.value.image,
+      condition: product.value.condition,
+      location: product.value.location,
+      addTime: new Date().toLocaleString()
+    })
+    isFavorited.value = userStore.isFavorited(product.value.id)
+  }
 }
 
 const goToCheckout = () => {
@@ -289,14 +629,7 @@ const goToCheckout = () => {
 }
 
 const handleLogin = () => {
-  router.push({ path: '/user/login', query: { redirect: route.fullPath } })
-}
-
-const ensureLoggedIn = (actionText: string) => {
-  if (userStore.isLoggedIn) return true
-  alert(`请先登录后再${actionText}`)
-  router.push({ path: '/user/login', query: { redirect: route.fullPath } })
-  return false
+  router.push('/user/login')
 }
 
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })
@@ -361,7 +694,7 @@ const handleTool = (t: { action: string }) => {
     publish: '正在跳转到发布页面...',
     message: '正在跳转到消息页面...',
     qrcode: `商品码功能：扫描二维码查看"${product.value?.title || '当前商品'}"的详细信息`,
-    app: '打开应用商店下载闲鱼APP',
+    app: '打开应用商店下载荔园APP',
     feedback: '欢迎提出宝贵意见和建议！',
     service: '正在为您连接客服...'
   }
@@ -380,8 +713,20 @@ watch(() => route.query.id, (id) => {
   }
 }, { immediate: true })
 
+// 监听商品变化，更新收藏状态
+watch(() => product.value?.id, (newId) => {
+  if (newId) {
+    isFavorited.value = userStore.isFavorited(newId)
+  }
+})
+
 onMounted(() => {
   store.initialize()
+  loadComments()
+  // 初始化收藏状态
+  if (product.value) {
+    isFavorited.value = userStore.isFavorited(product.value.id)
+  }
 })
 </script>
 
@@ -1011,6 +1356,365 @@ onMounted(() => {
 
 .actionBtn.primary:hover {
   background: #ea580c;
+}
+
+/* 商品评论区 */
+.commentSection {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.commentHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.commentHeader h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+.commentHeader h3 i {
+  color: #f97316;
+}
+
+.commentCount {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* 评论输入框 */
+.commentInput {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.commentAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.avatarDefault {
+  background: #f97316;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.inputWrapper {
+  flex: 1;
+}
+
+.inputWrapper textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 200ms;
+}
+
+.inputWrapper textarea:focus {
+  border-color: #f97316;
+}
+
+.inputActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cancelBtn {
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cancelBtn:hover {
+  background: #f5f5f5;
+}
+
+.submitBtn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #f97316;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.submitBtn:hover {
+  background: #ea580c;
+}
+
+.submitBtn:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+}
+
+/* 评论列表 */
+.commentList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.commentItem {
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.commentUser {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.commentMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.commentName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.commentTime {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.commentContent {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+/* 回复列表 */
+.replyList {
+  margin-left: 50px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  border-left: 3px solid #f97316;
+}
+
+.replyItem {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.replyItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.replyItem:first-child {
+  padding-top: 0;
+}
+
+.replyUser {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.replyAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.avatarDefaultSm {
+  background: #6b7280;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.replyMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.replyName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.replyTime {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.replyContent {
+  margin-left: 36px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #4b5563;
+}
+
+/* 回复按钮 */
+.replyBtn {
+  margin-left: 50px;
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 150ms;
+}
+
+.replyBtn:hover {
+  color: #f97316;
+}
+
+.subReplyBtn {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 150ms;
+}
+
+.subReplyBtn:hover {
+  color: #f97316;
+}
+
+.toggleSubRepliesBtn {
+  display: block;
+  width: 100%;
+  padding: 6px;
+  margin-top: 6px;
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.toggleSubRepliesBtn:hover {
+  color: #f97316;
+}
+
+/* 回复输入框 */
+.replyInput {
+  margin-left: 50px;
+  margin-top: 10px;
+}
+
+.replyInput textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: none;
+  font-size: 13px;
+  outline: none;
+}
+
+.replyInput textarea:focus {
+  border-color: #f97316;
+}
+
+/* 无评论状态 */
+.noComments {
+  text-align: center;
+  padding: 30px;
+  color: var(--muted);
+}
+
+.noComments i {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.noComments p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 查看更多 */
+.loadMore {
+  text-align: center;
+  padding: 16px;
+}
+
+.loadMoreBtn {
+  padding: 10px 24px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 200ms;
+}
+
+.loadMoreBtn:hover {
+  border-color: #f97316;
+  color: #f97316;
+  background: #fff7f0;
 }
 
 /* 猜你喜欢 */

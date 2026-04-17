@@ -57,6 +57,16 @@ const router = createRouter({
       name: 'edit',
       component: () => import('../views/goods/EditProduct.vue'),
     },
+    {
+      path: '/seller/product',
+      name: 'seller-product-detail',
+      component: () => import('../views/goods/SellerProductDetail.vue'),
+    },
+    {
+      path: '/seller/products',
+      name: 'seller-products',
+      component: () => import('../views/goods/SellerProducts.vue'),
+    },
 
     // 论坛模块路由
     {
@@ -102,7 +112,7 @@ const router = createRouter({
     {
       path: '/cart',
       name: 'cart',
-      component: () => import('../views/goods/Cart.vue'),
+      component: () => import('../views/cart/Index.vue'),
     },
 
     // 订单模块路由
@@ -127,11 +137,6 @@ const router = createRouter({
       name: 'order-detail-alt',
       component: () => import('../views/order/OrderDetail.vue'),
       props: true,
-    },
-    {
-      path: '/orders',
-      name: 'orders',
-      component: () => import('../views/order/Orders.vue'),
     },
 
     // 聊天模块路由

@@ -29,6 +29,7 @@
                 <i class="fa fa-camera text-sm"></i>
                 <input 
                   id="avatar-upload" 
+                  ref="avatarUpload"
                   type="file" 
                   accept="image/*" 
                   class="hidden" 
@@ -39,7 +40,8 @@
             <div>
               <p class="text-sm text-gray-500 mb-2">支持 jpg、png 格式，大小不超过 2MB</p>
               <button 
-                @click="$refs.avatarUpload.click()"
+                type="button"
+                @click="avatarUpload?.click()"
                 class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
               >
                 更换头像
@@ -246,6 +248,7 @@ let originalUser = {
 }
 
 const user = ref({ ...originalUser })
+const avatarUpload = ref<HTMLInputElement | null>(null)
 
 // 省份城市数据
 const provinces = ref([

@@ -8,8 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
-            <i class="fa fa-fish"></i>
-            <span>闲鱼</span>
+            <span>荔园交易</span>
           </a>
         </div>
 
@@ -28,7 +27,7 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <template v-if="userStore.isLoggedIn">
-            <a href="#"><i class="fa fa-user"></i> 我的</a>
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
           </template>
           <template v-else>
             <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
@@ -42,115 +41,148 @@
       <!-- 左侧边栏 -->
       <aside class="sidebar">
         <div class="menuSection">
-          <div class="menuTitle">
-            <i class="fa fa-user-circle"></i> 我的闲鱼
-          </div>
+          <a href="#" class="menuTitle" @click.prevent="router.push('/user/center')">
+            <i class="fa fa-user-circle"></i> 我的荔园
+          </a>
         </div>
 
         <div class="menuSection">
-          <div class="menuTitle">
+          <div class="menuTitle" :class="{ active: activeMenu === 'orders' }" @click="activeMenu = 'orders'">
             <i class="fa fa-shopping-bag"></i> 我的交易
-            <i class="fa fa-chevron-down arrow"></i>
+            <i class="fa fa-chevron-down arrow" :class="{ rotated: ordersExpanded }" @click.stop="ordersExpanded = !ordersExpanded"></i>
           </div>
-          <div class="subMenu">
-            <a href="#" class="subItem">我发布的</a>
-            <a href="#" class="subItem">我卖出的</a>
-            <a href="#" class="subItem active">我买到的</a>
+          <div class="subMenu" v-show="activeMenu === 'orders' || ordersExpanded">
+            <a href="#" class="subItem" @click.prevent="goToPublished">
+              <i class="fa fa-cube"></i> 我发布的
+            </a>
+            <a href="#" class="subItem" @click.prevent="goToSold">
+              <i class="fa fa-check-circle"></i> 我卖出的
+            </a>
+            <a href="#" class="subItem" @click.prevent="goToBought">
+              <i class="fa fa-shopping-cart"></i> 我买到的
+            </a>
           </div>
         </div>
 
         <div class="menuSection">
-          <div class="menuTitle">
+          <div class="menuTitle" :class="{ active: activeMenu === 'favorites' }" @click="activeMenu = 'favorites'">
             <i class="fa fa-star"></i> 我的收藏
-          </div>
-        </div>
-
-        <div class="menuSection">
-          <div class="menuTitle">
-            <i class="fa fa-cog"></i> 账户设置
-            <i class="fa fa-chevron-down arrow"></i>
-          </div>
-          <div class="subMenu">
-            <a href="#" class="subItem">个人资料</a>
-            <a href="#" class="subItem">账号与安全</a>
+            <span class="badge" v-if="userStore.favorites.length > 0">{{ userStore.favorites.length }}</span>
           </div>
         </div>
       </aside>
 
       <!-- 右侧内容 -->
       <main class="content">
-        <!-- 订单标签页 -->
-        <div class="tabs">
-          <button
-            v-for="tab in tabs"
-            :key="tab.id"
-            class="tab"
-            :class="{ active: activeTab === tab.id }"
-            @click="activeTab = tab.id"
-          >
-            {{ tab.name }}
-            <span class="count" v-if="getCount(tab.id) > 0">{{ getCount(tab.id) }}</span>
-          </button>
-        </div>
+        <!-- 订单视图 -->
+        <template v-if="activeMenu === 'orders'">
+          <!-- 订单标签页 -->
+          <div class="tabs">
+            <button
+              v-for="tab in orderTabs"
+              :key="tab.id"
+              class="tab"
+              :class="{ active: orderTab === tab.id }"
+              @click="orderTab = tab.id"
+            >
+              {{ tab.name }}
+              <span class="count" v-if="getCount(tab.id) > 0">{{ getCount(tab.id) }}</span>
+            </button>
+          </div>
 
-        <!-- 订单列表 -->
-        <div class="orderList">
-          <!-- 待付款 -->
-          <template v-if="activeTab === 'pending'">
-            <div v-if="pendingOrders.length === 0" class="empty">
-              <i class="fa fa-clock-o"></i>
-              <p>暂无待付款订单</p>
+          <!-- 订单列表 -->
+          <div class="orderList">
+            <!-- 待付款 -->
+            <template v-if="orderTab === 'pending'">
+              <div v-if="pendingOrders.length === 0" class="empty">
+                <i class="fa fa-clock-o"></i>
+                <p>暂无待付款订单</p>
+                <button class="btnPrimary" @click="router.push('/')">去逛逛</button>
+              </div>
+              <div v-else v-for="order in pendingOrders" :key="order.id" class="orderCard">
+                <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
+              </div>
+            </template>
+
+            <!-- 待发货 -->
+            <template v-if="orderTab === 'paid'">
+              <div v-if="paidOrders.length === 0" class="empty">
+                <i class="fa fa-box"></i>
+                <p>暂无待发货订单</p>
+              </div>
+              <div v-else v-for="order in paidOrders" :key="order.id" class="orderCard">
+                <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
+              </div>
+            </template>
+
+            <!-- 待收货 -->
+            <template v-if="orderTab === 'shipped'">
+              <div v-if="shippedOrders.length === 0" class="empty">
+                <i class="fa fa-truck"></i>
+                <p>暂无待收货订单</p>
+              </div>
+              <div v-else v-for="order in shippedOrders" :key="order.id" class="orderCard">
+                <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
+              </div>
+            </template>
+
+            <!-- 退款中 -->
+            <template v-if="orderTab === 'refunding'">
+              <div v-if="refundingOrders.length === 0" class="empty">
+                <i class="fa fa-refresh"></i>
+                <p>暂无退款中的订单</p>
+              </div>
+              <div v-else v-for="order in refundingOrders" :key="order.id" class="orderCard">
+                <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
+              </div>
+            </template>
+
+            <!-- 待评价 -->
+            <template v-if="orderTab === 'completed'">
+              <div v-if="completedOrders.length === 0" class="empty">
+                <i class="fa fa-star-o"></i>
+                <p>暂无待评价订单</p>
+              </div>
+              <div v-else v-for="order in completedOrders" :key="order.id" class="orderCard">
+                <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- 收藏视图 -->
+        <template v-if="activeMenu === 'favorites'">
+          <div class="favoriteHeader">
+            <h3><i class="fa fa-star"></i> 我的收藏</h3>
+            <span class="favoriteCount">共 {{ userStore.favorites.length }} 件商品</span>
+          </div>
+          <div class="favoriteContent">
+            <div v-if="userStore.favorites.length === 0" class="empty">
+              <i class="fa fa-heart-o"></i>
+              <p>暂无收藏商品</p>
+              <p class="emptyHint">去商品详情页点击收藏吧</p>
               <button class="btnPrimary" @click="router.push('/')">去逛逛</button>
             </div>
-            <div v-else v-for="order in pendingOrders" :key="order.id" class="orderCard">
-              <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
+            <div v-else class="favoriteGrid">
+              <div v-for="item in userStore.favorites" :key="item.id" class="favoriteCard">
+                <img :src="item.image" :alt="item.title" @click="goToFavoriteDetail(item.id)" />
+                <div class="favoriteInfo">
+                  <h4 @click="goToFavoriteDetail(item.id)">{{ item.title }}</h4>
+                  <div class="favoriteMeta">
+                    <span class="condition">{{ item.condition }}</span>
+                    <span class="location"><i class="fa fa-map-marker"></i> {{ item.location }}</span>
+                  </div>
+                  <div class="favoriteBottom">
+                    <span class="price">¥{{ item.price }}</span>
+                    <button class="cancelBtn" @click="userStore.removeFavorite(item.id)">
+                      <i class="fa fa-heart"></i> 已收藏
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </template>
-
-          <!-- 待发货 -->
-          <template v-if="activeTab === 'paid'">
-            <div v-if="paidOrders.length === 0" class="empty">
-              <i class="fa fa-box"></i>
-              <p>暂无待发货订单</p>
-            </div>
-            <div v-else v-for="order in paidOrders" :key="order.id" class="orderCard">
-              <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
-            </div>
-          </template>
-
-          <!-- 待收货 -->
-          <template v-if="activeTab === 'shipped'">
-            <div v-if="shippedOrders.length === 0" class="empty">
-              <i class="fa fa-truck"></i>
-              <p>暂无待收货订单</p>
-            </div>
-            <div v-else v-for="order in shippedOrders" :key="order.id" class="orderCard">
-              <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
-            </div>
-          </template>
-
-          <!-- 退款中 -->
-          <template v-if="activeTab === 'refunding'">
-            <div v-if="refundingOrders.length === 0" class="empty">
-              <i class="fa fa-refresh"></i>
-              <p>暂无退款中的订单</p>
-            </div>
-            <div v-else v-for="order in refundingOrders" :key="order.id" class="orderCard">
-              <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
-            </div>
-          </template>
-
-          <!-- 待评价 -->
-          <template v-if="activeTab === 'completed'">
-            <div v-if="completedOrders.length === 0" class="empty">
-              <i class="fa fa-star-o"></i>
-              <p>暂无待评价订单</p>
-            </div>
-            <div v-else v-for="order in completedOrders" :key="order.id" class="orderCard">
-              <OrderCard :order="order" @action="handleOrderAction" @click-product="goToProductDetail" />
-            </div>
-          </template>
-        </div>
+          </div>
+        </template>
       </main>
     </div>
 
@@ -183,7 +215,11 @@ defineOptions({ name: 'OrdersPage' })
 const router = useRouter()
 const userStore = useUserStore()
 const searchInput = ref('')
-const activeTab = ref('pending')
+
+// 当前激活的菜单
+const activeMenu = ref('orders') // 'orders' | 'favorites'
+const ordersExpanded = ref(true) // 订单菜单展开状态
+const orderTab = ref('pending') // 订单标签页
 
 interface Order {
   id: number
@@ -199,13 +235,30 @@ interface Order {
   actions: string[]
 }
 
-const tabs = [
+const orderTabs = [
   { id: 'pending', name: '待付款' },
   { id: 'paid', name: '待发货' },
   { id: 'shipped', name: '待收货' },
   { id: 'refunding', name: '退款中' },
   { id: 'completed', name: '待评价' }
 ]
+
+// 跳转到各子菜单
+const goToPublished = () => {
+  router.push('/seller/products')
+}
+
+const goToSold = () => {
+  activeMenu.value = 'orders'
+  ordersExpanded.value = true
+  orderTab.value = 'pending'
+}
+
+const goToBought = () => {
+  activeMenu.value = 'orders'
+  ordersExpanded.value = true
+  orderTab.value = 'pending'
+}
 
 const orders = ref<Order[]>([
   {
@@ -286,8 +339,7 @@ const performSearch = () => {
 }
 
 const handleLogin = () => {
-  userStore.login({ id: 1, username: '用户' })
-  alert('登录成功！')
+  router.push('/user/login')
 }
 
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
@@ -323,6 +375,10 @@ const handleOrderAction = (action: string, order: Order) => {
 
 const goToProductDetail = (order: Order) => {
   const productId = order.id - 1000
+  router.push({ path: '/detail', query: { id: productId.toString() } })
+}
+
+const goToFavoriteDetail = (productId: number) => {
   router.push({ path: '/detail', query: { id: productId.toString() } })
 }
 </script>
@@ -477,8 +533,8 @@ const goToProductDetail = (order: Order) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: 10px 12px;
+  font-size: 15px;
   color: #374151;
   font-weight: 500;
   cursor: pointer;
@@ -494,6 +550,11 @@ const goToProductDetail = (order: Order) => {
   margin-left: auto;
   font-size: 10px;
   color: #9ca3af;
+  transition: transform 200ms;
+}
+
+.menuTitle .arrow.rotated {
+  transform: rotate(180deg);
 }
 
 .subMenu {
@@ -502,8 +563,8 @@ const goToProductDetail = (order: Order) => {
 
 .subItem {
   display: block;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 14px;
   color: #6b7280;
   text-decoration: none;
   border-radius: 4px;
@@ -732,6 +793,12 @@ const goToProductDetail = (order: Order) => {
   margin-bottom: 20px;
 }
 
+.emptyHint {
+  color: #9ca3af;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
 .btnPrimary {
   padding: 10px 24px;
   background: #f97316;
@@ -745,6 +812,143 @@ const goToProductDetail = (order: Order) => {
 
 .btnPrimary:hover {
   background: #ea580c;
+}
+
+/* 收藏视图 */
+.favoriteHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.favoriteHeader h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.favoriteHeader h3 i {
+  color: #f97316;
+}
+
+.favoriteCount {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.favoriteContent {
+  padding: 16px;
+}
+
+.favoriteContent .empty {
+  background: #fff;
+}
+
+/* 收藏网格 */
+.favoriteGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 4px;
+}
+
+.favoriteCard {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: transform 200ms, box-shadow 200ms;
+}
+
+.favoriteCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.favoriteCard img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.favoriteInfo {
+  padding: 12px;
+}
+
+.favoriteInfo h4 {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  margin: 0 0 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.favoriteInfo h4:hover {
+  color: #f97316;
+}
+
+.favoriteMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.favoriteMeta .condition {
+  font-size: 11px;
+  color: #f97316;
+  background: #fef3e6;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.favoriteMeta .location {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.favoriteMeta .location i {
+  margin-right: 2px;
+}
+
+.favoriteBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.favoriteBottom .price {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f97316;
+}
+
+.favoriteBottom .cancelBtn {
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid #fca5a5;
+  border-radius: 16px;
+  color: #ef4444;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.favoriteBottom .cancelBtn:hover {
+  background: #fef2f2;
 }
 
 /* 悬浮工具栏 */
