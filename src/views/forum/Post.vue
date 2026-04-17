@@ -1,8 +1,8 @@
 <template>
   <div class="page">
     <div class="top">
-      <div>
-        <div class="h">发布帖子</div>
+     <div>
+        <div class="h">发布页</div>
       </div>
       <div class="actions">
         <RouterLink class="back-icon" to="/forum" aria-label="返回社区">
@@ -40,12 +40,22 @@
 
       <div class="field">
         <div class="label">关联商品（可选）</div>
-        <select v-model="productId" class="input">
+        <!--
+          对接预留（购物车/历史订单模块尚未实现）：
+          1) GET /api/cart/my -> 当前用户购物车商品
+          2) GET /api/order/my/history -> 当前用户历史订单商品
+          3) 合并去重后渲染下拉选项，value 使用商品 id
+          4) 发帖时将选中值写入 createForumPost 的 product_id
+        -->
+        <select v-model="productId" class="input" :disabled="isLoadingMyTrades">
           <option value="">不关联商品</option>
-          <option v-for="g in goods" :key="g.id" :value="g.id">
+          <option v-for="g in goodsFromMyTrades" :key="g.id" :value="g.id">
             {{ g.name }}
           </option>
         </select>
+        <div v-if="!isLoadingMyTrades && goodsFromMyTrades.length === 0" class="tip">
+          暂无可关联商品
+        </div>
       </div>
 
       <div class="field">
@@ -54,7 +64,7 @@
           <input ref="fileEl" class="file" type="file" multiple accept="image/*,video/*" @change="onPick" />
           <button class="btn" type="button" @click="fileEl?.click()">选择文件</button>
           <button v-if="media.length" class="btn btn-danger" type="button" @click="clearMedia">清空</button>
-          <div class="tip">第一张图片将作为封面</div>
+          <div class="tip">最多上传 9 个文件</div>
         </div>
         <div v-if="media.length" class="previews">
           <div v-for="m in media" :key="m.id" class="pv">
@@ -65,6 +75,15 @@
             </div>
             <div class="cap">{{ m.type === 'video' ? '视频' : '图片' }}</div>
           </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="label">封面（可选）</div>
+        <div class="uploader">
+          <input ref="coverEl" class="file" type="file" accept="image/*" @change="onPickCover" />
+          <button class="btn" type="button" @click="coverEl?.click()">上传封面</button>
+          <button v-if="coverFileUrl" class="btn btn-danger" type="button" @click="clearCover">移除封面</button>
         </div>
       </div>
 
@@ -80,26 +99,57 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ForumMedia } from '../../types/forum'
 import { useForumStore } from '../../stores/forum'
+import { useOrderStore } from '../../stores/order'
+import { useUserStore } from '@/stores/userStore'
 import { forumMockTags } from '../../mocks/forum'
-import { mockGoods } from '../../mocks/goods'
+import { mockCartItems } from '@/mocks/cart'
 
 const router = useRouter()
 const store = useForumStore()
+const orderStore = useOrderStore()
+const userStore = useUserStore()
 
 const title = ref('')
 const content = ref('')
 const selectedTags = ref<string[]>([])
 const err = ref('')
 const adminTags = forumMockTags
-const goods = mockGoods
 const productId = ref<string>('')
+const isLoadingMyTrades = ref(false)
+
+const goodsFromMyTrades = computed(() => {
+  const userId = Number(userStore.userInfo?.id ?? 0)
+  const fromOrders = orderStore.orders.flatMap((order) =>
+    (order.products ?? []).map((item) => ({
+      id: String(item.product_id),
+      name: item.product_title,
+    })),
+  )
+  const fromCart = mockCartItems
+    .filter((item) => item.userId === userId)
+    .map((item) => ({
+      id: String(item.id),
+      name: item.title,
+    }))
+  const merged = [...fromOrders, ...fromCart]
+
+  // 相同商品仅保留一份，避免下拉框重复
+  const uniqueById = new Map<string, { id: string; name: string }>()
+  for (const item of merged) {
+    if (!uniqueById.has(item.id)) uniqueById.set(item.id, item)
+  }
+  return [...uniqueById.values()]
+})
 
 const fileEl = ref<HTMLInputElement | null>(null)
 const media = ref<ForumMedia[]>([])
+const MAX_MEDIA_COUNT = 9
+const coverEl = ref<HTMLInputElement | null>(null)
+const coverFileUrl = ref('')
 
 function clearMedia() {
   for (const m of media.value) {
@@ -113,13 +163,47 @@ function clearMedia() {
   if (fileEl.value) fileEl.value.value = ''
 }
 
+function clearCover() {
+  if (coverFileUrl.value.startsWith('blob:')) {
+    try {
+      URL.revokeObjectURL(coverFileUrl.value)
+    } catch {
+      // ignore
+    }
+  }
+  coverFileUrl.value = ''
+  if (coverEl.value) coverEl.value.value = ''
+}
+
+function onPickCover(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  if (!f) return
+  clearCover()
+  coverFileUrl.value = URL.createObjectURL(f)
+  err.value = ''
+  if (coverEl.value) coverEl.value.value = ''
+}
+
 function onPick(e: Event) {
   const input = e.target as HTMLInputElement
   const files = [...(input.files ?? [])]
   if (files.length === 0) return
+  if (media.value.length >= MAX_MEDIA_COUNT) {
+    err.value = `多媒体最多上传 ${MAX_MEDIA_COUNT} 个`
+    if (fileEl.value) fileEl.value.value = ''
+    return
+  }
+
+  err.value = ''
+  const remainCount = MAX_MEDIA_COUNT - media.value.length
+  const picked = files.slice(0, remainCount)
+  if (files.length > remainCount) {
+    err.value = `最多上传 ${MAX_MEDIA_COUNT} 个，已自动保留前 ${remainCount} 个`
+  }
 
   const list: ForumMedia[] = []
-  for (const f of files) {
+  for (const f of picked) {
     const url = URL.createObjectURL(f)
     const isVideo = f.type.startsWith('video/')
     list.push({
@@ -129,19 +213,14 @@ function onPick(e: Event) {
       posterUrl: isVideo ? makePoster(f.name) : undefined,
     })
   }
-  media.value = [...media.value, ...list].slice(0, 9)
+  media.value = [...media.value, ...list]
+  if (fileEl.value) fileEl.value.value = ''
 }
 
 function makePoster(label: string) {
   const svg = `
   <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">
-    <defs>
-      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.55"/>
-        <stop offset="100%" stop-color="#6366f1" stop-opacity="0.22"/>
-      </linearGradient>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#g)"/>
+    <rect width="100%" height="100%" fill="#f97316" fill-opacity="0.22"/>
     <text x="32" y="74" font-family="system-ui,Segoe UI,Roboto,Arial" font-size="28" fill="rgba(255,255,255,0.92)" font-weight="800">视频预览</text>
     <text x="32" y="114" font-family="system-ui,Segoe UI,Roboto,Arial" font-size="18" fill="rgba(255,255,255,0.78)">${escapeXml(
       label.slice(0, 24),
@@ -154,6 +233,17 @@ function makePoster(label: string) {
 function escapeXml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
+
+const firstMediaCover = computed(() => {
+  const first = media.value[0]
+  if (!first) return ''
+  return first.posterUrl || first.url || ''
+})
+
+const resolvedCoverPreview = computed(() => {
+  if (coverFileUrl.value) return coverFileUrl.value
+  return firstMediaCover.value || ''
+})
 
 function fillDemo() {
   title.value = '二手交易避坑：验机 + 议价 + 走平台'
@@ -169,7 +259,6 @@ function toggleTag(tag: string) {
     selectedTags.value = [...set]
     return
   }
-  if (set.size >= 2) return
   set.add(tag)
   selectedTags.value = [...set]
 }
@@ -197,6 +286,7 @@ async function submit() {
     content: c,
     tags,
     media: media.value.length ? media.value : [],
+    coverUrl: coverFileUrl.value || firstMediaCover.value || '',
     productId: productId.value ? productId.value : null,
     postType: productId.value ? 'sell' : 'common',
   })
@@ -206,12 +296,22 @@ async function submit() {
 
   await router.push(`/forum/post/${created.id}`)
 }
+
+onMounted(async () => {
+  if (!userStore.isLoggedIn) return
+  try {
+    isLoadingMyTrades.value = true
+    await orderStore.loadOrders()
+  } finally {
+    isLoadingMyTrades.value = false
+  }
+})
 </script>
 
 <style scoped>
 .page {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .top {
@@ -222,8 +322,9 @@ async function submit() {
 }
 
 .h {
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 900;
+  letter-spacing: 0.2px;
 }
 
 .sub {
@@ -232,27 +333,34 @@ async function submit() {
 }
 
 .form {
-  padding: 14px;
+  padding: 18px;
   display: grid;
-  gap: 14px;
+  gap: 16px;
+  border-color: rgba(249, 115, 22, 0.24);
+  box-shadow: 0 16px 32px rgba(249, 115, 22, 0.14);
+  animation: popIn 260ms ease both;
 }
 
 .back-icon {
-  width: 34px;
-  height: 34px;
+  width: 48px;
+  height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(17, 24, 39, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.34);
   background: #fff;
-  color: rgba(17, 24, 39, 0.8);
-  font-size: 18px;
+  color: #ea580c;
+  font-size: 24px;
   line-height: 1;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
 .back-icon:hover {
-  background: rgba(17, 24, 39, 0.04);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px rgba(249, 115, 22, 0.22);
+  background: rgba(249, 115, 22, 0.08);
 }
 
 .field {
@@ -262,7 +370,7 @@ async function submit() {
 
 .label {
   font-weight: 800;
-  color: rgba(17, 24, 39, 0.78);
+  color: #171717;
 }
 
 .tags {
@@ -274,15 +382,22 @@ async function submit() {
 .tag {
   height: 32px;
   border-radius: 999px;
-  border: 1px solid rgba(17, 24, 39, 0.10);
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  background: rgba(249, 115, 22, 0.06);
   padding: 0 12px;
   cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.tag:hover {
+  transform: translateY(-1px);
+  background: rgba(249, 115, 22, 0.14);
 }
 
 .tag.active {
-  border-color: rgba(6, 182, 212, 0.52);
-  background: rgba(6, 182, 212, 0.10);
+  border-color: rgba(249, 115, 22, 0.72);
+  background: #f97316;
+  color: #fff;
 }
 
 .uploader {
@@ -297,7 +412,7 @@ async function submit() {
 }
 
 .tip {
-  color: rgba(17, 24, 39, 0.55);
+  color: #6b7280;
 }
 
 .previews {
@@ -310,8 +425,14 @@ async function submit() {
   width: 140px;
   border-radius: 14px;
   overflow: hidden;
-  border: 1px solid rgba(17, 24, 39, 0.10);
+  border: 1px solid rgba(249, 115, 22, 0.24);
   background: rgba(255, 255, 255, 0.8);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.pv:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 22px rgba(249, 115, 22, 0.18);
 }
 
 .pv img {
@@ -338,7 +459,7 @@ async function submit() {
 .cap {
   padding: 8px 10px;
   font-weight: 700;
-  color: rgba(17, 24, 39, 0.70);
+  color: #374151;
 }
 
 .bar {
@@ -346,12 +467,12 @@ async function submit() {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border-top: 1px solid rgba(17, 24, 39, 0.08);
+  border-top: 1px solid rgba(249, 115, 22, 0.18);
   padding-top: 12px;
 }
 
 .err {
-  color: var(--danger);
+  color: #111827;
   font-weight: 700;
 }
 
@@ -372,6 +493,17 @@ async function submit() {
     width: 100%;
     justify-content: flex-end;
     flex-wrap: wrap;
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

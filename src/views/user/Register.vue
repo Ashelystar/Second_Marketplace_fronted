@@ -40,7 +40,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
+import { useUserStore } from '@/stores/userStore'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -53,8 +53,15 @@ const loading = ref(false)
 async function handleRegister() {
   try {
     loading.value = true
-    await userStore.register({ username: username.value, nickname: nickname.value, phone: phone.value, password: password.value })
-    await router.push('/profile')
+    if (!username.value.trim() || !password.value.trim()) {
+      throw new Error('用户名和密码不能为空')
+    }
+    userStore.login({
+      id: Date.now(),
+      username: nickname.value.trim() || username.value.trim(),
+      avatar: '',
+    })
+    await router.push('/user/profile')
   } catch (error) {
     alert((error as Error).message)
   } finally {

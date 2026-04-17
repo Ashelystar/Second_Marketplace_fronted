@@ -1,8 +1,8 @@
 <template>
   <div>
     <!-- 页面标题 -->
-    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-      <h1 class="text-2xl font-semibold mb-6 flex items-center gap-2">
+    <div class="user-page-card p-6 mb-6">
+      <h1 class="user-page-title text-gray-900">
         <i class="fa fa-user-circle text-xianyuText"></i>
         个人资料
       </h1>
@@ -29,6 +29,7 @@
                 <i class="fa fa-camera text-sm"></i>
                 <input 
                   id="avatar-upload" 
+                  ref="avatarUpload"
                   type="file" 
                   accept="image/*" 
                   class="hidden" 
@@ -39,7 +40,8 @@
             <div>
               <p class="text-sm text-gray-500 mb-2">支持 jpg、png 格式，大小不超过 2MB</p>
               <button 
-                @click="$refs.avatarUpload.click()"
+                type="button"
+                @click="avatarUpload?.click()"
                 class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
               >
                 更换头像
@@ -185,7 +187,7 @@
     </div>
     
     <!-- 账号安全卡片 -->
-    <div class="bg-white rounded-lg shadow-sm p-6">
+    <div class="user-page-card p-6">
       <h3 class="font-semibold text-lg mb-4">账号安全</h3>
       <div class="space-y-4">
         <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
@@ -246,6 +248,7 @@ let originalUser = {
 }
 
 const user = ref({ ...originalUser })
+const avatarUpload = ref<HTMLInputElement | null>(null)
 
 // 省份城市数据
 const provinces = ref([

@@ -365,6 +365,13 @@ const router = useRouter()
 const store = useProductStore()
 const userStore = useUserStore()
 
+const ensureLoggedIn = (actionHint: string) => {
+  if (userStore.isLoggedIn) return true
+  alert(`请先登录后再${actionHint}`)
+  router.push('/user/login')
+  return false
+}
+
 const searchInput = ref('')
 const product = ref<Product | null>(null)
 const currentIndex = ref(0)
@@ -617,10 +624,7 @@ const toggleFavorite = () => {
 }
 
 const goToCheckout = () => {
-  if (!userStore.isLoggedIn) {
-    alert('请先登录后再下单')
-    return
-  }
+  if (!ensureLoggedIn('购买商品')) return
   router.push({ path: '/checkout', query: { productId: route.query.id } })
 }
 

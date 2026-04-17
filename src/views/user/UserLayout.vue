@@ -1,23 +1,21 @@
-<!-- src/layouts/UserLayout.vue -->
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <!-- 顶部导航栏组件 -->
+  <div class="user-layout min-h-screen bg-gray-50">
     <HeaderNav />
-    
-    <div class="max-w-7xl mx-auto px-4 py-8">
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <!-- 左侧菜单栏组件 -->
+
+    <div class="max-w-7xl mx-auto px-4 py-6 md:py-8">
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         <UserSidebar />
-        
-        <!-- 主内容区域：这里会根据路由动态变化 -->
-        <div class="lg:col-span-3">
-          <!-- Vue Router 的出口，不同的子路由组件会在这里渲染 -->
-          <router-view></router-view>
+
+        <div class="lg:col-span-3 user-main-wrap">
+          <router-view v-slot="{ Component, route }">
+            <transition name="user-fade-slide" mode="out-in">
+              <component :is="Component" :key="route.fullPath" />
+            </transition>
+          </router-view>
         </div>
       </div>
     </div>
-    
-    <!-- 底部信息 (保持不变) -->
+
     <footer class="bg-gray-800 text-white py-8 mt-12">
       <div class="max-w-7xl mx-auto px-4">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -48,3 +46,59 @@
 import HeaderNav from '@/components/layout/HeaderNav.vue'
 import UserSidebar from '@/components/layout/UserSidebar.vue'
 </script>
+
+<style scoped>
+.user-main-wrap {
+  animation: main-panel-in 280ms ease both;
+}
+
+@keyframes main-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+:deep(.user-fade-slide-enter-active),
+:deep(.user-fade-slide-leave-active) {
+  transition: all 220ms ease;
+}
+
+:deep(.user-fade-slide-enter-from),
+:deep(.user-fade-slide-leave-to) {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+:deep(.user-page-card) {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 14px rgba(17, 24, 39, 0.06);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+:deep(.user-page-card:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.12);
+}
+
+:deep(.user-page-title) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+  .user-layout {
+    padding-bottom: 20px;
+  }
+}
+</style>

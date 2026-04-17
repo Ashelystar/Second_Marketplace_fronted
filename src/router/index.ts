@@ -1,11 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useUserStore } from '@/stores/userStore'
 
 import Home from '../views/home/Index.vue'
 import Detail from '../views/goods/Detail.vue'
 import SearchPage from '../views/goods/SearchPage.vue'
+import ForumLayout from '../views/forum/ForumLayout.vue'
 import Forum from '../views/forum/Index.vue'
 import GoodsList from '../views/goods/List.vue'
-import Cart from '../views/cart/Index.vue'
 import ChatList from '../views/chat/Index.vue'
 import OrderList from '../views/order/List.vue'
 import UserLogin from '../views/user/Login.vue'
@@ -70,8 +71,31 @@ const router = createRouter({
     // 论坛模块路由
     {
       path: '/forum',
-      name: 'forum',
-      component: Forum,
+      component: ForumLayout,
+      children: [
+        {
+          path: '',
+          name: 'forum',
+          component: Forum,
+        },
+        {
+          path: 'new',
+          name: 'forum-create',
+          component: () => import('../views/forum/Post.vue'),
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'post/:id',
+          name: 'forum-detail',
+          component: () => import('../views/forum/Detail.vue'),
+          props: true,
+        },
+        {
+          path: 'search',
+          name: 'forum-search',
+          component: () => import('../views/forum/ForumSearch.vue'),
+        },
+      ],
     },
     {
       path: '/orders',
@@ -82,29 +106,13 @@ const router = createRouter({
       path: '/checkout',
       name: 'checkout',
       component: () => import('../views/order/Checkout.vue'),
+      meta: { requiresAuth: true },
     },
-    {
-      path: '/forum/new',
-      name: 'forum-create',
-      component: () => import('../views/forum/Post.vue'),
-    },
-    {
-      path: '/forum/post/:id',
-      name: 'forum-detail',
-      component: () => import('../views/forum/Detail.vue'),
-      props: true,
-    },
-    {
-      path: '/forum/search',
-      name: 'forum-search',
-      component: () => import('../views/forum/ForumSearch.vue'),
-    },
-
     // 购物车模块路由
     {
       path: '/cart',
       name: 'cart',
-      component: Cart,
+      component: () => import('../views/cart/Index.vue'),
     },
 
     // 订单模块路由
@@ -129,11 +137,6 @@ const router = createRouter({
       name: 'order-detail-alt',
       component: () => import('../views/order/OrderDetail.vue'),
       props: true,
-    },
-    {
-      path: '/orders',
-      name: 'orders',
-      component: () => import('../views/order/Orders.vue'),
     },
 
     // 聊天模块路由
@@ -204,6 +207,19 @@ const router = createRouter({
       component: () => import('../views/error/NotFound.vue'),
     }
   ],
+})
+
+router.beforeEach((to) => {
+  if (!to.meta.requiresAuth) return true
+
+  const userStore = useUserStore()
+  if (userStore.isLoggedIn) return true
+
+  alert('请先登录后再进行该操作')
+  return {
+    path: '/user/login',
+    query: { redirect: to.fullPath },
+  }
 })
 
 export default router

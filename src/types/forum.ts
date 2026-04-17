@@ -37,6 +37,7 @@ export interface ForumPost {
   tags: string[]
   author: ForumAuthor
   media: ForumMedia[]
+  coverUrl?: string
   /**
    * 帖子类型：普通 / 售卖 等（由后端枚举决定，当前用于展示与关联商品）
    * NOTE：后端对字段名可能不同；这里是前端模型字段

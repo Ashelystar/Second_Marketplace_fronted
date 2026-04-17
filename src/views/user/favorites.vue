@@ -1,8 +1,8 @@
 <template>
   <div>
     <!-- 页面标题 -->
-    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-      <h1 class="text-2xl font-semibold mb-6 flex items-center gap-2">
+    <div class="user-page-card p-6 mb-6">
+      <h1 class="user-page-title text-gray-900">
         <i class="fa fa-heart text-xianyuText"></i>
         我的收藏
       </h1>
@@ -105,7 +105,7 @@
     </div>
     
     <!-- 收藏统计 -->
-    <div class="bg-white rounded-lg shadow-sm p-6">
+    <div class="user-page-card p-6">
       <h3 class="font-semibold text-lg mb-4">收藏统计</h3>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div class="text-center">

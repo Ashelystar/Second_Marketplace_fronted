@@ -78,7 +78,7 @@ export const useForumStore = defineStore('forum', {
       c.likeCount += 1
     },
     addPost(
-      input: Pick<ForumPost, 'title' | 'content' | 'tags' | 'media'> & {
+      input: Pick<ForumPost, 'title' | 'content' | 'tags' | 'media' | 'coverUrl'> & {
         postType?: string
         productId?: string | number | null
       },
@@ -90,6 +90,7 @@ export const useForumStore = defineStore('forum', {
         content: input.content.trim(),
         tags: input.tags,
         media: input.media,
+        coverUrl: input.coverUrl,
         postType: input.postType ?? 'common',
         productId: input.productId ?? null,
         postStatus: 'pending_review',

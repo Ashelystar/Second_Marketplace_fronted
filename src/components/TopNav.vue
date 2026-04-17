@@ -2,10 +2,11 @@
 <template>
   <!-- 顶部导航栏 -->
   <header class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-    <div class="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="site-topnav-row max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
       <!-- 左侧Logo -->
-      <a href="#" class="flex items-center gap-2" @click.prevent>
-        <h1 class="text-xl font-bold text-xianyuText"  @click.prevent="goToHome">荔园交易</h1>
+      <a href="#" class="flex items-center gap-2 shrink-0 no-underline" @click.prevent="goToHome">
+        <i class="fa fa-fish text-2xl text-xianyuText" aria-hidden="true"></i>
+        <h1 class="text-xl font-bold text-xianyuText m-0">荔园交易</h1>
       </a>
 
       <!-- 中间搜索区域 -->
@@ -31,24 +32,23 @@
         </div>
       </div>
 
-      <!-- 右侧导航链接 -->
+      <!-- 右侧导航链接（结构与社区 ForumLayout 顶栏一致） -->
       <nav class="navLinks">
-        <a href="#" @click.prevent="goToForum"
-          ><i class="fa fa-comments"></i> 社区</a
-        >
-        <!-- 根据登录状态显示不同内容 -->
+        <a href="#" @click.prevent="goToForum">
+          <i class="fa fa-comments"></i>
+          社区
+        </a>
         <template v-if="userStore.isLoggedIn">
-          <button
-            class="hover:text-xianyuText flex items-center gap-1"
-            @click="goToUserCenter"
-          >
-            <i class="fa fa-user"></i> 我的
-          </button>
+          <a href="#" @click.prevent="goToUserCenter">
+            <i class="fa fa-user"></i>
+            我的
+          </a>
         </template>
         <template v-else>
-          <a href="#" @click="goToLogin"
-            ><i class="fa fa-user"></i> 登录/注册</a
-          >
+          <a href="#" @click.prevent="goToLogin">
+            <i class="fa fa-user"></i>
+            登录/注册
+          </a>
         </template>
       </nav>
     </div>
@@ -117,40 +117,7 @@ const goToLogin = () => {
 </script>
 
 <style scoped>
-/* 容器样式 */
-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-/* 内部布局容器 */
-div.max-w-\\[1600px\\] {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-/* Logo样式 */
-a.flex.items-center.gap-2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  flex-shrink: 0;
-}
-
-h1.text-xl {
-  font-size: 22px;
-  font-weight: bold;
-  color: #f97316; /* 与原文档中的 --xianyuText 颜色一致 */
-}
+/* 顶栏布局与字号由模板上的 Tailwind 类控制，与 ForumLayout 保持一致 */
 
 /* 搜索框容器 */
 .searchBox {
@@ -178,7 +145,8 @@ h1.text-xl {
 
 .searchRow input:focus {
   background: #fff;
-  border-color: #3b82f6; /* 聚焦时边框变蓝 */
+  border-color: rgba(249, 115, 22, 0.58);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.16);
 }
 
 .searchRow button {
@@ -224,34 +192,29 @@ h1.text-xl {
   flex-shrink: 0;
 }
 
-.navLinks a,
-.navLinks button {
+.navLinks a {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 14px;
   color: #374151;
   text-decoration: none;
-  background: none;
-  border: none;
-  cursor: pointer;
   transition: color 200ms;
-  padding: 0;
 }
 
-.navLinks a:hover,
-.navLinks button:hover {
-  color: #f97316; /* 悬停时变为主题橙色 */
+.navLinks a:hover {
+  color: #f97316;
 }
 
 /* 响应式设计 */
 @media (max-width: 900px) {
-  div.max-w-\\[1600px\\] {
+  .site-topnav-row {
     flex-wrap: wrap;
   }
   .searchBox {
     order: 3;
     flex-basis: 100%;
+    max-width: none;
     margin-top: 12px;
   }
 }
@@ -260,9 +223,6 @@ h1.text-xl {
   .navLinks {
     font-size: 13px;
     gap: 15px;
-  }
-  h1.text-xl {
-    font-size: 20px;
   }
 }
 </style>

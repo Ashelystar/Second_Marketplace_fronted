@@ -1,8 +1,8 @@
 <template>
   <div>
     <!-- 页面标题和筛选 -->
-    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-      <h1 class="text-2xl font-semibold mb-6 flex items-center gap-2">
+    <div class="user-page-card p-6 mb-6">
+      <h1 class="user-page-title text-gray-900">
         <i class="fa fa-exchange text-xianyuText"></i>
         我的交易
       </h1>
