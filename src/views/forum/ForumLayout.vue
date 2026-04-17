@@ -1,10 +1,10 @@
 <template>
   <div class="forum-layout">
     <header class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      <div class="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
-        <a href="#" class="flex items-center gap-2" @click.prevent="router.push('/')">
-          <i class="fa fa-fish text-2xl text-xianyuText"></i>
-          <h1 class="text-xl font-bold text-xianyuText">荔园交易</h1>
+      <div class="site-topnav-row max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
+        <a href="#" class="flex items-center gap-2 shrink-0 no-underline" @click.prevent="router.push('/')">
+          <i class="fa fa-fish text-2xl text-xianyuText" aria-hidden="true"></i>
+          <h1 class="text-xl font-bold text-xianyuText m-0">荔园交易</h1>
         </a>
 
         <div class="searchBox">
@@ -109,7 +109,8 @@ const handleLogin = () => {
 
 .searchRow input:focus {
   background: #fff;
-  border-color: #3b82f6;
+  border-color: rgba(249, 115, 22, 0.58);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.16);
 }
 
 .searchRow button {
@@ -165,6 +166,25 @@ const handleLogin = () => {
 
 .navLinks a:hover {
   color: #f97316;
+}
+
+@media (max-width: 900px) {
+  .site-topnav-row {
+    flex-wrap: wrap;
+  }
+  .searchBox {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none;
+    margin-top: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .navLinks {
+    font-size: 13px;
+    gap: 15px;
+  }
 }
 
 .forum-main :deep(.btn-primary) {

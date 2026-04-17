@@ -1,7 +1,26 @@
 <template>
   <div class="page">
-    
-    <Topnav v-if="showNav" />
+    <!-- 社区模块专属区域：与顶部全局导航分离，不参与合并 -->
+    <section class="top communityStrip" aria-label="社区广场">
+      <div class="left">
+        <h2 class="h">社区广场</h2>
+        <p class="sub">真实经验、交易建议、避坑分享</p>
+      </div>
+      <div class="search">
+        <div class="searchRow">
+          <i class="fa fa-search searchIcon" aria-hidden="true" />
+          <input
+            v-model="keyword"
+            class="input"
+            type="search"
+            autocomplete="off"
+            placeholder="搜索帖子标题、标签、作者"
+            @keydown.enter.prevent="doSearch"
+          />
+          <button type="button" class="searchBtn" @click="doSearch">搜索</button>
+        </div>
+      </div>
+    </section>
 
     <div class="filters">
       <button class="chip" :class="{ active: activeTag === '' }" type="button" @click="activeTag = ''">全部</button>
@@ -34,15 +53,10 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import PostCard from '../../components/forum/PostCard.vue'
 import { useForumStore } from '../../stores/forum'
 import { useUserStore } from '@/stores/userStore'
-import Topnav from '@/components/TopNav.vue' 
-
-const route = useRoute()
-const hideNavRoutes = ['/user/login', '/user/register']
-const showNav = computed(() => !hideNavRoutes.includes(route.path))
 
 const router = useRouter()
 const store = useForumStore()
@@ -65,7 +79,7 @@ const filtered = computed(() => {
     const tagMatch = !activeTag.value || p.tags.includes(activeTag.value)
     const k = searchQuery.value.trim().toLowerCase()
     if (!k) return tagMatch
-    const text = `${p.title} ${p.tags.join(' ')}`.toLowerCase()
+    const text = `${p.title} ${p.tags.join(' ')} ${p.author.name}`.toLowerCase()
     return tagMatch && text.includes(k)
   })
 })
@@ -95,14 +109,20 @@ function goCreatePost() {
 }
 
 .top {
-  padding: 16px;
+  padding: 20px 22px;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
   background: #fff;
-  border-color: rgba(249, 115, 22, 0.26);
+  border-radius: 12px;
+  border: 1px solid rgba(249, 115, 22, 0.22);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
   animation: fadeInTop 280ms ease both;
+}
+
+.communityStrip .h {
+  margin: 0;
 }
 
 .left {
@@ -113,11 +133,14 @@ function goCreatePost() {
   font-size: 26px;
   font-weight: 900;
   letter-spacing: 0.3px;
+  line-height: 1.2;
 }
 
 .sub {
-  margin-top: 4px;
+  margin: 6px 0 0;
   color: #525252;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .search {
@@ -232,6 +255,7 @@ function goCreatePost() {
   .top {
     flex-direction: column;
     align-items: stretch;
+    padding: 16px 18px;
   }
   .masonry {
     column-count: 2;
