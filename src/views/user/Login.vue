@@ -33,6 +33,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { loginApi } from '@/api/user'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -46,11 +47,20 @@ async function handleLogin() {
     if (!account.value.trim() || !password.value.trim()) {
       throw new Error('请输入账号和密码')
     }
-    userStore.login({
-      id: 1,
-      username: account.value.trim(),
-      avatar: 'https://i.pravatar.cc/120?img=12',
+
+    const data = await loginApi({
+      account: account.value.trim(),
+      password: password.value.trim(),
     })
+
+    userStore.login(
+      {
+        ...data.userInfo,
+        avatar: data.userInfo.avatarUrl || data.userInfo.avatar || null,
+      },
+      data.token
+    )
+
     await router.push('/user/center')
   } catch (error) {
     alert((error as Error).message)
