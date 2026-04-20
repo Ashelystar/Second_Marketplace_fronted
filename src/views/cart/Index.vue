@@ -2,22 +2,11 @@
   <div class="page">
     <!-- 顶部导航 -->
     <div class="top">
-      <div class="topInner">
-        <div class="left">
-          <button class="backBtn" @click="goBack">
-            <i class="fa fa-arrow-left"></i>
-          </button>
-          <a href="#" class="logo" @click.prevent="router.push('/')">
-            <span>荔园交易</span>
-          </a>
-        </div>
-        <div class="right" v-if="selectedCount > 0">
-          <button class="deleteBtn" @click="deleteSelected">
-            <i class="fa fa-trash-alt"></i>
-            删除
-          </button>
-        </div>
-      </div>
+      <button class="backBtn" @click="goBack">
+        <i class="fa fa-arrow-left"></i>
+      </button>
+      <span class="title">购物车</span>
+      <div class="right"></div>
     </div>
 
     <!-- 购物车为空 -->
@@ -230,29 +219,10 @@ const goBack = () => {
   z-index: 100;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
-}
-
-.topInner {
   padding: 14px 16px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo {
-  text-decoration: none;
-}
-
-.logo span {
-  font-size: 17px;
-  font-weight: 600;
-  color: #f97316;
+  gap: 8px;
 }
 
 .backBtn {
