@@ -38,18 +38,22 @@
           <i class="fa fa-comments"></i>
           社区
         </a>
-        <template v-if="userStore.isLoggedIn">
-          <a href="#" @click.prevent="goToUserCenter">
-            <i class="fa fa-user"></i>
-            我的
-          </a>
-        </template>
-        <template v-else>
-          <a href="#" @click.prevent="goToLogin">
-            <i class="fa fa-user"></i>
-            登录/注册
-          </a>
-        </template>
+        <a href="#" @click.prevent="goToCart">
+          <i class="fa fa-shopping-cart"></i>
+          购物车
+        </a>
+        <a href="#" @click.prevent="goToChat">
+          <i class="fa fa-comment"></i>
+          信息
+        </a>
+        <a href="#" @click.prevent="goToOrders">
+          <i class="fa fa-shopping-bag"></i>
+          订单
+        </a>
+        <a href="#" @click.prevent="goToMine">
+          <i class="fa fa-user"></i>
+          {{ userStore.isLoggedIn ? '我的' : '登录/注册' }}
+        </a>
       </nav>
     </div>
   </header>
@@ -98,21 +102,24 @@ const goToForum = () => {
   router.push('/forum')
 }
 
+const goToCart = () => {
+  router.push('/cart')
+}
+
 const goToHome = () => {
   router.push('/')
 }
-/**
- * 导航到用户中心页面
- */
-const goToUserCenter = () => {
-  router.push('/user/center')
+
+const goToMine = () => {
+  router.push(userStore.isLoggedIn ? '/user/center' : '/user/login')
 }
 
-/**
- * 导航到登录页面
- */
-const goToLogin = () => {
-  router.push('/user/login')
+const goToChat = () => {
+  router.push('/chat')
+}
+
+const goToOrders = () => {
+  router.push('/orders')
 }
 </script>
 

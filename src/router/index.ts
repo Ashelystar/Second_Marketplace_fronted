@@ -40,12 +40,14 @@ const router = createRouter({
       path: '/detail',
       name: 'detail',
       component: Detail,
+      meta: { requiresAuth: true },
     },
     {
       path: '/goods/:id',
       name: 'goods-detail',
       component: () => import('../views/goods/Detail.vue'),
       props: true,
+      meta: { requiresAuth: true },
     },
     {
       path: '/publish',
@@ -72,6 +74,7 @@ const router = createRouter({
     {
       path: '/forum',
       component: ForumLayout,
+      meta: { requiresAuth: true },
       children: [
         {
           path: '',
@@ -163,6 +166,12 @@ const router = createRouter({
       name: 'register',
       component: UserRegister,
     },
+    {
+      path: '/user/home/:id',
+      name: 'user-home',
+      component: () => import('../views/user/PublicProfile.vue'),
+      props: true,
+    },
      {
       path: '/user',
       component: UserLayout,
@@ -209,13 +218,14 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
-  if (!to.meta.requiresAuth) return true
+const guestAllowedPaths = new Set(['/','/user/login','/user/register'])
 
+router.beforeEach((to) => {
   const userStore = useUserStore()
   if (userStore.isLoggedIn) return true
+  if (guestAllowedPaths.has(to.path)) return true
 
-  alert('请先登录后再进行该操作')
+  alert('请先进行登录')
   return {
     path: '/user/login',
     query: { redirect: to.fullPath },

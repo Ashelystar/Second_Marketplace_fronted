@@ -27,13 +27,10 @@
 
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
-          <template v-if="userStore.isLoggedIn">
-            <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
-            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
-          </template>
-          <template v-else>
-            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
-          </template>
+          <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
+          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-comment"></i> 信息</a>
+          <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
+          <a href="#" @click.prevent="router.push(userStore.isLoggedIn ? '/user/center' : '/user/login')"><i class="fa fa-user"></i> {{ userStore.isLoggedIn ? '我的' : '登录/注册' }}</a>
         </nav>
       </div>
     </div>
@@ -86,7 +83,7 @@
               </div>
             </div>
           </div>
-          <button class="viewProfileBtn">
+          <button class="viewProfileBtn" @click="goToSellerHome">
             <i class="fa fa-user"></i> 查看主页
           </button>
         </div>
@@ -630,6 +627,15 @@ const goToCheckout = () => {
 
 const handleLogin = () => {
   router.push('/user/login')
+}
+
+const goToSellerHome = () => {
+  if (!product.value?.sellerId || !product.value?.id) return
+  router.push({
+    name: 'user-home',
+    params: { id: String(product.value.sellerId) },
+    query: { fromProductId: String(product.value.id) },
+  })
 }
 
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })

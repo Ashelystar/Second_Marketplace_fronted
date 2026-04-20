@@ -7,7 +7,7 @@
           <h1 class="text-xl font-bold text-xianyuText m-0">荔园交易</h1>
         </a>
 
-        <div v-if="isForumSquare" class="searchBox">
+        <div class="searchBox">
           <div class="searchRow">
             <input
               v-model="squareSearchDraft"
@@ -19,39 +19,28 @@
             <button type="button" @click="applySquareSearch"><i class="fa fa-search" aria-hidden="true"></i></button>
           </div>
         </div>
-        <div v-else class="searchBox">
-          <div class="searchRow">
-            <input
-              v-model="searchInput"
-              type="text"
-              placeholder="搜索闲置物品"
-              @keypress.enter="handleSearch"
-            />
-            <button @click="handleSearch"><i class="fa fa-search"></i></button>
-          </div>
-          <div class="hotTags">
-            <span>热门：</span>
-            <a href="#" v-for="tag in hotTags" :key="tag" @click.prevent="searchTag(tag)">{{ tag }}</a>
-          </div>
-        </div>
 
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')">
             <i class="fa fa-comments"></i>
             社区
           </a>
-          <template v-if="userStore.isLoggedIn">
-            <a href="#" @click.prevent="router.push('/user/center')">
-              <i class="fa fa-user"></i>
-              我的
-            </a>
-          </template>
-          <template v-else>
-            <a href="#" @click.prevent="handleLogin">
-              <i class="fa fa-user"></i>
-              登录/注册
-            </a>
-          </template>
+          <a href="#" @click.prevent="router.push('/cart')">
+            <i class="fa fa-shopping-cart"></i>
+            购物车
+          </a>
+          <a href="#" @click.prevent="router.push('/chat')">
+            <i class="fa fa-comment"></i>
+            信息
+          </a>
+          <a href="#" @click.prevent="router.push('/orders')">
+            <i class="fa fa-shopping-bag"></i>
+            订单
+          </a>
+          <a href="#" @click.prevent="router.push(userStore.isLoggedIn ? '/user/center' : '/user/login')">
+            <i class="fa fa-user"></i>
+            {{ userStore.isLoggedIn ? '我的' : '登录/注册' }}
+          </a>
         </nav>
       </div>
     </header>
@@ -62,49 +51,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useForumStore } from '@/stores/forum'
 
-const router = useRouter()
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const forumStore = useForumStore()
-const searchInput = ref('')
-const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
-
-const isForumSquare = computed(() => route.name === 'forum')
 const squareSearchDraft = ref(forumStore.squareSearchQuery)
-
-watch(isForumSquare, (on) => {
-  if (on) squareSearchDraft.value = forumStore.squareSearchQuery
-})
 
 watch(
   () => forumStore.squareSearchQuery,
   (q) => {
-    if (isForumSquare.value) squareSearchDraft.value = q
+    squareSearchDraft.value = q
   },
 )
 
 function applySquareSearch() {
   forumStore.setSquareSearchQuery(squareSearchDraft.value.trim())
-}
-
-const handleSearch = () => {
-  const keyword = searchInput.value.trim()
-  if (!keyword) return
-  router.push({ path: '/search', query: { q: keyword } })
-}
-
-const searchTag = (tag: string) => {
-  searchInput.value = tag
-  handleSearch()
-}
-
-const handleLogin = () => {
-  router.push('/user/login')
+  if (route.name !== 'forum') {
+    router.push('/forum')
+  }
 }
 </script>
 
@@ -160,25 +129,6 @@ const handleLogin = () => {
 
 .searchRow button:hover {
   background: #ea580c;
-}
-
-.hotTags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.hotTags a {
-  color: #6b7280;
-  text-decoration: none;
-  transition: color 200ms;
-}
-
-.hotTags a:hover {
-  color: #f97316;
 }
 
 .navLinks {
