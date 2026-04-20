@@ -20,6 +20,8 @@ export const useForumStore = defineStore('forum', {
   state: () => ({
     posts: [...forumMockPosts] as ForumPost[],
     comments: [...forumMockComments] as ForumComment[],
+    /** 社区广场列表：顶栏提交的帖子搜索关键词（仅首页筛选使用） */
+    squareSearchQuery: '',
     currentUserId: 'me',
     currentUserName: 'XMQ',
     currentUserAvatarUrl: forumMockPosts[0]?.author.avatarUrl ?? '',
@@ -50,6 +52,9 @@ export const useForumStore = defineStore('forum', {
     isCommentLiked: (s) => (commentId: string) => s.likedCommentIds.has(commentId),
   },
   actions: {
+    setSquareSearchQuery(q: string) {
+      this.squareSearchQuery = q
+    },
     incrementView(postId: string) {
       const p = this.posts.find((x) => x.id === postId)
       if (!p) return
