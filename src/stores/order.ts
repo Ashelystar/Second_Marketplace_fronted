@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { TradeOrder, OrderProduct } from '@/types'
+import type { TradeOrder } from '@/types'
 import { listOrders, getOrderDetail, getOrderItems, cancelOrder, confirmReceipt as apiConfirmReceipt } from '@/api/order'
 
 export const useOrderStore = defineStore('order', () => {
   const orders = ref<TradeOrder[]>([])
   const currentOrder = ref<TradeOrder | null>(null)
-  const items = ref<OrderProduct[]>([])
+  const items = ref<any[]>([])
   const loading = ref(false)
 
   async function loadOrders(status?: string) {
@@ -30,7 +30,7 @@ export const useOrderStore = defineStore('order', () => {
     return updated
   }
 
-  async function confirmReceipt(orderId: number): Promise<TradeOrder | null> {
+  async function confirmReceipt(orderId: number): Promise<TradeOrder> {
     loading.value = true
     const updated = await apiConfirmReceipt(orderId)
     currentOrder.value = updated
