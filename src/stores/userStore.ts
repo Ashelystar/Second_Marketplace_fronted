@@ -11,16 +11,31 @@ export interface FavoriteItem {
   addTime: string
 }
 
+export interface UserInfo {
+  id?: number
+  username?: string
+  nickname?: string
+  avatar?: string | null
+  avatarUrl?: string | null
+  phone?: string
+  email?: string
+  userStatus?: string
+  lastLoginAt?: string
+  registeredAt?: string
+}
+
 export const useUserStore = defineStore('user', () => {
-  // 强制设置为未登录状态，不从 localStorage 读取
-  const userInfo = ref<{ id?: number; username?: string; avatar?: string } | null>(null)
+  const token = ref<string>(localStorage.getItem('token') || '')
+  const userInfo = ref<UserInfo | null>(
+    JSON.parse(localStorage.getItem('userInfo') || 'null')
+  )
 
   // 收藏列表
   const favorites = ref<FavoriteItem[]>(
     JSON.parse(localStorage.getItem('favorites') || '[]')
   )
 
-  const isLoggedIn = computed(() => !!userInfo.value)
+  const isLoggedIn = computed(() => !!token.value)
 
   const isFavorited = (productId: number) => {
     return favorites.value.some(item => item.id === productId)
@@ -50,14 +65,20 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('favorites', JSON.stringify(favorites.value))
   }
 
-  const login = (user: typeof userInfo.value) => {
+  const login = (user: typeof userInfo.value, tokenValue?: string) => {
     userInfo.value = user
     localStorage.setItem('userInfo', JSON.stringify(user))
+    if (tokenValue) {
+      localStorage.setItem('token', tokenValue)
+      token.value = tokenValue
+    }
   }
 
   const logout = () => {
     userInfo.value = null
+    token.value = ''
     localStorage.removeItem('userInfo')
+    localStorage.removeItem('token')
   }
 
   return {
