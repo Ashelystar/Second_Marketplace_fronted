@@ -18,17 +18,19 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',  // 允许外部访问，监听所有网络接口
+    host: '0.0.0.0',  // 允许外部访问
     port: 5173,       // 开发服务器端口
-    strictPort: true, // 端口被占用时报错，不自动切换
+    strictPort: true, // 端口被占用时报错
     open: false,      // 是否自动打开浏览器
     cors: true,       // 启用CORS
-    proxy: {          // 代理配置（可选）
-      // '/api': {
-      //   target: 'http://localhost:3000',
-      //   changeOrigin: true,
-      //   rewrite: (path) => path.replace(/^\/api/, '')
-      // }
+    proxy: {
+      // 配置转发规则
+      '/api': {
+        target: 'http://120.79.151.167:8083', // 你的后端地址
+        changeOrigin: true,
+        // 注意：因为你的后端接口路径里本身就带有 /api
+        // 所以这里千万不要写 rewrite，保持原样转发即可
+      }
     }
   }
 })

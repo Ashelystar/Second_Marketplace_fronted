@@ -49,10 +49,6 @@ export interface ApiResponse<T = unknown> {
   data: T
 }
 
-export function apiBaseUrl(): string {
-  return (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
-}
-
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text()
   if (!text) {
@@ -61,8 +57,10 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return JSON.parse(text) as T
 }
 
+// --- 下面是重点修改的地方，全部改回相对路径 ---
+
 export async function loginApi(body: LoginRequest): Promise<LoginResponseData> {
-  const url = `${apiBaseUrl()}/api/user/login`
+  const url = `/api/user/login` // 改回去了
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -87,7 +85,7 @@ export async function loginApi(body: LoginRequest): Promise<LoginResponseData> {
 export async function registerApi(
   body: RegisterRequest
 ): Promise<RegisterResponse> {
-  const url = `${apiBaseUrl()}/api/user/register`
+  const url = `/api/user/register` // 改回去了
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -112,7 +110,7 @@ export async function registerApi(
 export async function resetPasswordApi(
   body: ResetPasswordRequest
 ): Promise<ResetPasswordResponse> {
-  const url = `${apiBaseUrl()}/api/user/reset-password`
+  const url = `/api/user/reset-password` // 改回去了
   const response = await fetch(url, {
     method: 'POST',
     headers: {
