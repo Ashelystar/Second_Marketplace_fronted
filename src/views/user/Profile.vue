@@ -92,13 +92,13 @@
 
         <!-- 城市 -->
         <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-700 mb-2">城市</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">省份</label>
           <select
             v-model="form.city"
             @change="onCityChange"
             class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
           >
-            <option value="">请选择城市</option>
+            <option value="">请选择省份</option>
             <option
               v-for="city in cityList"
               :key="city"
@@ -111,12 +111,12 @@
 
         <!-- 区/县 -->
         <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-700 mb-2">区/县</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">城市</label>
           <select
             v-model="form.district"
             class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
           >
-            <option value="">请选择区/县</option>
+            <option value="">请选择城市</option>
             <option
               v-for="district in districtList"
               :key="district"
