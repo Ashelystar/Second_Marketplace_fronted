@@ -32,11 +32,19 @@
         </div>
       </div>
 
-      <!-- 右侧导航链接（结构与社区 ForumLayout 顶栏一致） -->
+      <!-- 右侧导航链接 -->
       <nav class="navLinks">
         <a href="#" @click.prevent="goToForum">
           <i class="fa fa-comments"></i>
           社区
+        </a>
+        <a href="#" @click.prevent="goToCart">
+          <i class="fa fa-shopping-cart"></i>
+          购物车
+        </a>
+        <a href="#" @click.prevent="goToMessage">
+          <i class="fa fa-bell"></i>
+          消息
         </a>
         <template v-if="userStore.isLoggedIn">
           <a href="#" @click.prevent="goToUserCenter">
@@ -136,6 +144,20 @@ const goToHome = () => {
  */
 const goToUserCenter = () => {
   router.push('/user/center')
+}
+
+/**
+ * 导航到购物车页面
+ */
+const goToCart = () => {
+  router.push('/cart')
+}
+
+/**
+ * 导航到消息页面
+ */
+const goToMessage = () => {
+  router.push('/message')
 }
 
 /**

@@ -1,7 +1,45 @@
 <template>
   <div class="page">
     <!-- 顶部导航 -->
-    <Topnav v-if="showNav" />
+    <div class="top">
+      <div class="topInner">
+        <div class="left">
+          <button class="backBtn" @click="goBack">
+            <i class="fa fa-arrow-left"></i>
+          </button>
+          <a href="#" class="logo" @click.prevent="router.push('/')">
+            <i class="fa fa-fish"></i>
+            <span>荔园交易</span>
+          </a>
+        </div>
+
+        <div class="searchBox">
+          <div class="searchRow">
+            <input
+              type="text"
+              v-model="searchInput"
+              placeholder="搜索闲置物品"
+              @keypress.enter="performSearch"
+            />
+            <button @click="performSearch"><i class="fa fa-search"></i></button>
+          </div>
+
+        </div>
+
+        <nav class="navLinks">
+          <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
+          <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
+          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <template v-if="userStore.isLoggedIn">
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+          </template>
+          <template v-else>
+            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
+          </template>
+        </nav>
+      </div>
+    </div>
+
 
     <!-- 面包屑 -->
     <div class="breadcrumb">
@@ -158,9 +196,9 @@
                 <i class="fa fa-share-alt"></i> 分享
               </button>
             </div>
-            <div class="actionRow"  @click="goToChat">
-              <button class="actionBtn secondary">
-                <i class="fa fa-comment"> 聊一聊 </i> 
+            <div class="actionRow">
+              <button class="actionBtn secondary" @click="goToChat">
+                <i class="fa fa-comment"></i> 聊一聊
               </button>
               <button class="actionBtn primary" @click="goToCheckout">
                 立即购买
@@ -176,15 +214,15 @@
           <h3><i class="fa fa-comments"></i> 商品评论</h3>
           <span class="commentCount">{{ comments.length }} 条评论</span>
         </div>
-        
+
         <!-- 评论输入框 -->
         <div class="commentInput">
           <img v-if="userStore.userInfo?.avatar" :src="userStore.userInfo.avatar" class="commentAvatar" />
           <div v-else class="commentAvatar avatarDefault">{{ userStore.userInfo?.username?.charAt(0) || '游' }}</div>
           <div class="inputWrapper">
-            <textarea 
-              v-model="newComment" 
-              placeholder="发表你的看法..." 
+            <textarea
+              v-model="newComment"
+              placeholder="发表你的看法..."
               rows="3"
               @focus="handleCommentFocus"
             ></textarea>
@@ -204,10 +242,13 @@
               <div class="commentMeta">
                 <span class="commentName">{{ comment.name }}</span>
                 <span class="commentTime">{{ comment.time }}</span>
+                <button class="subReplyBtn" @click="toggleReplyInput(comment.id, null)">
+                  <i class="fa fa-commenting"></i> 回复
+                </button>
               </div>
             </div>
             <div class="commentContent">{{ comment.content }}</div>
-            
+
             <!-- 回复列表 -->
             <div class="replyList" v-if="comment.replies && comment.replies.length > 0">
               <div v-for="reply in getDisplayReplies(comment)" :key="reply.id" class="replyItem">
@@ -224,24 +265,19 @@
                 </div>
                 <div class="replyContent">{{ reply.content }}</div>
               </div>
-              
+
               <!-- 查看更多子回复 -->
               <button v-if="comment.replies.length > 3" class="toggleSubRepliesBtn" @click="comment.showAllReplies = !comment.showAllReplies">
                 <i :class="comment.showAllReplies ? 'fa fa-chevron-up' : 'fa fa-chevron-down'"></i>
                 {{ comment.showAllReplies ? '收起回复' : `查看全部 ${comment.replies.length} 条回复` }}
               </button>
             </div>
-            
-            <!-- 回复按钮 -->
-            <button class="replyBtn" @click="toggleReplyInput(comment.id, null)">
-              <i class="fa fa-commenting"></i> 回复 ({{ comment.replies?.length || 0 }})
-            </button>
-            
+
             <!-- 回复输入框 -->
             <div v-if="activeReplyId === comment.id" class="replyInput">
-              <textarea 
-                v-model="replyContent" 
-                :placeholder="replyToUser ? `回复 @${replyToUser}...` : `回复 @${comment.name}...`" 
+              <textarea
+                v-model="replyContent"
+                :placeholder="replyToUser ? `回复 @${replyToUser}...` : `回复 @${comment.name}...`"
                 rows="2"
               ></textarea>
               <div class="inputActions">
@@ -250,7 +286,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- 查看更多按钮 -->
           <div v-if="comments.length > 3" class="loadMore">
             <button class="loadMoreBtn" @click="showAllComments = !showAllComments">
@@ -259,7 +295,7 @@
             </button>
           </div>
         </div>
-        
+
         <!-- 无评论状态 -->
         <div v-else class="noComments">
           <i class="fa fa-comments-o"></i>
@@ -313,7 +349,7 @@
         <span class="floatTip">{{ t.label }}</span>
       </button>
     </div>-->
-  </div> 
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -322,7 +358,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
-import Topnav from '@/components/TopNav.vue' 
 
 defineOptions({ name: 'ProductDetail' })
 
@@ -330,10 +365,6 @@ const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
 const userStore = useUserStore()
-
-
-const hideNavRoutes = ['/user/login', '/user/register']
-const showNav = computed(() => !hideNavRoutes.includes(route.path))
 
 const ensureLoggedIn = (actionHint: string) => {
   if (userStore.isLoggedIn) return true
@@ -394,38 +425,38 @@ const cancelComment = () => {
 
 const submitComment = () => {
   if (!newComment.value.trim()) return
-  
+
   const comment: Comment = {
     id: Date.now(),
     name: userStore.userInfo?.username || '匿名用户',
-    avatar: userStore.userInfo?.avatar,
+    avatar: userStore.userInfo?.avatar ?? undefined,
     time: '刚刚',
     content: newComment.value.trim(),
     replies: []
   }
-  
+
   comments.value.unshift(comment)
   cancelComment()
 }
 
 const submitReply = (commentId: number) => {
   if (!replyContent.value.trim()) return
-  
+
   const comment = comments.value.find(c => c.id === commentId)
   if (comment) {
     if (!comment.replies) comment.replies = []
-    
+
     const reply: Reply = {
       id: Date.now(),
       name: userStore.userInfo?.username || '匿名用户',
-      avatar: userStore.userInfo?.avatar,
+      avatar: userStore.userInfo?.avatar ?? undefined,
       time: '刚刚',
       content: replyContent.value.trim()
     }
-    
+
     comment.replies.push(reply)
   }
-  
+
   cancelReply()
 }
 
@@ -1456,8 +1487,8 @@ onMounted(() => {
 
 .commentMeta {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
 }
 
 .commentName {
@@ -1469,6 +1500,10 @@ onMounted(() => {
 .commentTime {
   font-size: 12px;
   color: var(--muted);
+}
+
+.commentMeta .subReplyBtn {
+  margin-left: auto;
 }
 
 .commentContent {
@@ -1529,8 +1564,9 @@ onMounted(() => {
 
 .replyMeta {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
 }
 
 .replyName {
@@ -1589,7 +1625,6 @@ onMounted(() => {
 }
 
 .toggleSubRepliesBtn {
-  display: block;
   width: 100%;
   padding: 6px;
   margin-top: 6px;
