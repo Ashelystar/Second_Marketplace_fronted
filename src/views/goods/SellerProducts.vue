@@ -157,6 +157,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { offShelfProduct } from '@/api/goods'
 
 defineOptions({ name: 'SellerProducts' })
 
@@ -302,11 +303,19 @@ const editProduct = (product: Product) => {
   router.push({ path: '/edit', query: { id: product.id.toString() } })
 }
 
-const toggleStatus = (product: Product) => {
-  const newStatus = product.status === '在售' ? '已下架' : '在售'
-  if (confirm(`确定要${newStatus === '在售' ? '上架' : '下架'}该商品吗？`)) {
-    product.status = newStatus
-    alert(`商品已${newStatus === '在售' ? '上架' : '下架'}`)
+const toggleStatus = async (product: Product) => {
+  if (product.status !== '在售') {
+    alert('重新上架功能待后端接口支持')
+    return
+  }
+  if (confirm('确定要下架该商品吗？')) {
+    try {
+      await offShelfProduct(product.id)
+      product.status = '已下架'
+      alert('商品已下架')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '下架失败')
+    }
   }
 }
 
@@ -335,7 +344,7 @@ const handleTool = (t: { id: number }) => {
 }
 
 onMounted(() => {
-  // 初始化数据
+  // TODO: 后端提供用户商品列表接口后替换为 API 调用
 })
 </script>
 

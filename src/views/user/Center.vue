@@ -48,6 +48,9 @@
           </button>
         </div>
         <div class="filterActions">
+          <button class="draftBtn" @click="$router.push('/drafts')">
+            <i class="fa fa-file-text-o"></i> 草稿箱
+          </button>
           <button class="publishBtn" @click="$router.push('/publish')">
             <i class="fa fa-plus"></i> 发布商品
           </button>
@@ -109,8 +112,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { offShelfProduct } from '@/api/goods'
 
 const router = useRouter()
+
 const filterStatus = ref('all')
 
 interface Product {
@@ -229,10 +234,18 @@ const editProduct = (id: number) => {
   router.push({ path: '/edit', query: { id: id.toString() } })
 }
 
-const toggleStatus = (product: Product) => {
-  const newStatus = product.status === '在售' ? '已下架' : '在售'
-  if (confirm(`确定要${newStatus === '在售' ? '上架' : '下架'}该商品吗？`)) {
-    product.status = newStatus
+const toggleStatus = async (product: Product) => {
+  if (product.status !== '在售') {
+    alert('重新上架功能待后端接口支持')
+    return
+  }
+  if (confirm('确定要下架该商品吗？')) {
+    try {
+      await offShelfProduct(product.id)
+      product.status = '已下架'
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '下架失败')
+    }
   }
 }
 
@@ -317,6 +330,30 @@ const deleteProduct = (product: Product) => {
   background: #f97316;
   border-color: #f97316;
   color: #fff;
+}
+
+.filterActions {
+  display: flex;
+  gap: 10px;
+}
+
+.draftBtn {
+  padding: 10px 20px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #6b7280;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 200ms;
+}
+
+.draftBtn:hover {
+  border-color: #f97316;
+  color: #f97316;
 }
 
 .publishBtn {

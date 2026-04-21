@@ -355,15 +355,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
+import { getProductDetail, incrementProductView } from '@/api/goods'
 
 defineOptions({ name: 'ProductDetail' })
 
 const route = useRoute()
 const router = useRouter()
-const store = useProductStore()
 const userStore = useUserStore()
 
 const ensureLoggedIn = (actionHint: string) => {
@@ -646,36 +645,43 @@ const getPublishTime = (id: number) => {
   return '1周前发布'
 }
 
-const loadDetails = () => {
+const loadDetails = async () => {
   const id = parseInt(route.query.id as string)
+  console.log('=== 商品详情请求 ===')
+  console.log('商品ID:', id)
   if (isNaN(id)) {
     loadError.value = '无效的商品ID'
     isLoading.value = false
     return
   }
-  const found = store.getProductById(id)
-  if (found) {
-    product.value = found
-    if (found.images && found.images.length > 0) {
-      images.value = found.images
+  try {
+    const data = await getProductDetail(id)
+    console.log('接口返回数据:', data)
+    product.value = data
+    // 增加浏览量（不阻塞主流程）
+    incrementProductView(id).catch(err => console.error('增加浏览量失败:', err))
+    if (data.images && data.images.length > 0) {
+      images.value = data.images
     } else {
       images.value = [
-        { id: 1, url: found.image, alt: found.title },
-        { id: 2, url: `https://picsum.photos/id/${id * 10}/800/800`, alt: found.title + ' 细节图' },
-        { id: 3, url: `https://picsum.photos/id/${id * 20}/800/800`, alt: found.title + ' 包装图' }
+        { id: 1, url: data.image, alt: data.title },
+        { id: 2, url: `https://picsum.photos/id/${id * 10}/800/800`, alt: data.title + ' 细节图' },
+        { id: 3, url: `https://picsum.photos/id/${id * 20}/800/800`, alt: data.title + ' 包装图' }
       ]
     }
     currentIndex.value = 0
     isLoading.value = false
-  } else {
-    loadError.value = `未找到商品ID: ${id}`
+  } catch (err) {
+    console.error('获取商品详情失败:', err)
+    const msg = err instanceof Error ? err.message : '加载失败'
+    loadError.value = msg.includes('商品不存在') ? '该商品不存在或已下架' : msg
     isLoading.value = false
   }
 }
 
 const loadRecs = () => {
-  const id = parseInt(route.query.id as string)
-  if (!isNaN(id)) recommendations.value = store.getRecommendations(id, 18)
+  // 推荐商品暂时使用空数组，后续可接入推荐接口
+  recommendations.value = []
 }
 
 const prevImage = () => { if (currentIndex.value > 0) currentIndex.value-- }
@@ -693,7 +699,6 @@ const goBack = () => window.history.length > 1 ? router.back() : router.push('/'
 watch(() => route.query.id, (id) => {
   if (id) {
     isLoading.value = true
-    store.initialize()
     loadDetails()
     loadRecs()
   }
@@ -707,7 +712,6 @@ watch(() => product.value?.id, (newId) => {
 })
 
 onMounted(() => {
-  store.initialize()
   loadComments()
   // 初始化收藏状态
   if (product.value) {
