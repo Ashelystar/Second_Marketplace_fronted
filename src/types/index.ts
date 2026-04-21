@@ -33,6 +33,16 @@ export interface Product {
   freight?: number
   distance?: number
   coordinates?: { lat: number; lng: number }
+  // 接口额外字段
+  sellingPrice?: number
+  conditionLevel?: string
+  pickupCity?: string
+  pickupAddress?: string
+  locationLat?: number
+  locationLng?: number
+  subtitle?: string
+  purchaseYear?: number
+  tradeMode?: string
 }
 
 export interface FilterState {

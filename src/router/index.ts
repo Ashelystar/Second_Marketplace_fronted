@@ -182,11 +182,6 @@ const router = createRouter({
           name: 'user-setting',
           component: () => import('../views/user/Setting.vue'),
         },
-        {
-          path: 'address',
-          name: 'user-address',
-          component: () => import('../views/user/Address.vue'),
-        },
          {
           path: 'orders',
           name: 'user-orders',
@@ -197,7 +192,27 @@ const router = createRouter({
           name: 'user-favorites',
           component: () => import('../views/user/favorites.vue'),
         },
+        {
+          path: 'address',
+          name: 'user-address',
+          component: () => import('../views/user/UserAddress.vue'),
+        },
       ],
+    },
+    {
+      path: '/drafts',
+      name: 'drafts',
+      component: () => import('../views/goods/Drafts.vue'),
+    },
+    {
+      path: '/address',
+      name: 'address',
+      component: () => import('../views/user/Address.vue'),
+    },
+    {
+      path: '/address/edit',
+      name: 'address-edit',
+      component: () => import('../views/user/EditAddress.vue'),
     },
 
     // 错误页面路由

@@ -26,7 +26,7 @@ export default defineConfig({
     proxy: {
       // 配置转发规则
       '/api': {
-        target: 'http://120.79.151.167:8083', // 你的后端地址
+        target: 'http://127.0.0.1:4523/m1/8074072-7829695-default',
         changeOrigin: true,
         // 注意：因为你的后端接口路径里本身就带有 /api
         // 所以这里千万不要写 rewrite，保持原样转发即可
