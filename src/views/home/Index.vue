@@ -82,16 +82,9 @@
           </div>
         </div>
       </section>
-    </div>
 
-    <!-- 悬浮工具栏 -->
-    <div class="floatTools">
-      <button v-for="tool in floatingTools" :key="tool.id" class="floatBtn" @click="tool.action()">
-        <i :class="tool.icon"></i>
-        <span class="floatTip">{{ tool.label }}</span>
-      </button>
     </div>
-  </div>
+    </div>
 
 </template>
 
@@ -232,13 +225,6 @@ const mainCategories = [
   }
 ]
 
-const floatingTools = [
-  { id: 1, icon: 'fa fa-plus text-gray-700', label: '发闲置', action: () => router.push('/publish')},
-  { id: 2, icon: 'fa fa-envelope text-gray-700', label: '消息', action: () => router.push('/chat') },
-  { id: 3, icon: 'fa fa-mobile text-gray-700', label: 'APP', action: () => alert('打开应用商店下载荔园APP') },
-  { id: 4, icon: 'fa fa-commenting text-gray-700', label: '反馈', action: () => alert('欢迎提出宝贵意见和建议！') },
-  { id: 5, icon: 'fa fa-headphones text-gray-700', label: '客服', action: () => alert('正在为您连接客服...') }
-]
 
 const displayedProducts = computed(() => store.products.slice(0, 12))
 
@@ -658,57 +644,6 @@ const selectSubCategory = (id: number) => {
   color: var(--muted);
 }
 
-/* 悬浮工具栏 */
-.floatTools {
-  position: fixed;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 30;
-}
-
-.floatBtn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--panel);
-  border: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  color: var(--text);
-  position: relative;
-  transition: transform 120ms ease, background 120ms ease;
-}
-
-.floatBtn:hover {
-  transform: translateY(-2px);
-  background: #f5f5f5;
-}
-
-.floatTip {
-  position: absolute;
-  right: calc(100% + 8px);
-  padding: 4px 8px;
-  background: #333;
-  color: #fff;
-  font-size: 12px;
-  border-radius: 4px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms;
-}
-
-.floatBtn:hover .floatTip {
-  opacity: 1;
-}
 
 /* 响应式 */
 @media (max-width: 900px) {
@@ -731,8 +666,6 @@ const selectSubCategory = (id: number) => {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
-  .floatTools {
-    display: none;
-  }
+
 }
 </style>

@@ -115,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, onMounted,computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 
@@ -125,9 +125,46 @@ const userStore = useUserStore()
 
 const avatarUrl = computed(() => userStore.userInfo?.avatar || '')
 const displayName = computed(() => userStore.userInfo?.username || '未登录用户')
-const creditScore = 100
-const positiveRate = 99
+const creditScore = ref<number>(300) // 默认给一个初始值
+const positiveRate = ref<number>(99)
 
+
+const fetchCreditScore = async () => {
+  try {
+    const response = await fetch('http://localhost:5000/predict', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        total_transactions: 120,
+        success_rate:1,
+        avg_transaction_amount: 2500,
+        dispute_count: 1,
+        account_age_days: 600,
+        is_verified: 1,
+        late_payment_count: 0,
+        positive_reviews: 60,
+        negative_reviews: 2,
+        risk_flag: 0
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('模型接口请求失败')
+    }
+
+    const result = await response.json()
+    creditScore.value = result.credit_score
+  } catch (error) {
+    console.error('获取信用分失败:', error)
+    creditScore.value = 300 // 兜底值
+  }
+}
+onMounted(() => {
+  console.log('✅ 用户侧边栏组件已挂载')
+  fetchCreditScore()
+})
 const linkClass = (path: string) => {
   const active = route.path === path || route.path.startsWith(`${path}/`)
   return [
