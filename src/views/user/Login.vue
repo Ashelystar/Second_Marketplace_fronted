@@ -42,17 +42,16 @@ const password = ref('')
 const loading = ref(false)
 
 async function handleLogin() {
+  loading.value = true
   try {
-    loading.value = true
     if (!account.value.trim() || !password.value.trim()) {
-      throw new Error('请输入账号和密码')
+      alert('请输入账号和密码')
+      return
     }
-
     const data = await loginApi({
       account: account.value.trim(),
       password: password.value.trim(),
     })
-
     userStore.login(
       {
         ...data.userInfo,
@@ -60,10 +59,15 @@ async function handleLogin() {
       },
       data.token
     )
-
+    alert('登录成功！')
     await router.push('/user/center')
   } catch (error) {
-    alert((error as Error).message)
+    // 详细错误提示
+    if (error instanceof Error) {
+      alert('登录失败：' + error.message)
+    } else {
+      alert('登录失败，未知错误')
+    }
   } finally {
     loading.value = false
   }
