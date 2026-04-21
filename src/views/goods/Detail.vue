@@ -39,7 +39,7 @@
         </nav>
       </div>
     </div>
-    <Topnav v-if="showNav" />
+
 
     <!-- 面包屑 -->
     <div class="breadcrumb">
@@ -196,9 +196,9 @@
                 <i class="fa fa-share-alt"></i> 分享
               </button>
             </div>
-            <div class="actionRow"  @click="goToChat">
-              <button class="actionBtn secondary">
-                <i class="fa fa-comment"> 聊一聊 </i>
+            <div class="actionRow">
+              <button class="actionBtn secondary" @click="goToChat">
+                <i class="fa fa-comment"></i> 聊一聊
               </button>
               <button class="actionBtn primary" @click="goToCheckout">
                 立即购买
@@ -242,6 +242,9 @@
               <div class="commentMeta">
                 <span class="commentName">{{ comment.name }}</span>
                 <span class="commentTime">{{ comment.time }}</span>
+                <button class="subReplyBtn" @click="toggleReplyInput(comment.id, null)">
+                  <i class="fa fa-commenting"></i> 回复
+                </button>
               </div>
             </div>
             <div class="commentContent">{{ comment.content }}</div>
@@ -269,11 +272,6 @@
                 {{ comment.showAllReplies ? '收起回复' : `查看全部 ${comment.replies.length} 条回复` }}
               </button>
             </div>
-
-            <!-- 回复按钮 -->
-            <button class="replyBtn" @click="toggleReplyInput(comment.id, null)">
-              <i class="fa fa-commenting"></i> 回复 ({{ comment.replies?.length || 0 }})
-            </button>
 
             <!-- 回复输入框 -->
             <div v-if="activeReplyId === comment.id" class="replyInput">
@@ -360,7 +358,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
-import Topnav from '@/components/TopNav.vue'
 
 defineOptions({ name: 'ProductDetail' })
 
@@ -368,10 +365,6 @@ const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
 const userStore = useUserStore()
-
-
-const hideNavRoutes = ['/user/login', '/user/register']
-const showNav = computed(() => !hideNavRoutes.includes(route.path))
 
 const ensureLoggedIn = (actionHint: string) => {
   if (userStore.isLoggedIn) return true
@@ -1494,8 +1487,8 @@ onMounted(() => {
 
 .commentMeta {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
 }
 
 .commentName {
@@ -1507,6 +1500,10 @@ onMounted(() => {
 .commentTime {
   font-size: 12px;
   color: var(--muted);
+}
+
+.commentMeta .subReplyBtn {
+  margin-left: auto;
 }
 
 .commentContent {
@@ -1567,8 +1564,9 @@ onMounted(() => {
 
 .replyMeta {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
 }
 
 .replyName {
@@ -1627,7 +1625,6 @@ onMounted(() => {
 }
 
 .toggleSubRepliesBtn {
-  display: block;
   width: 100%;
   padding: 6px;
   margin-top: 6px;
