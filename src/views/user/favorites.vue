@@ -1,128 +1,100 @@
 <template>
   <div>
-    <!-- 页面标题 -->
-    <div class="user-page-card p-6 mb-6">
-      <h1 class="user-page-title text-gray-900">
-        <i class="fa fa-heart text-xianyuText"></i>
-        我的收藏
-      </h1>
-      
-      <!-- 收藏分类筛选 -->
-      <div class="flex items-center gap-4 mb-6 overflow-x-auto pb-2">
-        <button 
-          v-for="category in categories" 
-          :key="category.id"
-          @click="activeCategory = category.id"
-          :class="['px-4 py-2 rounded-lg whitespace-nowrap transition-colors', 
-            activeCategory === category.id ? 'bg-xianyuText text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']"
+    <!-- 收藏统计 -->
+    <div class="statsBar">
+      <div class="statCard">
+        <div class="statValue">{{ favoriteStats.total }}</div>
+        <div class="statLabel">收藏总数</div>
+      </div>
+      <div class="statCard">
+        <div class="statValue">{{ favoriteStats.active }}</div>
+        <div class="statLabel">在售商品</div>
+      </div>
+      <div class="statCard">
+        <div class="statValue">{{ favoriteStats.offSale }}</div>
+        <div class="statLabel">已下架</div>
+      </div>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div class="filterBar">
+      <div class="filterTabs">
+        <button
+          class="filterTab"
+          :class="{ active: activeCategory === 'all' }"
+          @click="activeCategory = 'all'"
         >
-          {{ category.label }}
+          全部
         </button>
-      </div>
-      
-      <!-- 收藏列表 -->
-      <div v-if="favorites.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div 
-          v-for="item in filteredFavorites" 
-          :key="item.id"
-          class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+        <button
+          class="filterTab"
+          :class="{ active: activeCategory === 'digital' }"
+          @click="activeCategory = 'digital'"
         >
-          <div class="aspect-square overflow-hidden relative cursor-pointer" @click="viewDetail(item.id)">
-            <img 
-              :src="item.images[0]" 
-              :alt="item.title"
-              class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-            >
-            <!-- 收藏按钮 -->
-            <button 
-              @click.stop="toggleFavorite(item.id)"
-              class="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/80 flex items-center justify-center hover:bg-white"
-            >
-              <i class="fa fa-heart text-red-500 text-lg"></i>
-            </button>
-          </div>
-          
-          <div class="p-4">
-            <h3 class="font-medium text-gray-800 mb-2 line-clamp-2 cursor-pointer" @click="viewDetail(item.id)">
-              {{ item.title }}
-            </h3>
-            
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-xl font-semibold text-xianyuText">¥{{ item.price }}</span>
-              <span class="text-sm text-gray-500">{{ item.collectedAt }}</span>
-            </div>
-            
-            <!-- 卖家信息 -->
-            <div class="flex items-center gap-2 py-3 border-t border-gray-100">
-              <div class="w-8 h-8 rounded-full bg-gray-200 overflow-hidden">
-                <img v-if="item.sellerAvatar" :src="item.sellerAvatar" alt="卖家" class="w-full h-full object-cover">
-                <div v-else class="w-full h-full flex items-center justify-center bg-gray-300 text-white text-xs">
-                  {{ item.sellerName?.charAt(0) || '卖' }}
-                </div>
-              </div>
-              <div class="flex-1">
-                <p class="text-sm text-gray-700">{{ item.sellerName }}</p>
-                <p class="text-xs text-gray-500">{{ item.sellerLocation }}</p>
-              </div>
-              <span class="text-sm text-gray-500">{{ item.sellerRating }}分</span>
-            </div>
-            
-            <!-- 操作按钮 -->
-            <div class="flex gap-2 mt-3">
-              <button 
-                @click.stop="contactSeller(item.id)"
-                class="flex-1 bg-gray-100 text-gray-700 py-2 rounded hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
-              >
-                <i class="fa fa-comment"></i>
-                <span>联系卖家</span>
-              </button>
-              <button 
-                @click.stop="viewDetail(item.id)"
-                class="flex-1 bg-xianyuText text-white py-2 rounded hover:bg-xianyuText/90 transition-colors"
-              >
-                查看详情
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- 无收藏状态 -->
-      <div v-else class="py-12 text-center">
-        <div class="w-24 h-24 mx-auto mb-4 flex items-center justify-center rounded-full bg-gray-100">
-          <i class="fa fa-heart text-4xl text-gray-400"></i>
-        </div>
-        <h3 class="text-lg font-medium text-gray-600 mb-2">暂无收藏</h3>
-        <p class="text-gray-500 mb-6">您还没有收藏任何商品</p>
-        <button 
-          @click="$router.push('/goods')"
-          class="bg-xianyuText text-white px-6 py-3 rounded-lg font-medium hover:bg-xianyuText/90 transition-colors inline-flex items-center gap-2"
+          数码电子
+        </button>
+        <button
+          class="filterTab"
+          :class="{ active: activeCategory === 'clothing' }"
+          @click="activeCategory = 'clothing'"
         >
-          <i class="fa fa-shopping-bag"></i>
-          <span>去逛逛</span>
+          服装服饰
+        </button>
+        <button
+          class="filterTab"
+          :class="{ active: activeCategory === 'book' }"
+          @click="activeCategory = 'book'"
+        >
+          图书教材
+        </button>
+        <button
+          class="filterTab"
+          :class="{ active: activeCategory === 'daily' }"
+          @click="activeCategory = 'daily'"
+        >
+          日用百货
         </button>
       </div>
     </div>
-    
-    <!-- 收藏统计 -->
-    <div class="user-page-card p-6">
-      <h3 class="font-semibold text-lg mb-4">收藏统计</h3>
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div class="text-center">
-          <div class="text-3xl font-semibold text-xianyuText mb-2">{{ favoriteStats.total }}</div>
-          <p class="text-sm text-gray-500">收藏总数</p>
+
+    <!-- 收藏商品列表 -->
+    <div class="productGrid">
+      <div v-if="filteredFavorites.length === 0" class="empty">
+        <i class="fa fa-heart"></i>
+        <p>暂无收藏</p>
+      </div>
+      <div
+        v-else
+        v-for="item in filteredFavorites"
+        :key="item.id"
+        class="productCard"
+        @click="viewDetail(item.id)"
+      >
+        <div class="productImage">
+          <img :src="item.image" :alt="item.title" />
+          <span class="statusBadge" :class="item.isActive ? 'onSale' : 'offSale'">
+            {{ item.isActive ? '在售' : '已下架' }}
+          </span>
         </div>
-        <div class="text-center">
-          <div class="text-3xl font-semibold text-green-500 mb-2">{{ favoriteStats.active }}</div>
-          <p class="text-sm text-gray-500">在售商品</p>
+        <div class="productInfo">
+          <h3 class="productTitle">{{ item.title }}</h3>
+          <div class="productPrice">¥{{ item.price }}</div>
+          <div class="productStats">
+            <span><i class="fa fa-eye"></i> {{ item.viewCount }}</span>
+            <span><i class="fa fa-star"></i> {{ item.rating }}</span>
+          </div>
+          <div class="productMeta">
+            <span class="productSeller">{{ item.sellerName }}</span>
+            <span class="productCategory">{{ item.category }}</span>
+          </div>
         </div>
-        <div class="text-center">
-          <div class="text-3xl font-semibold text-blue-500 mb-2">{{ favoriteStats.sold }}</div>
-          <p class="text-sm text-gray-500">已售商品</p>
-        </div>
-        <div class="text-center">
-          <div class="text-3xl font-semibold text-orange-500 mb-2">{{ favoriteStats.sellers }}</div>
-          <p class="text-sm text-gray-500">关注卖家</p>
+        <div class="productActions" @click.stop>
+          <button class="actionBtn" @click="contactSeller(item.id)" title="联系卖家">
+            <i class="fa fa-comment"></i>
+          </button>
+          <button class="actionBtn delete" @click="toggleFavorite(item)" title="取消收藏">
+            <i class="fa fa-trash"></i>
+          </button>
         </div>
       </div>
     </div>
@@ -130,98 +102,368 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+
+defineOptions({ name: 'UserFavorites' })
 
 const router = useRouter()
 const activeCategory = ref('all')
 
-const categories = [
-  { id: 'all', label: '全部' },
-  { id: 'digital', label: '数码电子' },
-  { id: 'clothing', label: '服装服饰' },
-  { id: 'book', label: '图书教材' },
-  { id: 'daily', label: '日用百货' }
-]
+interface FavoriteItem {
+  id: number
+  title: string
+  price: number
+  image: string
+  sellerName: string
+  category: string
+  isActive: boolean
+  viewCount: number
+  rating: number
+}
 
-const favorites = ref<any[]>([
+const favorites = ref<FavoriteItem[]>([
   {
     id: 1,
-    title: '九成新iPhone 13 Pro 256G 远峰蓝',
-    price: 4599,
-    images: ['https://via.placeholder.com/300x300?text=iPhone+13+Pro'],
+    title: 'iPhone 14 Pro Max 256G 远峰蓝 99新 无磕碰无划痕',
+    price: 5999,
+    image: 'https://picsum.photos/id/1/400/400',
     sellerName: '数码小王子',
-    sellerAvatar: '',
-    sellerLocation: '北京',
-    sellerRating: 4.8,
-    collectedAt: '昨天',
-    category: 'digital',
-    isActive: true
+    category: '数码电子',
+    isActive: true,
+    viewCount: 128,
+    rating: 4.8
   },
   {
     id: 2,
-    title: '华为MateBook 14 2022款 银色',
-    price: 3200,
-    images: ['https://via.placeholder.com/300x300?text=Huawei+MateBook'],
-    sellerName: '电脑专家',
-    sellerAvatar: 'https://via.placeholder.com/100x100?text=Seller',
-    sellerLocation: '深圳',
-    sellerRating: 4.9,
-    collectedAt: '3天前',
-    category: 'digital',
-    isActive: true
+    title: 'MacBook Pro 14寸 M2 Pro 16+512G 银色 国行',
+    price: 12999,
+    image: 'https://picsum.photos/id/45/400/400',
+    sellerName: '苹果专家',
+    category: '数码电子',
+    isActive: true,
+    viewCount: 256,
+    rating: 4.9
   },
   {
     id: 3,
-    title: '索尼PS5游戏机 光驱版 双手柄',
+    title: 'AirPods Pro 2 全新未拆封 国行正品',
+    price: 1599,
+    image: 'https://picsum.photos/id/119/400/400',
+    sellerName: '耳机发烧友',
+    category: '数码电子',
+    isActive: true,
+    viewCount: 89,
+    rating: 4.7
+  },
+  {
+    id: 4,
+    title: 'Nike Air Jordan 1 经典款 白色 42码',
+    price: 899,
+    image: 'https://picsum.photos/id/24/400/400',
+    sellerName: '潮流达人',
+    category: '服装服饰',
+    isActive: false,
+    viewCount: 156,
+    rating: 4.6
+  },
+  {
+    id: 5,
+    title: '索尼 PS5 游戏机 光驱版 双手柄套餐',
     price: 2800,
-    images: ['https://via.placeholder.com/300x300?text=PS5'],
+    image: 'https://picsum.photos/id/42/400/400',
     sellerName: '游戏达人',
-    sellerAvatar: '',
-    sellerLocation: '上海',
-    sellerRating: 4.7,
-    collectedAt: '1周前',
-    category: 'digital',
-    isActive: false
+    category: '数码电子',
+    isActive: true,
+    viewCount: 67,
+    rating: 4.8
+  },
+  {
+    id: 6,
+    title: '高等数学 线性代数 考研全套教材',
+    price: 120,
+    image: 'https://picsum.photos/id/24/400/400',
+    sellerName: '考研学姐',
+    category: '图书教材',
+    isActive: true,
+    viewCount: 45,
+    rating: 4.5
   }
 ])
 
-const favoriteStats = ref({
-  total: 24,
-  active: 18,
-  sold: 6,
-  sellers: 8
-})
+const favoriteStats = computed(() => ({
+  total: favorites.value.length,
+  active: favorites.value.filter(f => f.isActive).length,
+  offSale: favorites.value.filter(f => !f.isActive).length
+}))
 
 const filteredFavorites = computed(() => {
   if (activeCategory.value === 'all') return favorites.value
-  return favorites.value.filter(item => item.category === activeCategory.value)
+  const categoryMap: Record<string, string> = {
+    'digital': '数码电子',
+    'clothing': '服装服饰',
+    'book': '图书教材',
+    'daily': '日用百货'
+  }
+  return favorites.value.filter(item => item.category === categoryMap[activeCategory.value])
 })
 
-const toggleFavorite = (id: number) => {
-  if (confirm('确定要取消收藏吗？')) {
-    favorites.value = favorites.value.filter(item => item.id !== id)
-  }
-}
-
 const viewDetail = (id: number) => {
-  router.push({ name: 'goods-detail', params: { id } })
+  router.push({ path: '/goods/detail', query: { id: id.toString() } })
 }
 
 const contactSeller = (id: number) => {
   router.push({ name: 'chat-room', params: { id: 'seller_' + id } })
 }
 
-onMounted(() => {
-  // 这里可以加载收藏数据
-})
+const toggleFavorite = (item: FavoriteItem) => {
+  if (confirm(`确定要取消收藏「${item.title}」吗？`)) {
+    favorites.value = favorites.value.filter(f => f.id !== item.id)
+  }
+}
 </script>
 
 <style scoped>
-.line-clamp-2 {
+/* 统计卡片 */
+.statsBar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.statCard {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.statValue {
+  font-size: 28px;
+  font-weight: bold;
+  color: #f97316;
+  margin-bottom: 4px;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* 筛选栏 */
+.filterBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.filterTabs {
+  display: flex;
+  gap: 8px;
+}
+
+.filterTab {
+  padding: 8px 16px;
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.filterTab:hover {
+  border-color: #f97316;
+  color: #f97316;
+}
+
+.filterTab.active {
+  background: #f97316;
+  border-color: #f97316;
+  color: #fff;
+}
+
+/* 商品列表 */
+.productGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px;
+  background: #fff;
+  border-radius: 12px;
+}
+
+.empty i {
+  font-size: 64px;
+  color: #d1d5db;
+  margin-bottom: 16px;
+}
+
+.empty p {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.productCard {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 200ms, box-shadow 200ms;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.productCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.productImage {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.productImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.statusBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.statusBadge.onSale {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.statusBadge.offSale {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+
+.productInfo {
+  padding: 10px;
+}
+
+.productTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin: 0 0 6px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  line-height: 1.4;
+}
+
+.productPrice {
+  font-size: 16px;
+  font-weight: bold;
+  color: #f97316;
+  margin-bottom: 6px;
+}
+
+.productStats {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+
+.productStats span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.productMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #d1d5db;
+}
+
+.productSeller {
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.productActions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity 200ms;
+}
+
+.productCard:hover .productActions {
+  opacity: 1;
+}
+
+.actionBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #6b7280;
+  transition: all 150ms;
+}
+
+.actionBtn:hover {
+  background: #f97316;
+  color: #fff;
+}
+
+.actionBtn.delete:hover {
+  background: #dc2626;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .statsBar {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .productGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
 }
 </style>

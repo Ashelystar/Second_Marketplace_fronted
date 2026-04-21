@@ -484,7 +484,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  margin-bottom: 20px;
+  margin: 0 0 20px -80px;
 }
 
 .statCard {

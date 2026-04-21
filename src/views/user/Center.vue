@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- 我的交易 - 采用SellerProducts样式 -->
-    <div class="mt-6">
+    <div>
       <!-- 统计卡片 -->
       <div class="statsBar">
         <div class="statCard">
