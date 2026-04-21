@@ -1,42 +1,7 @@
 <template>
   <div class="page">
     <!-- 顶部导航 -->
-    <div class="top">
-      <div class="topInner">
-        <div class="left">
-          <button class="backBtn" @click="goBack">
-            <i class="fa fa-arrow-left"></i>
-          </button>
-          <a href="#" class="logo" @click.prevent="router.push('/')">
-            <span>荔园交易</span>
-          </a>
-        </div>
-
-        <div class="searchBox">
-          <div class="searchRow">
-            <input
-              type="text"
-              v-model="searchInput"
-              placeholder="搜索闲置物品"
-              @keypress.enter="performSearch"
-            />
-            <button @click="performSearch"><i class="fa fa-search"></i></button>
-          </div>
-
-        </div>
-
-        <nav class="navLinks">
-          <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
-          <template v-if="userStore.isLoggedIn">
-            <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
-            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
-          </template>
-          <template v-else>
-            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
-          </template>
-        </nav>
-      </div>
-    </div>
+    <Topnav v-if="showNav" />
 
     <!-- 面包屑 -->
     <div class="breadcrumb">
@@ -193,9 +158,9 @@
                 <i class="fa fa-share-alt"></i> 分享
               </button>
             </div>
-            <div class="actionRow">
+            <div class="actionRow"  @click="goToChat">
               <button class="actionBtn secondary">
-                <i class="fa fa-comment"></i> 聊一聊
+                <i class="fa fa-comment"> 聊一聊 </i> 
               </button>
               <button class="actionBtn primary" @click="goToCheckout">
                 立即购买
@@ -342,13 +307,13 @@
     </div>
 
     <!-- 悬浮工具栏 -->
-    <div class="floatTools">
+    <!-- <div class="floatTools">
       <button v-for="t in floatingTools" :key="t.id" class="floatBtn" @click="handleTool(t)">
         <i :class="t.icon"></i>
         <span class="floatTip">{{ t.label }}</span>
       </button>
-    </div>
-  </div>
+    </div>-->
+  </div> 
 </template>
 
 <script setup lang="ts">
@@ -357,6 +322,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
+import Topnav from '@/components/TopNav.vue' 
 
 defineOptions({ name: 'ProductDetail' })
 
@@ -364,6 +330,10 @@ const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
 const userStore = useUserStore()
+
+
+const hideNavRoutes = ['/user/login', '/user/register']
+const showNav = computed(() => !hideNavRoutes.includes(route.path))
 
 const ensureLoggedIn = (actionHint: string) => {
   if (userStore.isLoggedIn) return true
@@ -627,21 +597,16 @@ const goToCheckout = () => {
   if (!ensureLoggedIn('购买商品')) return
   router.push({ path: '/checkout', query: { productId: route.query.id } })
 }
+const goToChat = () => {
+  if (!ensureLoggedIn('和卖家聊天')) return
+  router.push('/chat')
+}
 
 const handleLogin = () => {
   router.push('/user/login')
 }
 
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })
-
-const floatingTools = [
-  { id: 1, icon: 'fa fa-plus', label: '发闲置', action: 'publish' },
-  { id: 2, icon: 'fa fa-envelope', label: '消息', action: 'message' },
-  { id: 3, icon: 'fa fa-qrcode', label: '二维码', action: 'qrcode' },
-  { id: 4, icon: 'fa fa-mobile', label: 'APP', action: 'app' },
-  { id: 5, icon: 'fa fa-commenting', label: '反馈', action: 'feedback' },
-  { id: 6, icon: 'fa fa-headphones', label: '客服', action: 'service' }
-]
 
 const getPublishTime = (id: number) => {
   if (id >= 21 && id <= 24) return '今天发布'
@@ -689,17 +654,7 @@ const performSearch = () => {
   if (searchInput.value.trim()) router.push({ path: '/search', query: { q: searchInput.value.trim() } })
 }
 
-const handleTool = (t: { action: string }) => {
-  const msgs: Record<string, string> = {
-    publish: '正在跳转到发布页面...',
-    message: '正在跳转到消息页面...',
-    qrcode: `商品码功能：扫描二维码查看"${product.value?.title || '当前商品'}"的详细信息`,
-    app: '打开应用商店下载荔园APP',
-    feedback: '欢迎提出宝贵意见和建议！',
-    service: '正在为您连接客服...'
-  }
-  alert(msgs[t.action])
-}
+
 
 const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
@@ -1816,57 +1771,7 @@ onMounted(() => {
   color: #f97316;
 }
 
-/* 悬浮工具栏 */
-.floatTools {
-  position: fixed;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 30;
-}
 
-.floatBtn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--panel);
-  border: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  color: var(--text);
-  position: relative;
-  transition: transform 120ms ease, background 120ms ease;
-}
-
-.floatBtn:hover {
-  transform: translateY(-2px);
-  background: #f5f5f5;
-}
-
-.floatTip {
-  position: absolute;
-  right: calc(100% + 8px);
-  padding: 4px 8px;
-  background: #333;
-  color: #fff;
-  font-size: 12px;
-  border-radius: 4px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms;
-}
-
-.floatBtn:hover .floatTip {
-  opacity: 1;
-}
 
 /* 响应式 */
 @media (max-width: 900px) {
