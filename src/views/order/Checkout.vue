@@ -2,14 +2,10 @@
   <div class="page">
     <!-- 顶部导航 -->
     <div class="top">
-      <div class="topInner">
-        <div class="left">
-          <button class="backBtn" @click="goBack">
-            <i class="fa fa-arrow-left"></i>
-          </button>
-          <span class="title">确认订单</span>
-        </div>
-      </div>
+      <button class="backBtn" @click="goBack">
+        <i class="fa fa-arrow-left"></i>
+      </button>
+      <span class="title">确认订单</span>
     </div>
 
     <!-- 主体内容 -->
@@ -386,18 +382,10 @@ onMounted(() => {
   z-index: 100;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
-}
-
-.topInner {
-  padding: 14px 80px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
-}
-
-.left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .backBtn {
@@ -417,7 +405,7 @@ onMounted(() => {
 
 /* 主体内容 */
 .mainContent {
-  padding: 12px 80px;
+  padding: 12px;
 }
 
 /* 通用区块 */

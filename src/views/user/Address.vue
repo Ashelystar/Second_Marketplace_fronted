@@ -7,8 +7,36 @@
           <button class="backBtn" @click="goBack">
             <i class="fa fa-arrow-left"></i>
           </button>
+          <a href="#" class="logo" @click.prevent="router.push('/')">
+            <i class="fa fa-fish"></i>
+            <span>荔园交易</span>
+          </a>
           <span class="title">地址管理</span>
         </div>
+
+        <div class="searchBox">
+          <div class="searchRow">
+            <input
+              type="text"
+              v-model="searchInput"
+              placeholder="搜索闲置物品"
+              @keypress.enter="performSearch"
+            />
+            <button @click="performSearch"><i class="fa fa-search"></i></button>
+          </div>
+        </div>
+
+        <nav class="navLinks">
+          <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
+          <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
+          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <template v-if="userStore.isLoggedIn">
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+          </template>
+          <template v-else>
+            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
+          </template>
+        </nav>
       </div>
     </div>
 
@@ -151,11 +179,25 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useUserStore } from '@/stores/userStore'
 
 defineOptions({ name: 'AddressPage' })
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
+
+const searchInput = ref('')
+
+const performSearch = () => {
+  if (searchInput.value.trim()) {
+    router.push({ path: '/search', query: { q: searchInput.value.trim() } })
+  }
+}
+
+const handleLogin = () => {
+  router.push('/user/login')
+}
 
 interface Address {
   id: number

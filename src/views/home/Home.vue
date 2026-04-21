@@ -1,7 +1,42 @@
 <template>
-  <div class="bg-pageBg min-h-screen">
-    <!-- 顶部导航栏 -->
-    <Topnav v-if="showNav" />
+  <div class="page">
+    <!-- 顶部导航 -->
+    <div class="top">
+      <div class="topInner">
+        <a href="#" class="logo" @click.prevent>
+          <i class="fa fa-fish"></i>
+          <span>闲鱼</span>
+        </a>
+
+        <div class="searchBox">
+          <div class="searchRow">
+            <input
+              type="text"
+              v-model="searchInput"
+              placeholder="搜索闲置物品"
+              @keypress.enter="handleSearch"
+            />
+            <button @click="handleSearch"><i class="fa fa-search"></i></button>
+          </div>
+          <div class="hotTags">
+            <span>热门：</span>
+            <a href="#" v-for="tag in hotTags" :key="tag" @click.prevent="searchTag(tag)">{{ tag }}</a>
+          </div>
+        </div>
+
+        <nav class="navLinks">
+          <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
+          <template v-if="userStore.isLoggedIn">
+            <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
+            <a href="#"><i class="fa fa-user"></i> 我的</a>
+          </template>
+          <template v-else>
+            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
+          </template>
+        </nav>
+      </div>
+    </div>
+
     <!-- 主体内容 -->
     <div class="main">
       <!-- 左侧分类 -->
@@ -82,23 +117,25 @@
           </div>
         </div>
       </section>
-
-    </div>
     </div>
 
+    <!-- 悬浮工具栏 -->
+    <div class="floatTools">
+      <button v-for="tool in floatingTools" :key="tool.id" class="floatBtn" @click="tool.action()">
+        <i :class="tool.icon"></i>
+        <span class="floatTip">{{ tool.label }}</span>
+      </button>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
-import Topnav from '@/components/TopNav.vue' 
-defineOptions({ name: 'HomePage' })
 
-const route = useRoute()
-const hideNavRoutes = ['/user/login', '/user/register']
-const showNav = computed(() => !hideNavRoutes.includes(route.path))
+defineOptions({ name: 'HomePage' })
 
 const router = useRouter()
 const store = useProductStore()
@@ -225,6 +262,13 @@ const mainCategories = [
   }
 ]
 
+const floatingTools = [
+  { id: 1, icon: 'fa fa-plus', label: '发闲置', action: () => alert('正在跳转到发布页面...') },
+  { id: 2, icon: 'fa fa-envelope', label: '消息', action: () => alert('正在跳转到消息页面...') },
+  { id: 3, icon: 'fa fa-mobile', label: 'APP', action: () => alert('打开应用商店下载闲鱼APP') },
+  { id: 4, icon: 'fa fa-commenting', label: '反馈', action: () => alert('欢迎提出宝贵意见和建议！') },
+  { id: 5, icon: 'fa fa-headphones', label: '客服', action: () => alert('正在为您连接客服...') }
+]
 
 const displayedProducts = computed(() => store.products.slice(0, 12))
 
@@ -644,6 +688,57 @@ const selectSubCategory = (id: number) => {
   color: var(--muted);
 }
 
+/* 悬浮工具栏 */
+.floatTools {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 30;
+}
+
+.floatBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--text);
+  position: relative;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.floatBtn:hover {
+  transform: translateY(-2px);
+  background: #f5f5f5;
+}
+
+.floatTip {
+  position: absolute;
+  right: calc(100% + 8px);
+  padding: 4px 8px;
+  background: #333;
+  color: #fff;
+  font-size: 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+
+.floatBtn:hover .floatTip {
+  opacity: 1;
+}
 
 /* 响应式 */
 @media (max-width: 900px) {
@@ -666,6 +761,8 @@ const selectSubCategory = (id: number) => {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
-
+  .floatTools {
+    display: none;
+  }
 }
 </style>

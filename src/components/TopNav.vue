@@ -32,11 +32,19 @@
         </div>
       </div>
 
-      <!-- 右侧导航链接（结构与社区 ForumLayout 顶栏一致） -->
+      <!-- 右侧导航链接 -->
       <nav class="navLinks">
         <a href="#" @click.prevent="goToForum">
           <i class="fa fa-comments"></i>
           社区
+        </a>
+        <a href="#" @click.prevent="goToCart">
+          <i class="fa fa-shopping-cart"></i>
+          购物车
+        </a>
+        <a href="#" @click.prevent="goToMessage">
+          <i class="fa fa-bell"></i>
+          消息
         </a>
         <template v-if="userStore.isLoggedIn">
           <a href="#" @click.prevent="goToUserCenter">
@@ -53,6 +61,13 @@
       </nav>
     </div>
   </header>
+  
+   <div class="floatTools">
+      <button v-for="t in floatingTools" :key="t.id" class="floatBtn" @click="handleTool(t)">
+        <i :class="t.icon"></i>
+        <span class="floatTip">{{ t.label }}</span>
+      </button>
+    </div>
 </template>
 
 <script setup lang="ts">
@@ -61,6 +76,29 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore' // 请根据您的实际路径调整
 
+const floatingTools = [
+  { id: 1, icon: 'fa fa-plus', label: '发闲置', action: 'publish' },
+  { id: 2, icon: 'fa fa-envelope', label: '消息', action: 'message' },
+  { id: 3, icon: 'fa fa-qrcode', label: '二维码', action: 'qrcode' },
+  { id: 4, icon: 'fa fa-mobile', label: 'APP', action: 'app' },
+  { id: 5, icon: 'fa fa-commenting', label: '反馈', action: 'feedback' },
+  { id: 6, icon: 'fa fa-headphones', label: '客服', action: 'service' }
+]
+
+const handleTool = (t: { action: string }) => {
+  const msgs: Record<string, string> = {
+    publish: '正在跳转到发布页面...',
+    message: goToChat() || '正在打开消息中心...',
+    qrcode: `商品码功能：扫描二维码查看"${product.value?.title || '当前商品'}"的详细信息`,
+    app: '打开应用商店下载荔园APP',
+    feedback: '欢迎提出宝贵意见和建议！',
+    service: '正在为您连接客服...'
+  }
+  alert(msgs[t.action])
+}
+const goToChat = () => {
+  router.push('/chat')
+}
 // 初始化路由和状态管理
 const router = useRouter()
 const userStore = useUserStore()
@@ -109,6 +147,20 @@ const goToUserCenter = () => {
 }
 
 /**
+ * 导航到购物车页面
+ */
+const goToCart = () => {
+  router.push('/cart')
+}
+
+/**
+ * 导航到消息页面
+ */
+const goToMessage = () => {
+  router.push('/message')
+}
+
+/**
  * 导航到登录页面
  */
 const goToLogin = () => {
@@ -118,6 +170,57 @@ const goToLogin = () => {
 
 <style scoped>
 /* 顶栏布局与字号由模板上的 Tailwind 类控制，与 ForumLayout 保持一致 */
+/* 悬浮工具栏 */
+.floatTools {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 30;
+}
+
+.floatBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--text);
+  position: relative;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.floatBtn:hover {
+  transform: translateY(-2px);
+  background: #f5f5f5;
+}
+
+.floatTip {
+  position: absolute;
+  right: calc(100% + 8px);
+  padding: 4px 8px;
+  background: #333;
+  color: #fff;
+  font-size: 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+
+.floatBtn:hover .floatTip {
+  opacity: 1;
+}
 
 /* 搜索框容器 */
 .searchBox {
