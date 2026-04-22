@@ -4,7 +4,7 @@
     <aside class="friend-sidebar">
       <div class="friend-header">
         <h3>消息</h3>
-        <span class="friend-count">{{ friends.length }}</span>
+        <span v-if="totalUnreadCount > 0" class="friend-count">{{ unreadCountDisplay }}</span>
       </div>
 
       <div class="friend-list">
@@ -217,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 defineOptions({ name: 'ChatPage' })
@@ -372,6 +372,14 @@ const quickReplies = [
   '支持验机',
   '可以小刀'
 ]
+
+const totalUnreadCount = computed(() =>
+  friends.value.reduce((sum, friend) => sum + Math.max(friend.unread ?? 0, 0), 0)
+)
+
+const unreadCountDisplay = computed(() =>
+  totalUnreadCount.value > 99 ? '99+' : String(totalUnreadCount.value)
+)
 
 const switchFriend = (friend: Friend) => {
   seller.value = friend

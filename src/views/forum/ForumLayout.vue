@@ -66,6 +66,7 @@
     <main class="container forum-main">
       <RouterView />
     </main>
+    <SiteFooter />
   </div>
 </template>
 
@@ -74,6 +75,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useForumStore } from '@/stores/forum'
+import SiteFooter from '@/components/layout/SiteFooter.vue'
 
 const router = useRouter()
 const route = useRoute()

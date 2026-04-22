@@ -93,6 +93,7 @@ defineOptions({ name: 'Drafts' })
 
 const router = useRouter()
 const userStore = useUserStore()
+const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
 
 interface Draft {
   id: number
@@ -144,10 +145,12 @@ const goToPublish = () => {
 }
 
 const editDraft = (draft: Draft) => {
+  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(draft))
   router.push({ path: '/edit', query: { id: draft.id.toString() } })
 }
 
 const publishDraft = (draft: Draft) => {
+  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(draft))
   router.push({ path: '/edit', query: { id: draft.id.toString(), publish: 'true' } })
 }
 

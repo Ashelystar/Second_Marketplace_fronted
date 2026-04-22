@@ -3,8 +3,8 @@
     <div v-if="isNavigating" class="route-loading-indicator">
       <div class="loading-bar"></div>
     </div>
-    <router-view v-slot="{ Component, route }">
-      <component :is="Component" :key="route.fullPath" />
+    <router-view v-slot="{ Component }">
+      <component :is="Component" />
     </router-view>
   </div>
 </template>

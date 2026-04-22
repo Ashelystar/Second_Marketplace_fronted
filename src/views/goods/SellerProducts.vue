@@ -163,6 +163,7 @@ defineOptions({ name: 'SellerProducts' })
 
 const router = useRouter()
 const userStore = useUserStore()
+const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
 
 const searchInput = ref('')
 const filterStatus = ref('all')
@@ -300,6 +301,7 @@ const goToPublish = () => {
 }
 
 const editProduct = (product: Product) => {
+  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(product))
   router.push({ path: '/edit', query: { id: product.id.toString() } })
 }
 

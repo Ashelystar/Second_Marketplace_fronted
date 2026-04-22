@@ -7,10 +7,8 @@
         <UserSidebar />
 
         <div class="lg:col-span-3 user-main-wrap">
-          <router-view v-slot="{ Component, route }">
-            <transition name="user-fade-slide" mode="out-in">
-              <component :is="Component" :key="route.fullPath" />
-            </transition>
+          <router-view v-slot="{ Component }">
+            <component :is="Component" />
           </router-view>
         </div>
       </div>

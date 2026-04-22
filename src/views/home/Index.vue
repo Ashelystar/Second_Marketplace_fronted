@@ -84,7 +84,8 @@
       </section>
 
     </div>
-    </div>
+    <SiteFooter />
+  </div>
 
 </template>
 
@@ -94,6 +95,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import Topnav from '@/components/TopNav.vue' 
+import SiteFooter from '@/components/layout/SiteFooter.vue'
 defineOptions({ name: 'HomePage' })
 
 const route = useRoute()
