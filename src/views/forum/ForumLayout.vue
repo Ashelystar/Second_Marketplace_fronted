@@ -44,7 +44,7 @@
             <i class="fa fa-shopping-cart"></i>
             购物车
           </a>
-          <a href="#" @click.prevent="router.push('/message')">
+          <a href="#" @click.prevent="router.push('/chat')">
             <i class="fa fa-bell"></i>
             消息
           </a>

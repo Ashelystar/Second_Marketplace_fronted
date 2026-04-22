@@ -96,6 +96,7 @@ const router = useRouter()
 const productStore = useProductStore()
 
 const sellerId = computed(() => Number(route.params.id))
+const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
 
 const sellerProducts = computed(() => {
   if (!Number.isFinite(sellerId.value)) return []
@@ -104,9 +105,27 @@ const sellerProducts = computed(() => {
     .sort((a, b) => b.id - a.id)
 })
 
+const sellerFromQuery = computed(() => {
+  const name = String(route.query.name || '').trim()
+  if (!name) return null
+  const avatar = String(route.query.avatar || '')
+  const location = String(route.query.location || '未知')
+  return {
+    id: sellerId.value,
+    name,
+    avatar,
+    location,
+    rating: 0,
+    verified: false,
+    goodRate: 0,
+    onSale: 0,
+    sold: 0,
+  }
+})
+
 const seller = computed(() => {
   const base = sellerProducts.value[0]
-  if (!base) return null
+  if (!base) return sellerFromQuery.value
 
   return {
     id: base.sellerId,
@@ -127,9 +146,35 @@ const goToDetail = (id: number) => {
 
 const goToChat = () => {
   if (!seller.value) return
+  const currentFriends = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Array<{
+    id: number
+    name: string
+    avatar: string
+    lastMessage: string
+    lastTime: string
+    unread?: number
+    rating: number
+    location: string
+  }>
+
+  const exists = currentFriends.some(friend => friend.id === seller.value?.id)
+  if (!exists) {
+    currentFriends.unshift({
+      id: seller.value.id,
+      name: seller.value.name,
+      avatar: seller.value.avatar,
+      lastMessage: '你好，我对你的商品感兴趣',
+      lastTime: '刚刚',
+      unread: 1,
+      rating: seller.value.rating,
+      location: seller.value.location,
+    })
+    localStorage.setItem(CHAT_FRIENDS_STORAGE_KEY, JSON.stringify(currentFriends))
+  }
+
   router.push({
-    path: `/chat/room/${seller.value.id}`,
-    query: { name: seller.value.name },
+    path: '/chat',
+    query: { friendId: String(seller.value.id) },
   })
 }
 
