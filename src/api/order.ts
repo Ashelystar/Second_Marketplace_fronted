@@ -1,140 +1,164 @@
-import type { TradeOrder, OrderProduct } from '@/types'
+// --- 基础定义 ---
+export interface ApiResponse<T = unknown> {
+  code: number;
+  message: string;
+  data: T;
+}
 
-// --- 接口定义 ---
+// --- 订单相关接口 ---
+export interface OrderItem {
+  productId: number;
+  quantity: number;
+}
 
 export interface CreateOrderRequest {
   sellerId: number;
-  tradeMode: string;
+  tradeMode: 'pickup' | 'shipping';
   freightAmount: number;
   remark: string;
   pickupLocation: string;
-  items: { productId: number; quantity: number }[];
+  items: OrderItem[];
 }
 
-export interface ApiResponse<T = unknown> {
-  code: number
-  message: string
-  data: T
+export interface OrderListParams {
+  role?: string;
+  status?: string;
+  page: number;
+  pageSize: number;
 }
 
-// --- 辅助工具函数 ---
+// --- 支付相关接口 ---
+export interface CreatePaymentRequest {
+  paymentChannel: 'alipay' | 'wechat' | 'balance';
+}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const text = await response.text()
-  if (!text) {
-    throw new Error('接口返回为空')
+export interface PaymentCallbackRequest {
+  paymentId: number;
+  paymentStatus: 'paid' | 'failed';
+  paidAmount: number;
+  channelTradeNo: string;
+}
+
+// --- 物流相关接口 ---
+export interface CreateShipmentRequest {
+  logisticsCompany: string;
+  trackingNo: string;
+}
+
+export interface AddTraceRequest {
+  traceTime: string;
+  traceStatus: string;
+  traceDetail: string;
+  traceLocation: string;
+}
+
+// --- 通用请求函数 (包含 Token 自动注入) ---
+async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const token = localStorage.getItem('token'); // 假设你存的是 token
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    // oxlint-disable-next-line unicorn/no-useless-fallback-in-spread
+    ...((options.headers as unknown) || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
-  try {
-    return JSON.parse(text) as T
-  } catch  {
-    throw new Error('解析 JSON 失败')
-  }
-}
 
-/**
- * 封装通用的 fetch 请求逻辑 (模仿你提供的结构)
- */
-async function handleRequest<T>(url: string, options: RequestInit, errorMsg: string): Promise<T> {
-  const response = await fetch(url, options)
+  const response = await fetch(url, { ...options, headers });
 
   if (!response.ok) {
-    const text = await response.text()
-    throw new Error(text || `网络错误：${response.status}`)
+    throw new Error(`网络错误: ${response.status}`);
   }
 
-  const json = await parseResponse<ApiResponse<T>>(response)
+  const json: ApiResponse<T> = await response.json();
   if (json.code !== 200) {
-    throw new Error(json.message || errorMsg)
+    throw new Error(json.message || '请求失败');
   }
-
-  return json.data
+  return json.data;
 }
 
-// --- 重点修改后的 API 导出 ---
+// ===================== 订单主流程 =====================
 
-/**
- * 1. 创建交易订单
- */
-export async function createOrder(body: CreateOrderRequest): Promise<TradeOrder> {
-  return handleRequest<TradeOrder>(
-    '/api/orders',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    },
-    '创建订单失败'
-  )
-}
+/** 创建订单 */
+export const createOrder = (data: CreateOrderRequest) =>
+  request('/api/orders', { method: 'POST', body: JSON.stringify(data) });
 
-/**
- * 2. 获取订单列表
- */
-export async function listOrders(status?: string): Promise<TradeOrder[]> {
-  // 处理查询参数
-  const query = status ? `?status=${encodeURIComponent(status)}` : ''
-  return handleRequest<TradeOrder[]>(
-    `/api/orders${query}`,
-    {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    },
-    '获取订单列表失败'
-  )
-}
+/** 订单列表 */
+export const getOrderList = (params: OrderListParams) => {
+  // const query = new URLSearchParams(params as any).toString();
+  // 将 params as any 改为：
+const query = new URLSearchParams(params as unknown as Record<string, string>).toString();
+  return request<unknown[]>(`/api/orders?${query}`);
+};
 
-/**
- * 3. 获取订单详情
- */
-export async function getOrderDetail(orderId: number): Promise<TradeOrder> {
-  return handleRequest<TradeOrder>(
-    `/api/orders/${orderId}`,
-    {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    },
-    '获取订单详情失败'
-  )
-}
+/** 订单详情 */
+export const getOrderDetail = (orderId: number) =>
+  request(`/api/orders/${orderId}`);
 
-/**
- * 4. 获取订单中的商品明细
- */
-export async function getOrderItems(orderId: number): Promise<OrderProduct[]> {
-  return handleRequest<OrderProduct[]>(
-    `/api/orders/${orderId}/items`,
-    {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    },
-    '获取商品明细失败'
-  )
-}
+/** 取消订单 */
+export const cancelOrder = (orderId: number, reason: string) =>
+  request(`/api/orders/${orderId}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ cancelReason: reason })
+  });
 
-/**
- * 5. 取消订单
- */
-export async function cancelOrder(orderId: number): Promise<unknown> {
-  return handleRequest<unknown>(
-    `/api/orders/${orderId}/cancel`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    },
-    '取消订单失败'
-  )
-}
+/** 确认收货 */
+export const confirmReceipt = (orderId: number) =>
+  request(`/api/orders/${orderId}/confirm-receipt`, { method: 'POST' });
 
-/**
- * 6. 确认收货
- */
-export async function confirmReceipt(orderId: number): Promise<unknown> {
-  return handleRequest<unknown>(
-    `/api/orders/${orderId}/confirm`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    },
-    '确认收货失败'
-  )
-}
+/** 订单状态日志 */
+export const getOrderStatusLogs = (orderId: number) =>
+  request(`/api/orders/${orderId}/status-logs`);
+
+
+// ===================== 支付流程 =====================
+
+/** 创建支付单 */
+export const createPayment = (orderId: number, data: CreatePaymentRequest) =>
+  request(`/api/orders/${orderId}/payments`, { method: 'POST', body: JSON.stringify(data) });
+
+/** 支付单详情 */
+export const getPaymentDetail = (orderId: number, paymentId: number) =>
+  request(`/api/orders/${orderId}/payments/${paymentId}`);
+
+/** 发起支付 (调用第三方支付) */
+export const payOrder = (paymentId: number) =>
+  request(`/api/payments/${paymentId}/pay`, { method: 'POST' });
+
+/** 支付回调 (模拟) */
+export const paymentCallback = (data: PaymentCallbackRequest) =>
+  request(`/api/payments/callback`, { method: 'POST', body: JSON.stringify(data) });
+
+/** 支付流水 */
+export const getPaymentTransactions = (paymentId: number) =>
+  request(`/api/payments/${paymentId}/transactions`);
+
+
+// ===================== 发货物流流程 =====================
+
+/** 创建发货记录 */
+export const createShipment = (orderId: number, data: CreateShipmentRequest) =>
+  request(`/api/orders/${orderId}/shipments`, { method: 'POST', body: JSON.stringify(data) });
+
+/** 发货详情 */
+export const getShipmentDetail = (orderId: number, shipmentId: number) =>
+  request(`/api/orders/${orderId}/shipments/${shipmentId}`);
+
+/** 新增物流轨迹 */
+export const addShipmentTrace = (orderId: number, shipmentId: number, data: AddTraceRequest) =>
+  request(`/api/orders/${orderId}/shipments/${shipmentId}/traces`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+
+/** 查询物流轨迹 */
+export const getShipmentTraces = (orderId: number, shipmentId: number) =>
+  request(`/api/orders/${orderId}/shipments/${shipmentId}/traces`);
+
+/** 签收/自提核销 */
+export const signShipment = (orderId: number, shipmentId: number, pickupCode?: string) =>
+  request(`/api/orders/${orderId}/shipments/${shipmentId}/sign`, {
+    method: 'POST',
+    body: JSON.stringify({ pickupCode })
+  });
