@@ -306,6 +306,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { changePasswordApi, bindPhoneApi, bindEmailApi } from '@/api/user'
 
 // 模态框状态
 const showPasswordModal = ref(false)
@@ -437,7 +438,7 @@ const closeEmailModal = () => {
   resetEmailForm()
 }
 
-const submitPasswordChange = () => {
+const submitPasswordChange = async () => {
   const { oldPassword, newPassword, confirmPassword } = passwordForm.value
   if (!oldPassword || !newPassword || !confirmPassword) {
     alert('请完整填写密码信息')
@@ -451,21 +452,25 @@ const submitPasswordChange = () => {
     alert('两次输入的新密码不一致')
     return
   }
-
-  accountInfo.value.lastPasswordChange = new Date().toISOString().slice(0, 10)
-  operationLogs.value.unshift({
-    id: Date.now(),
-    time: new Date().toLocaleString('zh-CN'),
-    action: '修改密码',
-    ip: '127.0.0.1',
-    device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
-    status: 'success'
-  })
-  alert('密码修改成功')
-  closePasswordModal()
+  try {
+    await changePasswordApi({ oldPassword, newPassword })
+    accountInfo.value.lastPasswordChange = new Date().toISOString().slice(0, 10)
+    operationLogs.value.unshift({
+      id: Date.now(),
+      time: new Date().toLocaleString('zh-CN'),
+      action: '修改密码',
+      ip: '127.0.0.1',
+      device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
+      status: 'success'
+    })
+    alert('密码修改成功')
+    closePasswordModal()
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '密码修改失败')
+  }
 }
 
-const submitPhoneChange = () => {
+const submitPhoneChange = async () => {
   const { newPhone, verifyCode } = phoneForm.value
   if (!/^1\d{10}$/.test(newPhone)) {
     alert('请输入正确的11位手机号')
@@ -475,21 +480,25 @@ const submitPhoneChange = () => {
     alert('请输入验证码')
     return
   }
-
-  accountInfo.value.phone = maskPhone(newPhone)
-  operationLogs.value.unshift({
-    id: Date.now(),
-    time: new Date().toLocaleString('zh-CN'),
-    action: '更换手机',
-    ip: '127.0.0.1',
-    device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
-    status: 'success'
-  })
-  alert('手机绑定更换成功')
-  closePhoneModal()
+  try {
+    await bindPhoneApi({ phone: newPhone, verifyCode })
+    accountInfo.value.phone = maskPhone(newPhone)
+    operationLogs.value.unshift({
+      id: Date.now(),
+      time: new Date().toLocaleString('zh-CN'),
+      action: '更换手机',
+      ip: '127.0.0.1',
+      device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
+      status: 'success'
+    })
+    alert('手机绑定更换成功')
+    closePhoneModal()
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '手机绑定更换失败')
+  }
 }
 
-const submitEmailChange = () => {
+const submitEmailChange = async () => {
   const { newEmail, verifyCode } = emailForm.value
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(newEmail)) {
@@ -500,18 +509,22 @@ const submitEmailChange = () => {
     alert('请输入验证码')
     return
   }
-
-  accountInfo.value.email = maskEmail(newEmail)
-  operationLogs.value.unshift({
-    id: Date.now(),
-    time: new Date().toLocaleString('zh-CN'),
-    action: '更换邮箱',
-    ip: '127.0.0.1',
-    device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
-    status: 'success'
-  })
-  alert('邮箱绑定更换成功')
-  closeEmailModal()
+  try {
+    await bindEmailApi({ email: newEmail, verifyCode })
+    accountInfo.value.email = maskEmail(newEmail)
+    operationLogs.value.unshift({
+      id: Date.now(),
+      time: new Date().toLocaleString('zh-CN'),
+      action: '更换邮箱',
+      ip: '127.0.0.1',
+      device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
+      status: 'success'
+    })
+    alert('邮箱绑定更换成功')
+    closeEmailModal()
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '邮箱绑定更换失败')
+  }
 }
 
 onMounted(() => {

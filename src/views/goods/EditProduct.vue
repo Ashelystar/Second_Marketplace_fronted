@@ -278,7 +278,28 @@ const form = reactive({
   tags: [] as string[]
 })
 
-const applyProductToForm = (product: Partial<UpdateProductParams> & Record<string, unknown>) => {
+type ProductFormSource = {
+  images?: unknown[]
+  image?: string
+  title?: string
+  description?: string
+  sellingPrice?: string | number
+  price?: string | number
+  originalPrice?: string | number
+  categoryId?: number
+  category?: string
+  conditionLevel?: string
+  condition?: string
+  brand?: string
+  pickupCity?: string
+  location?: string
+  tags?: unknown[]
+  canBargain?: boolean
+  freight?: string | number
+  freeFreight?: boolean
+}
+
+const applyProductToForm = (product: ProductFormSource) => {
   const imageList = Array.isArray(product.images)
     ? product.images
       .map((img) => {
@@ -335,7 +356,7 @@ const getCachedEditingProduct = (id: number) => {
   try {
     const raw = sessionStorage.getItem(EDIT_PRODUCT_CACHE_KEY)
     if (!raw) return null
-    const cached = JSON.parse(raw) as { id?: number } & Record<string, unknown>
+    const cached = JSON.parse(raw) as ProductFormSource & { id?: number }
     if (cached && Number(cached.id) === id) return cached
   } catch (err) {
     console.error('读取编辑缓存失败:', err)

@@ -644,9 +644,11 @@ const goToUserProfile = (user: { userId?: number; name: string; avatar?: string 
   })
 }
 
-const toggleFavorite = () => {
-  if (product.value) {
-    userStore.toggleFavorite({
+const toggleFavorite = async () => {
+  if (!product.value) return
+  if (!ensureLoggedIn('收藏商品')) return
+  try {
+    await userStore.toggleFavorite({
       id: product.value.id,
       title: product.value.title,
       price: product.value.price,
@@ -656,6 +658,8 @@ const toggleFavorite = () => {
       addTime: new Date().toLocaleString()
     })
     isFavorited.value = userStore.isFavorited(product.value.id)
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '收藏操作失败')
   }
 }
 

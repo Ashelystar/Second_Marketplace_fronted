@@ -1,5 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import {
+  favoriteProductApi,
+  unfavoriteProductApi,
+  getFavoriteIdsApi,
+} from '@/api/user'
 
 export interface FavoriteItem {
   id: number
@@ -34,11 +39,12 @@ export const useUserStore = defineStore('user', () => {
   const favorites = ref<FavoriteItem[]>(
     JSON.parse(localStorage.getItem('favorites') || '[]')
   )
+  const favoriteIds = ref<number[]>([])
 
   const isLoggedIn = computed(() => !!token.value)
 
   const isFavorited = (productId: number) => {
-    return favorites.value.some(item => item.id === productId)
+    return favoriteIds.value.includes(productId) || favorites.value.some(item => item.id === productId)
   }
 
   const addFavorite = (product: FavoriteItem) => {
@@ -53,11 +59,47 @@ export const useUserStore = defineStore('user', () => {
     saveFavorites()
   }
 
-  const toggleFavorite = (product: FavoriteItem) => {
+  const toggleFavorite = async (product: FavoriteItem) => {
     if (isFavorited(product.id)) {
       removeFavorite(product.id)
-    } else {
-      addFavorite(product)
+      favoriteIds.value = favoriteIds.value.filter(id => id !== product.id)
+      try {
+        if (isLoggedIn.value) {
+          await unfavoriteProductApi(product.id)
+        }
+      } catch (error) {
+        addFavorite(product)
+        favoriteIds.value.push(product.id)
+        throw error
+      }
+      return
+    }
+
+    addFavorite(product)
+    if (!favoriteIds.value.includes(product.id)) {
+      favoriteIds.value.push(product.id)
+    }
+    try {
+      if (isLoggedIn.value) {
+        await favoriteProductApi(product.id)
+      }
+    } catch (error) {
+      removeFavorite(product.id)
+      favoriteIds.value = favoriteIds.value.filter(id => id !== product.id)
+      throw error
+    }
+  }
+
+  const loadFavoriteIds = async () => {
+    if (!isLoggedIn.value) {
+      favoriteIds.value = favorites.value.map(item => item.id)
+      return
+    }
+    try {
+      favoriteIds.value = await getFavoriteIdsApi()
+    } catch (error) {
+      console.error('加载收藏ID失败:', error)
+      favoriteIds.value = favorites.value.map(item => item.id)
     }
   }
 
@@ -72,6 +114,7 @@ export const useUserStore = defineStore('user', () => {
       localStorage.setItem('token', tokenValue)
       token.value = tokenValue
     }
+    loadFavoriteIds()
   }
 
   const logout = () => {
@@ -79,16 +122,21 @@ export const useUserStore = defineStore('user', () => {
     token.value = ''
     localStorage.removeItem('userInfo')
     localStorage.removeItem('token')
+    favoriteIds.value = favorites.value.map(item => item.id)
   }
+
+  loadFavoriteIds()
 
   return {
     userInfo,
     isLoggedIn,
     favorites,
+    favoriteIds,
     isFavorited,
     addFavorite,
     removeFavorite,
     toggleFavorite,
+    loadFavoriteIds,
     login,
     logout
   }
