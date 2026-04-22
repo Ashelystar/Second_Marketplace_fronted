@@ -29,7 +29,7 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
             <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
           </template>
@@ -69,11 +69,11 @@
       <div class="sellerCard card">
         <div class="sellerMain">
           <div class="sellerInfo">
-            <img v-if="product.sellerAvatar" :src="product.sellerAvatar" :alt="product.sellerName" class="avatar" />
-            <div v-else class="avatar avatarDefault">{{ product.sellerName?.charAt(0) }}</div>
+            <img v-if="product.sellerAvatar" :src="product.sellerAvatar" :alt="product.sellerName" class="avatar clickableAvatar" @click="goToSellerProfile" />
+            <div v-else class="avatar avatarDefault clickableAvatar" @click="goToSellerProfile">{{ product.sellerName?.charAt(0) }}</div>
             <div class="sellerText">
               <div class="sellerName">
-                <strong>{{ product.sellerName }}</strong>
+                <strong class="profileClickable nameLink" @click="goToSellerProfile">{{ product.sellerName }}</strong>
                 <span v-if="product.sellerVerified" class="verified">
                   <i class="fa fa-check-circle"></i> 已实名
                 </span>
@@ -89,7 +89,7 @@
               </div>
             </div>
           </div>
-          <button class="viewProfileBtn">
+          <button class="viewProfileBtn" @click="goToSellerProfile">
             <i class="fa fa-user"></i> 查看主页
           </button>
         </div>
@@ -237,10 +237,10 @@
         <div class="commentList" v-if="comments.length > 0">
           <div v-for="comment in displayedComments" :key="comment.id" class="commentItem">
             <div class="commentUser">
-              <img v-if="comment.avatar" :src="comment.avatar" class="commentAvatar" />
-              <div v-else class="commentAvatar avatarDefault">{{ comment.name?.charAt(0) }}</div>
+              <img v-if="comment.avatar" :src="comment.avatar" class="commentAvatar profileClickable" @click.stop="goToUserProfile(comment)" />
+              <div v-else class="commentAvatar avatarDefault profileClickable" @click.stop="goToUserProfile(comment)">{{ comment.name?.charAt(0) }}</div>
               <div class="commentMeta">
-                <span class="commentName">{{ comment.name }}</span>
+                <span class="commentName profileClickable nameLink" @click.stop="goToUserProfile(comment)">{{ comment.name }}</span>
                 <span class="commentTime">{{ comment.time }}</span>
                 <button class="subReplyBtn" @click="toggleReplyInput(comment.id, null)">
                   <i class="fa fa-commenting"></i> 回复
@@ -253,10 +253,10 @@
             <div class="replyList" v-if="comment.replies && comment.replies.length > 0">
               <div v-for="reply in getDisplayReplies(comment)" :key="reply.id" class="replyItem">
                 <div class="replyUser">
-                  <img v-if="reply.avatar" :src="reply.avatar" class="replyAvatar" />
-                  <div v-else class="replyAvatar avatarDefaultSm">{{ reply.name?.charAt(0) }}</div>
+                  <img v-if="reply.avatar" :src="reply.avatar" class="replyAvatar profileClickable" @click.stop="goToUserProfile(reply)" />
+                  <div v-else class="replyAvatar avatarDefaultSm profileClickable" @click.stop="goToUserProfile(reply)">{{ reply.name?.charAt(0) }}</div>
                   <div class="replyMeta">
-                    <span class="replyName">{{ reply.name }}</span>
+                    <span class="replyName profileClickable nameLink" @click.stop="goToUserProfile(reply)">{{ reply.name }}</span>
                     <span class="replyTime">{{ reply.time }}</span>
                     <button class="subReplyBtn" @click="openSubReply(comment.id, reply)">
                       <i class="fa fa-commenting"></i> 回复
@@ -392,6 +392,7 @@ const replyToUser = ref<string | null>(null)
 
 interface Comment {
   id: number
+  userId?: number
   name: string
   avatar?: string
   time: string
@@ -402,6 +403,7 @@ interface Comment {
 
 interface Reply {
   id: number
+  userId?: number
   name: string
   avatar?: string
   time: string
@@ -464,6 +466,7 @@ const loadComments = () => {
   comments.value = [
     {
       id: 1,
+      userId: 2001,
       name: '买家小明',
       avatar: 'https://picsum.photos/id/100/50/50',
       time: '2小时前',
@@ -471,6 +474,7 @@ const loadComments = () => {
       replies: [
         {
           id: 101,
+          userId: product.value?.sellerId ?? 101,
           name: '卖家小李',
           avatar: 'https://picsum.photos/id/101/50/50',
           time: '1小时前',
@@ -480,6 +484,7 @@ const loadComments = () => {
     },
     {
       id: 2,
+      userId: 2002,
       name: '买家小红',
       avatar: 'https://picsum.photos/id/102/50/50',
       time: '3小时前',
@@ -488,6 +493,7 @@ const loadComments = () => {
     },
     {
       id: 3,
+      userId: 2003,
       name: '买家小王',
       avatar: 'https://picsum.photos/id/103/50/50',
       time: '1天前',
@@ -495,6 +501,7 @@ const loadComments = () => {
       replies: [
         {
           id: 301,
+          userId: product.value?.sellerId ?? 101,
           name: '卖家小李',
           avatar: 'https://picsum.photos/id/101/50/50',
           time: '23小时前',
@@ -502,6 +509,7 @@ const loadComments = () => {
         },
         {
           id: 302,
+          userId: 2003,
           name: '买家小王',
           avatar: 'https://picsum.photos/id/103/50/50',
           time: '22小时前',
@@ -511,6 +519,7 @@ const loadComments = () => {
     },
     {
       id: 4,
+      userId: 2004,
       name: '买家小赵',
       avatar: 'https://picsum.photos/id/104/50/50',
       time: '1天前',
@@ -518,6 +527,7 @@ const loadComments = () => {
       replies: [
         {
           id: 401,
+          userId: product.value?.sellerId ?? 101,
           name: '卖家小李',
           avatar: 'https://picsum.photos/id/101/50/50',
           time: '20小时前',
@@ -527,6 +537,7 @@ const loadComments = () => {
     },
     {
       id: 5,
+      userId: 2005,
       name: '买家小钱',
       avatar: 'https://picsum.photos/id/105/50/50',
       time: '2天前',
@@ -535,6 +546,7 @@ const loadComments = () => {
     },
     {
       id: 6,
+      userId: 2006,
       name: '买家小孙',
       avatar: 'https://picsum.photos/id/106/50/50',
       time: '2天前',
@@ -542,6 +554,7 @@ const loadComments = () => {
       replies: [
         {
           id: 601,
+          userId: product.value?.sellerId ?? 101,
           name: '卖家小李',
           avatar: 'https://picsum.photos/id/101/50/50',
           time: '2天前',
@@ -549,6 +562,7 @@ const loadComments = () => {
         },
         {
           id: 602,
+          userId: 2006,
           name: '买家小孙',
           avatar: 'https://picsum.photos/id/106/50/50',
           time: '2天前',
@@ -558,6 +572,7 @@ const loadComments = () => {
     },
     {
       id: 7,
+      userId: 2007,
       name: '买家小周',
       avatar: 'https://picsum.photos/id/107/50/50',
       time: '3天前',
@@ -608,9 +623,32 @@ const cancelReply = () => {
   replyToUser.value = null
 }
 
-const toggleFavorite = () => {
-  if (product.value) {
-    userStore.toggleFavorite({
+const buildProfileIdByName = (name: string) => {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0
+  }
+  return 10000 + (hash % 90000)
+}
+
+const goToUserProfile = (user: { userId?: number; name: string; avatar?: string }) => {
+  const profileId = user.userId ?? buildProfileIdByName(user.name)
+  router.push({
+    path: `/user/home/${profileId}`,
+    query: {
+      name: user.name,
+      avatar: user.avatar || '',
+      location: product.value?.location || '未知',
+      fromProductId: String(product.value?.id || ''),
+    },
+  })
+}
+
+const toggleFavorite = async () => {
+  if (!product.value) return
+  if (!ensureLoggedIn('收藏商品')) return
+  try {
+    await userStore.toggleFavorite({
       id: product.value.id,
       title: product.value.title,
       price: product.value.price,
@@ -620,6 +658,8 @@ const toggleFavorite = () => {
       addTime: new Date().toLocaleString()
     })
     isFavorited.value = userStore.isFavorited(product.value.id)
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '收藏操作失败')
   }
 }
 
@@ -630,6 +670,14 @@ const goToCheckout = () => {
 const goToChat = () => {
   if (!ensureLoggedIn('和卖家聊天')) return
   router.push('/chat')
+}
+
+const goToSellerProfile = () => {
+  if (!product.value?.sellerId) return
+  router.push({
+    path: `/user/home/${product.value.sellerId}`,
+    query: { fromProductId: String(product.value.id) }
+  })
 }
 
 const handleLogin = () => {
@@ -901,6 +949,28 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: none;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn.btn-primary {
+  background: #f97316;
+  color: #fff;
+}
+
+.btn.btn-primary:hover {
+  background: #ea580c;
+}
+
 .notFoundIcon {
   width: 80px;
   height: 80px;
@@ -941,6 +1011,10 @@ onMounted(() => {
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid rgba(249, 115, 22, 0.2);
+}
+
+.clickableAvatar {
+  cursor: pointer;
 }
 
 .avatarDefault {
@@ -1564,6 +1638,14 @@ onMounted(() => {
   justify-content: center;
   font-size: 12px;
   font-weight: bold;
+}
+
+.profileClickable {
+  cursor: pointer;
+}
+
+.nameLink:hover {
+  color: #ea580c;
 }
 
 .replyMeta {

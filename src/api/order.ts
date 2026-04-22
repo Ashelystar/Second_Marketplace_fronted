@@ -114,8 +114,8 @@ export async function getOrderItems(orderId: number): Promise<OrderProduct[]> {
 /**
  * 5. 取消订单
  */
-export async function cancelOrder(orderId: number): Promise<unknown> {
-  return handleRequest<unknown>(
+export async function cancelOrder(orderId: number): Promise<TradeOrder> {
+  return handleRequest<TradeOrder>(
     `/api/orders/${orderId}/cancel`,
     {
       method: 'POST',
@@ -128,8 +128,8 @@ export async function cancelOrder(orderId: number): Promise<unknown> {
 /**
  * 6. 确认收货
  */
-export async function confirmReceipt(orderId: number): Promise<unknown> {
-  return handleRequest<unknown>(
+export async function confirmReceipt(orderId: number): Promise<TradeOrder> {
+  return handleRequest<TradeOrder>(
     `/api/orders/${orderId}/confirm`,
     {
       method: 'POST',

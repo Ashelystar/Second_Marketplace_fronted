@@ -86,15 +86,23 @@ const floatingTools = [
 ]
 
 const handleTool = (t: { action: string }) => {
+  if (t.action === 'publish') {
+    router.push('/publish')
+    return
+  }
+
+  if (t.action === 'message') {
+    goToChat()
+    return
+  }
+
   const msgs: Record<string, string> = {
-    publish: '正在跳转到发布页面...',
-    message: goToChat() || '正在打开消息中心...',
-    qrcode: `商品码功能：扫描二维码查看"${product.value?.title || '当前商品'}"的详细信息`,
+    qrcode: '商品码功能开发中',
     app: '打开应用商店下载荔园APP',
     feedback: '欢迎提出宝贵意见和建议！',
     service: '正在为您连接客服...'
   }
-  alert(msgs[t.action])
+  alert(msgs[t.action] || '功能开发中')
 }
 const goToChat = () => {
   router.push('/chat')
@@ -157,7 +165,7 @@ const goToCart = () => {
  * 导航到消息页面
  */
 const goToMessage = () => {
-  router.push('/message')
+  router.push('/chat')
 }
 
 /**

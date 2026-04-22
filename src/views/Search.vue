@@ -124,7 +124,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
-import type { SortOption } from '@/types'
+import type { FilterState, SortOption } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -137,7 +137,13 @@ const filterModalOpen = ref(false)
 const currentPage = ref(1)
 const itemsPerPage = 18
 const isLoading = ref(true)
-const filterState = ref({ minPrice: '', maxPrice: '', conditions: [] as string[], locations: [] as string[] })
+const filterState = ref<FilterState>({
+  minPrice: '',
+  maxPrice: '',
+  conditions: [],
+  locations: [],
+  timeRange: ''
+})
 
 const topFilterTags = [{ id: 1, text: '全部' }, { id: 2, text: '手机' }, { id: 3, text: '数码' }, { id: 4, text: '电脑' }, { id: 5, text: '服饰' }, { id: 6, text: '家居' }, { id: 7, text: '美妆' }]
 const sortOptions = [
@@ -171,7 +177,7 @@ const toggleCondition = (c: string) => { const i = filterState.value.conditions.
 const toggleLocation = (l: string) => { const i = filterState.value.locations.indexOf(l); i === -1 ? filterState.value.locations.push(l) : filterState.value.locations.splice(i, 1) }
 const openFilterModal = () => { filterModalOpen.value = true; filterState.value = { ...store.filterState } }
 const applyFilter = () => { store.applyFilter(filterState.value); filterModalOpen.value = false }
-const resetFilter = () => { filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [] } }
+const resetFilter = () => { filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' } }
 const loadMore = () => currentPage.value++
 const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')

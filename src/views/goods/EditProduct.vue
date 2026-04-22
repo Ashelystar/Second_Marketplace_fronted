@@ -13,7 +13,7 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
             <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
           </template>
@@ -221,6 +221,7 @@ defineOptions({ name: 'EditProduct' })
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
 
 // 分类列表（从接口加载）
 const categoryList = ref<Category[]>([])
@@ -277,28 +278,112 @@ const form = reactive({
   tags: [] as string[]
 })
 
+type ProductFormSource = {
+  images?: unknown[]
+  image?: string
+  title?: string
+  description?: string
+  sellingPrice?: string | number
+  price?: string | number
+  originalPrice?: string | number
+  categoryId?: number
+  category?: string
+  conditionLevel?: string
+  condition?: string
+  brand?: string
+  pickupCity?: string
+  location?: string
+  tags?: unknown[]
+  canBargain?: boolean
+  freight?: string | number
+  freeFreight?: boolean
+}
+
+const applyProductToForm = (product: ProductFormSource) => {
+  const imageList = Array.isArray(product.images)
+    ? product.images
+      .map((img) => {
+        if (typeof img === 'string') return img
+        if (img && typeof img === 'object' && 'url' in img) return String((img as { url: unknown }).url || '')
+        return ''
+      })
+      .filter(Boolean)
+    : []
+  const cover = typeof product.image === 'string' ? product.image : ''
+  form.images = imageList.length ? imageList : (cover ? [cover] : [])
+
+  form.title = String(product.title || '')
+  form.description = String(product.description || '')
+
+  const sellingPrice = product.sellingPrice ?? product.price
+  form.price = sellingPrice === undefined || sellingPrice === null ? '' : String(sellingPrice)
+
+  const originalPrice = product.originalPrice
+  form.originalPrice = originalPrice === undefined || originalPrice === null || Number(originalPrice) <= 0
+    ? ''
+    : String(originalPrice)
+
+  if (typeof product.categoryId === 'number' && product.categoryId > 0) {
+    form.categoryId = product.categoryId
+  } else if (typeof product.category === 'string' && product.category.trim()) {
+    const catEntry = categoryList.value.find(c => c.categoryName === product.category)
+    if (catEntry) form.categoryId = catEntry.id
+  }
+
+  if (typeof product.conditionLevel === 'string') {
+    form.condition = getConditionLabel(product.conditionLevel)
+  } else if (typeof product.condition === 'string' && conditions.includes(product.condition)) {
+    form.condition = product.condition
+  }
+
+  form.brand = String(product.brand || '')
+  form.location = String(product.pickupCity || product.location || '')
+
+  form.tags = Array.isArray(product.tags)
+    ? product.tags
+      .map(tag => String(tag).trim())
+      .filter(Boolean)
+      .slice(0, 5)
+    : []
+
+  form.canBargain = Boolean(product.canBargain)
+  const freight = Number(product.freight || 0)
+  form.freight = Number.isFinite(freight) ? freight : 0
+  form.freeFreight = Boolean(product.freeFreight) || form.freight <= 0
+}
+
+const getCachedEditingProduct = (id: number) => {
+  try {
+    const raw = sessionStorage.getItem(EDIT_PRODUCT_CACHE_KEY)
+    if (!raw) return null
+    const cached = JSON.parse(raw) as ProductFormSource & { id?: number }
+    if (cached && Number(cached.id) === id) return cached
+  } catch (err) {
+    console.error('读取编辑缓存失败:', err)
+  }
+  return null
+}
+
 const loadProduct = async () => {
   const id = parseInt(route.query.id as string)
-  if (!isNaN(id)) {
-    isEditing.value = true
-    productId.value = id
-    try {
-      const product = await getProductDetail(id)
-      form.images = product.images?.map(img => img.url) || [product.image]
-      form.title = product.title
-      form.description = product.description || ''
-      form.price = String(product.sellingPrice || product.price)
-      form.originalPrice = product.originalPrice || ''
-      // 根据分类名称查找ID
-      if (product.category && categoryIdMap.value[0]) {
-        const catEntry = categoryList.value.find(c => c.categoryName === product.category)
-        form.categoryId = catEntry?.id || 1
-      }
-      form.condition = getConditionLabel(product.conditionLevel)
-      form.brand = product.brand || ''
-      form.location = product.pickupCity || ''
-    } catch (err) {
-      console.error('加载商品失败:', err)
+  if (isNaN(id)) return
+
+  isEditing.value = true
+  productId.value = id
+
+  let hasLocalFilled = false
+  const cachedProduct = getCachedEditingProduct(id)
+  if (cachedProduct) {
+    applyProductToForm(cachedProduct)
+    hasLocalFilled = true
+  }
+
+  try {
+    const product = await getProductDetail(id)
+    applyProductToForm(product)
+  } catch (err) {
+    console.error('加载商品失败:', err)
+    if (!hasLocalFilled) {
       alert('加载商品信息失败')
     }
   }

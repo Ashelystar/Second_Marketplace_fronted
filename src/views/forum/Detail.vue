@@ -11,9 +11,13 @@
           <div class="title">{{ post.title }}</div>
           <div class="meta">
             <div class="author">
-              <Avatar :src="post.author.avatarUrl" :alt="post.author.name" :size="26" />
+              <button class="uLink avatarBtn" type="button" @click="goAuthorHome(post.author)">
+                <Avatar :src="post.author.avatarUrl" :alt="post.author.name" :size="26" />
+              </button>
               <div class="a">
-                <div class="n">{{ authorDisplayName(post.author) }}</div>
+                <button class="uLink nameBtn n" type="button" @click="goAuthorHome(post.author)">
+                  {{ authorDisplayName(post.author) }}
+                </button>
                 <div class="t">{{ timeText }} · {{ viewText }} 浏览</div>
               </div>
             </div>
@@ -62,10 +66,14 @@
 
         <div class="clist">
           <div v-for="c in rootComments" :key="c.id" class="citem">
-            <Avatar :src="c.author.avatarUrl" :alt="c.author.name" :size="28" />
+            <button class="uLink avatarBtn" type="button" @click="goAuthorHome(c.author)">
+              <Avatar :src="c.author.avatarUrl" :alt="c.author.name" :size="28" />
+            </button>
             <div class="cbody">
               <div class="crow">
-                <div class="cn">{{ authorDisplayName(c.author) }}</div>
+                <button class="uLink nameBtn cn" type="button" @click="goAuthorHome(c.author)">
+                  {{ authorDisplayName(c.author) }}
+                </button>
                 <div class="ctm">{{ formatDateShort(c.createdAt) }}</div>
               </div>
               <div class="cc">{{ c.content }}</div>
@@ -93,7 +101,9 @@
               </div>
               <div v-if="repliesByParent.get(c.id)?.length" class="replies">
                 <div v-for="r in repliesByParent.get(c.id)" :key="r.id" class="reply">
-                  <span class="reply-author">{{ authorDisplayName(r.author) }}</span>
+                  <button class="uLink nameBtn reply-author" type="button" @click="goAuthorHome(r.author)">
+                    {{ authorDisplayName(r.author) }}
+                  </button>
                   <span v-if="r.replyToAuthorName" class="reply-to">@{{ r.replyToAuthorName }}</span>
                   <span class="reply-content">{{ r.content }}</span>
                   <button class="action small" :class="{ liked: store.isCommentLiked(r.id) }" type="button" @click="likeComment(r.id)">
@@ -163,7 +173,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Avatar from '../../components/forum/Avatar.vue'
 import MediaViewer from '../../components/forum/MediaViewer.vue'
 import TagPill from '../../components/forum/TagPill.vue'
@@ -175,6 +185,7 @@ import { mockGoods } from '../../mocks/goods'
 
 const props = defineProps<{ id?: string }>()
 const route = useRoute()
+const router = useRouter()
 const store = useForumStore()
 const productStore = useProductStore()
 
@@ -229,6 +240,26 @@ const inputPlaceholder = computed(() =>
 
 function authorDisplayName(a: { id: string; name: string }) {
   return a.name
+}
+
+function normalizeProfileId(rawId: string) {
+  const n = Number(rawId)
+  if (Number.isFinite(n) && n > 0) return n
+  let hash = 0
+  for (let i = 0; i < rawId.length; i++) hash = (hash * 31 + rawId.charCodeAt(i)) >>> 0
+  return 10000 + (hash % 90000)
+}
+
+function goAuthorHome(author: { id: string; name: string; avatarUrl: string }) {
+  const profileId = normalizeProfileId(author.id)
+  router.push({
+    path: `/user/home/${profileId}`,
+    query: {
+      name: author.name,
+      avatar: author.avatarUrl || '',
+      fromForumPostId: postId.value,
+    },
+  })
 }
 
 const editModalOpen = ref(false)
@@ -433,12 +464,31 @@ watch(
   min-width: 0;
 }
 
+.uLink {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.avatarBtn {
+  border-radius: 999px;
+}
+
+.nameBtn:hover {
+  color: #ea580c;
+}
+
 .a {
   min-width: 0;
 }
 
 .n {
   font-weight: 900;
+  font-size: inherit;
 }
 
 .t {
@@ -569,6 +619,7 @@ watch(
 
 .cn {
   font-weight: 900;
+  font-size: inherit;
 }
 
 .ctm {
@@ -624,6 +675,7 @@ watch(
 
 .reply-author {
   font-weight: 700;
+  font-size: inherit;
 }
 
 .reply-to {

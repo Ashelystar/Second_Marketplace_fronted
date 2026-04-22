@@ -44,7 +44,7 @@
             <i class="fa fa-shopping-cart"></i>
             购物车
           </a>
-          <a href="#" @click.prevent="router.push('/message')">
+          <a href="#" @click.prevent="router.push('/chat')">
             <i class="fa fa-bell"></i>
             消息
           </a>
@@ -66,6 +66,7 @@
     <main class="container forum-main">
       <RouterView />
     </main>
+    <SiteFooter />
   </div>
 </template>
 
@@ -74,6 +75,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useForumStore } from '@/stores/forum'
+import SiteFooter from '@/components/layout/SiteFooter.vue'
 
 const router = useRouter()
 const route = useRoute()
