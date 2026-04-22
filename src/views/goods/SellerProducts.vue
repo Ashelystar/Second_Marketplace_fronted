@@ -28,7 +28,7 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
             <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
           </template>
@@ -157,11 +157,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { offShelfProduct } from '@/api/goods'
 
 defineOptions({ name: 'SellerProducts' })
 
 const router = useRouter()
 const userStore = useUserStore()
+const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
 
 const searchInput = ref('')
 const filterStatus = ref('all')
@@ -299,14 +301,23 @@ const goToPublish = () => {
 }
 
 const editProduct = (product: Product) => {
+  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(product))
   router.push({ path: '/edit', query: { id: product.id.toString() } })
 }
 
-const toggleStatus = (product: Product) => {
-  const newStatus = product.status === '在售' ? '已下架' : '在售'
-  if (confirm(`确定要${newStatus === '在售' ? '上架' : '下架'}该商品吗？`)) {
-    product.status = newStatus
-    alert(`商品已${newStatus === '在售' ? '上架' : '下架'}`)
+const toggleStatus = async (product: Product) => {
+  if (product.status !== '在售') {
+    alert('重新上架功能待后端接口支持')
+    return
+  }
+  if (confirm('确定要下架该商品吗？')) {
+    try {
+      await offShelfProduct(product.id)
+      product.status = '已下架'
+      alert('商品已下架')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '下架失败')
+    }
   }
 }
 
@@ -335,7 +346,7 @@ const handleTool = (t: { id: number }) => {
 }
 
 onMounted(() => {
-  // 初始化数据
+  // TODO: 后端提供用户商品列表接口后替换为 API 调用
 })
 </script>
 

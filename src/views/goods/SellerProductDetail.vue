@@ -10,9 +10,6 @@
           <a href="#" class="logo" @click.prevent="router.push('/')">
             <span>荔园交易</span>
           </a>
-          <span class="sellerBadge">
-            <i class="fa fa-store"></i> 卖家中心
-          </span>
         </div>
 
         <div class="searchBox">
@@ -30,7 +27,7 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
             <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
           </template>
@@ -45,9 +42,9 @@
     <div class="breadcrumb">
       <a href="#" @click.prevent="router.push('/')">首页</a>
       <i class="fa fa-angle-right"></i>
-      <span class="muted">卖家中心</span>
+      <span class="muted">{{ product?.category || '商品分类' }}</span>
       <i class="fa fa-angle-right"></i>
-      <span>商品管理</span>
+      <span>{{ product?.title || '商品详情' }}</span>
     </div>
 
     <!-- 加载中 -->
@@ -328,6 +325,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { offShelfProduct } from '@/api/goods'
 
 defineOptions({ name: 'SellerProductDetail' })
 
@@ -358,7 +356,7 @@ interface ConsultReply {
   id: number
   isSeller: boolean
   name: string
-  avatar?: string
+  avatar?: string | null
   time: string
   content: string
 }
@@ -375,6 +373,11 @@ interface ProductData {
   id: number
   title: string
   category: string
+  location: string
+  sellerId: number
+  sellerName: string
+  sellerAvatar: string
+  sellerRating: number
   price: number
   originalPrice: number
   image: string
@@ -398,6 +401,8 @@ const product = ref<ProductData | null>(null)
 const currentIndex = ref(0)
 const images = ref<ProductImage[]>([])
 const isLoading = ref(true)
+const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
+const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
 
 // 咨询回复相关
 const activeConsultId = ref<number | null>(null)
@@ -464,6 +469,11 @@ const loadDetails = () => {
     id,
     title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
     category: '手机数码',
+    location: '广州',
+    sellerId: 101,
+    sellerName: '卖家小李',
+    sellerAvatar: 'https://picsum.photos/id/101/50/50',
+    sellerRating: 4.9,
     price: 6999,
     originalPrice: 8999,
     image: 'https://picsum.photos/id/1/800/800',
@@ -588,16 +598,26 @@ const handleLogin = () => {
 
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
 
-const toggleStatus = () => {
+const toggleStatus = async () => {
   if (!product.value) return
-  if (confirm(product.value.status === '在售' ? '确定要下架该商品吗？' : '确定要重新上架该商品吗？')) {
-    product.value.status = product.value.status === '在售' ? '已下架' : '在售'
-    alert(product.value.status === '在售' ? '商品已上架' : '商品已下架')
+  if (product.value.status !== '在售') {
+    alert('重新上架功能待后端接口支持')
+    return
+  }
+  if (confirm('确定要下架该商品吗？')) {
+    try {
+      await offShelfProduct(product.value.id)
+      product.value.status = '已下架'
+      alert('商品已下架')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '下架失败')
+    }
   }
 }
 
 const editProduct = () => {
   if (!product.value) return
+  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(product.value))
   router.push({ path: '/edit', query: { id: product.value.id.toString() } })
 }
 
@@ -614,10 +634,35 @@ const shareProduct = () => {
 }
 
 const goToConsult = () => {
-  // 切换到咨询标签页
-  activeTab.value = 'consult'
-  // 滚动到咨询区域
-  document.querySelector('.manageSection')?.scrollIntoView({ behavior: 'smooth' })
+  if (!userStore.isLoggedIn) {
+    alert('请先登录后再咨询卖家')
+    router.push('/user/login')
+    return
+  }
+  if (!product.value) return
+
+  const friend = {
+    id: product.value.sellerId,
+    name: product.value.sellerName,
+    avatar: product.value.sellerAvatar,
+    lastMessage: `我对「${product.value.title}」感兴趣，方便聊聊吗？`,
+    lastTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    unread: 1,
+    rating: product.value.sellerRating || 5,
+    location: product.value.location || '未知'
+  }
+
+  const stored = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Array<typeof friend>
+  const mergedMap = new Map<number, typeof friend>()
+  stored.forEach(item => {
+    if (item && typeof item.id === 'number') {
+      mergedMap.set(item.id, item)
+    }
+  })
+  mergedMap.set(friend.id, friend)
+  localStorage.setItem(CHAT_FRIENDS_STORAGE_KEY, JSON.stringify(Array.from(mergedMap.values())))
+
+  router.push({ path: '/chat', query: { friendId: String(friend.id) } })
 }
 
 const contactBuyer = (item: Intention) => {
@@ -1556,20 +1601,26 @@ onMounted(() => {
 }
 
 .deleteBtn {
-  padding: 10px 16px;
-  background: none;
-  border: 1px solid #fca5a5;
-  border-radius: 8px;
-  color: #dc2626;
+  min-width: 126px;
+  height: 42px;
+  padding: 0 18px;
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  border: 1px solid #fecdd3;
+  border-radius: 10px;
+  color: #be123c;
+  font-weight: 600;
   font-size: 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
+  transition: all 150ms ease;
 }
 
 .deleteBtn:hover {
-  background: #fef2f2;
+  background: linear-gradient(135deg, #ffe4e6 0%, #fecdd3 100%);
+  border-color: #fda4af;
+  transform: translateY(-1px);
 }
 
 .bottomRight {
@@ -1612,23 +1663,28 @@ onMounted(() => {
 }
 
 .toggleBtn {
-  padding: 10px 20px;
+  min-width: 106px;
+  height: 42px;
+  padding: 0 20px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
+  transition: all 150ms ease;
 }
 
 .toggleBtn.off {
-  background: #fef2f2;
-  color: #dc2626;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
 }
 
 .toggleBtn.off:hover {
-  background: #fee2e2;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-1px);
 }
 
 .toggleBtn.on {

@@ -172,16 +172,162 @@
         </table>
       </div>
     </div>
+
+    <!-- 修改密码弹窗 -->
+    <Teleport to="body">
+      <div
+        v-if="showPasswordModal"
+        class="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4"
+        @click.self="closePasswordModal"
+      >
+        <div class="bg-white rounded-xl w-full max-w-md p-6">
+          <h3 class="text-lg font-semibold mb-4">修改登录密码</h3>
+          <div class="space-y-4">
+            <input
+              v-model="passwordForm.oldPassword"
+              type="password"
+              placeholder="请输入当前密码"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
+            <input
+              v-model="passwordForm.newPassword"
+              type="password"
+              placeholder="请输入新密码"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
+            <input
+              v-model="passwordForm.confirmPassword"
+              type="password"
+              placeholder="请再次输入新密码"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
+          </div>
+          <div class="mt-6 flex justify-end gap-3">
+            <button
+              @click="closePasswordModal"
+              class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button
+              @click="submitPasswordChange"
+              class="px-4 py-2 bg-xianyuText text-white rounded-lg hover:bg-xianyuTextDark"
+            >
+              确认修改
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 更换手机弹窗 -->
+    <Teleport to="body">
+      <div
+        v-if="showPhoneModal"
+        class="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4"
+        @click.self="closePhoneModal"
+      >
+        <div class="bg-white rounded-xl w-full max-w-md p-6">
+          <h3 class="text-lg font-semibold mb-4">更换绑定手机</h3>
+          <div class="space-y-4">
+            <input
+              v-model="phoneForm.newPhone"
+              type="text"
+              placeholder="请输入新手机号"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
+            <input
+              v-model="phoneForm.verifyCode"
+              type="text"
+              placeholder="请输入验证码"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
+          </div>
+          <div class="mt-6 flex justify-end gap-3">
+            <button
+              @click="closePhoneModal"
+              class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button
+              @click="submitPhoneChange"
+              class="px-4 py-2 bg-xianyuText text-white rounded-lg hover:bg-xianyuTextDark"
+            >
+              确认更换
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 更换邮箱弹窗 -->
+    <Teleport to="body">
+      <div
+        v-if="showEmailModal"
+        class="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4"
+        @click.self="closeEmailModal"
+      >
+        <div class="bg-white rounded-xl w-full max-w-md p-6">
+          <h3 class="text-lg font-semibold mb-4">更换绑定邮箱</h3>
+          <div class="space-y-4">
+            <input
+              v-model="emailForm.newEmail"
+              type="email"
+              placeholder="请输入新邮箱"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
+            <input
+              v-model="emailForm.verifyCode"
+              type="text"
+              placeholder="请输入验证码"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
+          </div>
+          <div class="mt-6 flex justify-end gap-3">
+            <button
+              @click="closeEmailModal"
+              class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button
+              @click="submitEmailChange"
+              class="px-4 py-2 bg-xianyuText text-white rounded-lg hover:bg-xianyuTextDark"
+            >
+              确认更换
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { changePasswordApi, bindPhoneApi, bindEmailApi } from '@/api/user'
 
 // 模态框状态
 const showPasswordModal = ref(false)
 const showPhoneModal = ref(false)
 const showEmailModal = ref(false)
+
+const passwordForm = ref({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const phoneForm = ref({
+  newPhone: '',
+  verifyCode: ''
+})
+
+const emailForm = ref({
+  newEmail: '',
+  verifyCode: ''
+})
 
 // 账号信息
 const accountInfo = ref({
@@ -242,6 +388,144 @@ const operationLogs = ref([
     status: 'failed'
   }
 ])
+
+const maskPhone = (phone: string) => {
+  if (phone.length !== 11) return phone
+  return `${phone.slice(0, 3)}****${phone.slice(7)}`
+}
+
+const maskEmail = (email: string) => {
+  const [name, domain] = email.split('@')
+  if (!name || !domain) return email
+  if (name.length <= 2) return `${name[0]}*@${domain}`
+  return `${name[0]}***${name[name.length - 1]}@${domain}`
+}
+
+const resetPasswordForm = () => {
+  passwordForm.value = {
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  }
+}
+
+const resetPhoneForm = () => {
+  phoneForm.value = {
+    newPhone: '',
+    verifyCode: ''
+  }
+}
+
+const resetEmailForm = () => {
+  emailForm.value = {
+    newEmail: '',
+    verifyCode: ''
+  }
+}
+
+const closePasswordModal = () => {
+  showPasswordModal.value = false
+  resetPasswordForm()
+}
+
+const closePhoneModal = () => {
+  showPhoneModal.value = false
+  resetPhoneForm()
+}
+
+const closeEmailModal = () => {
+  showEmailModal.value = false
+  resetEmailForm()
+}
+
+const submitPasswordChange = async () => {
+  const { oldPassword, newPassword, confirmPassword } = passwordForm.value
+  if (!oldPassword || !newPassword || !confirmPassword) {
+    alert('请完整填写密码信息')
+    return
+  }
+  if (newPassword.length < 6) {
+    alert('新密码长度不能少于6位')
+    return
+  }
+  if (newPassword !== confirmPassword) {
+    alert('两次输入的新密码不一致')
+    return
+  }
+  try {
+    await changePasswordApi({ oldPassword, newPassword })
+    accountInfo.value.lastPasswordChange = new Date().toISOString().slice(0, 10)
+    operationLogs.value.unshift({
+      id: Date.now(),
+      time: new Date().toLocaleString('zh-CN'),
+      action: '修改密码',
+      ip: '127.0.0.1',
+      device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
+      status: 'success'
+    })
+    alert('密码修改成功')
+    closePasswordModal()
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '密码修改失败')
+  }
+}
+
+const submitPhoneChange = async () => {
+  const { newPhone, verifyCode } = phoneForm.value
+  if (!/^1\d{10}$/.test(newPhone)) {
+    alert('请输入正确的11位手机号')
+    return
+  }
+  if (!verifyCode) {
+    alert('请输入验证码')
+    return
+  }
+  try {
+    await bindPhoneApi({ phone: newPhone, verifyCode })
+    accountInfo.value.phone = maskPhone(newPhone)
+    operationLogs.value.unshift({
+      id: Date.now(),
+      time: new Date().toLocaleString('zh-CN'),
+      action: '更换手机',
+      ip: '127.0.0.1',
+      device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
+      status: 'success'
+    })
+    alert('手机绑定更换成功')
+    closePhoneModal()
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '手机绑定更换失败')
+  }
+}
+
+const submitEmailChange = async () => {
+  const { newEmail, verifyCode } = emailForm.value
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(newEmail)) {
+    alert('请输入正确的邮箱地址')
+    return
+  }
+  if (!verifyCode) {
+    alert('请输入验证码')
+    return
+  }
+  try {
+    await bindEmailApi({ email: newEmail, verifyCode })
+    accountInfo.value.email = maskEmail(newEmail)
+    operationLogs.value.unshift({
+      id: Date.now(),
+      time: new Date().toLocaleString('zh-CN'),
+      action: '更换邮箱',
+      ip: '127.0.0.1',
+      device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
+      status: 'success'
+    })
+    alert('邮箱绑定更换成功')
+    closeEmailModal()
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '邮箱绑定更换失败')
+  }
+}
 
 onMounted(() => {
   // 这里可以加载账号安全信息

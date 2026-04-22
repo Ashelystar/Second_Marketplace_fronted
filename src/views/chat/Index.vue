@@ -4,7 +4,7 @@
     <aside class="friend-sidebar">
       <div class="friend-header">
         <h3>消息</h3>
-        <span class="friend-count">{{ friends.length }}</span>
+        <span v-if="totalUnreadCount > 0" class="friend-count">{{ unreadCountDisplay }}</span>
       </div>
 
       <div class="friend-list">
@@ -61,10 +61,10 @@
             </div>
           </div>
           <div class="header-actions">
-            <button class="action-btn" @click="viewSellerProfile">
+            <button class="action-btn tip-btn" data-tip="ta的主页" @click="viewSellerProfile">
               <i class="fa fa-user"></i>
             </button>
-            <button class="action-btn" @click="showMoreOptions = !showMoreOptions">
+            <button class="action-btn tip-btn" data-tip="设置" @click="showMoreOptions = !showMoreOptions">
               <i class="fa fa-ellipsis-v"></i>
             </button>
           </div>
@@ -80,7 +80,7 @@
           <h4 class="product-title">{{ product.title }}</h4>
           <p class="product-price">¥{{ product.price }}</p>
         </div>
-        <button class="btn-view-product">
+        <button class="btn-view-product" title="查看商品详情">
           <i class="fa fa-chevron-right"></i>
         </button>
       </div>
@@ -217,12 +217,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, onMounted, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 defineOptions({ name: 'ChatPage' })
 
 const router = useRouter()
+const route = useRoute()
+const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
 
 interface Friend {
   id: number
@@ -289,7 +291,32 @@ const friends = ref<Friend[]>([
   }
 ])
 
-const seller = ref<Friend>(friends.value[0])
+const mergeStoredFriends = () => {
+  const stored = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Friend[]
+  if (!Array.isArray(stored) || stored.length === 0) return
+
+  const friendMap = new Map<number, Friend>()
+  for (const friend of friends.value) {
+    friendMap.set(friend.id, friend)
+  }
+  for (const friend of stored) {
+    if (typeof friend.id === 'number' && friend.id > 0) {
+      friendMap.set(friend.id, friend)
+    }
+  }
+  friends.value = Array.from(friendMap.values())
+}
+
+const defaultSeller: Friend = {
+  id: 0,
+  name: '默认卖家',
+  avatar: '',
+  lastMessage: '',
+  lastTime: '',
+  rating: 5,
+  location: ''
+}
+const seller = ref<Friend>(friends.value[0] ?? defaultSeller)
 
 const product = ref<Product>({
   id: 1,
@@ -346,8 +373,19 @@ const quickReplies = [
   '可以小刀'
 ]
 
+const totalUnreadCount = computed(() =>
+  friends.value.reduce((sum, friend) => sum + Math.max(friend.unread ?? 0, 0), 0)
+)
+
+const unreadCountDisplay = computed(() =>
+  totalUnreadCount.value > 99 ? '99+' : String(totalUnreadCount.value)
+)
+
 const switchFriend = (friend: Friend) => {
   seller.value = friend
+  if (friend.unread) {
+    friend.unread = 0
+  }
   // 实际项目中这里应加载该好友的消息记录
   messages.value = []
   scrollToBottom()
@@ -466,7 +504,7 @@ const scrollToBottom = async () => {
 }
 
 const viewSellerProfile = () => {
-  router.push({ name: 'user-profile', params: { id: seller.value.id } })
+  router.push({ path: `/user/home/${seller.value.id}` })
 }
 
 const viewProductDetail = () => {
@@ -495,6 +533,17 @@ const blockUser = () => {
 }
 
 onMounted(() => {
+  mergeStoredFriends()
+  const selectedFriendId = Number(route.query.friendId)
+  if (Number.isFinite(selectedFriendId) && selectedFriendId > 0) {
+    const target = friends.value.find(friend => friend.id === selectedFriendId)
+    if (target) {
+      seller.value = target
+      if (target.unread) {
+        target.unread = 0
+      }
+    }
+  }
   scrollToBottom()
 })
 </script>
@@ -504,6 +553,7 @@ onMounted(() => {
   min-height: 100vh;
   background: #f5f5f5;
   display: flex;
+  animation: pageEnter 260ms ease both;
 }
 
 /* 好友列表 */
@@ -513,6 +563,7 @@ onMounted(() => {
   border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
+  box-shadow: 6px 0 20px rgba(17, 24, 39, 0.06);
 }
 
 .friend-header {
@@ -548,16 +599,19 @@ onMounted(() => {
   gap: 10px;
   padding: 12px 16px;
   cursor: pointer;
-  transition: background 150ms;
+  transition: background 180ms, transform 180ms;
   border-bottom: 1px solid #f3f4f6;
+  animation: listItemEnter 320ms ease both;
 }
 
 .friend-item:hover {
   background: #f9fafb;
+  transform: translateX(2px);
 }
 
 .friend-item.active {
   background: #fff7ed;
+  border-left: 3px solid #f97316;
 }
 
 .friend-avatar {
@@ -623,6 +677,7 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 /* 原有样式保持不变 */
@@ -632,6 +687,7 @@ onMounted(() => {
   z-index: 100;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
+  backdrop-filter: blur(6px);
 }
 
 .header-inner {
@@ -731,10 +787,35 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   transition: background 150ms;
+  position: relative;
 }
 
 .action-btn:hover {
   background: #e5e7eb;
+  transform: translateY(-1px);
+}
+
+.tip-btn::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-2px);
+  background: rgba(17, 24, 39, 0.88);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 6px 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.tip-btn:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .product-card {
@@ -745,11 +826,14 @@ onMounted(() => {
   gap: 12px;
   border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
-  transition: background 150ms;
+  transition: background 150ms, box-shadow 180ms, transform 180ms;
+  position: relative;
 }
 
 .product-card:hover {
   background: #f9fafb;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(249, 115, 22, 0.12);
 }
 
 .product-image {
@@ -794,12 +878,37 @@ onMounted(() => {
   color: #9ca3af;
   cursor: pointer;
   padding: 4px;
+  position: relative;
+}
+
+.btn-view-product::after {
+  content: attr(title);
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%) translateX(4px);
+  background: rgba(17, 24, 39, 0.88);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.btn-view-product:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  scroll-behavior: smooth;
 }
 
 .message-list {
@@ -840,6 +949,7 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   max-width: 80%;
+  animation: bubbleIn 220ms ease both;
 }
 
 .message-item.sent {
@@ -871,6 +981,12 @@ onMounted(() => {
   border-radius: 12px;
   padding: 10px 14px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: transform 150ms, box-shadow 150ms;
+}
+
+.message-bubble:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.1);
 }
 
 .message-item.sent .message-bubble {
@@ -974,6 +1090,7 @@ onMounted(() => {
   background: #fff;
   border-top: 1px solid #e5e7eb;
   padding: 12px 16px;
+  animation: quickRepliesEnter 180ms ease both;
 }
 
 .quick-reply-list {
@@ -1001,6 +1118,7 @@ onMounted(() => {
 
 .quick-reply-btn:hover {
   background: #e5e7eb;
+  transform: translateY(-1px);
 }
 
 .chat-input-area {
@@ -1032,6 +1150,7 @@ onMounted(() => {
 
 .toolbar-btn:hover {
   background: #e5e7eb;
+  transform: translateY(-1px);
 }
 
 .input-wrapper {
@@ -1134,6 +1253,76 @@ onMounted(() => {
 @media (max-width: 900px) {
   .friend-sidebar {
     display: none;
+  }
+
+  .chat-main {
+    width: 100%;
+  }
+
+  .chat-header {
+    position: sticky;
+    top: 0;
+  }
+
+  .message-item {
+    max-width: 92%;
+  }
+}
+
+@media (max-width: 600px) {
+  .header-inner {
+    padding: 10px 12px;
+  }
+
+  .chat-messages {
+    padding: 12px;
+  }
+
+  .chat-input-area {
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+}
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes listItemEnter {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes quickRepliesEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 </style>

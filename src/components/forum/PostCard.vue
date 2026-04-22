@@ -17,8 +17,10 @@
 
     <div class="row">
       <div class="author">
-        <Avatar :src="post.author.avatarUrl" :alt="post.author.name" :size="18" />
-        <span class="name">{{ authorName }}</span>
+        <button class="authorLink avatarBtn" type="button" @click="goUserHome">
+          <Avatar :src="post.author.avatarUrl" :alt="post.author.name" :size="18" />
+        </button>
+        <button class="authorLink nameBtn" type="button" @click="goUserHome">{{ authorName }}</button>
       </div>
       <button class="like" :class="{ liked: liked }" type="button" @click="toggleLike">♥ {{ likeText }}</button>
     </div>
@@ -27,6 +29,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import type { ForumPost } from '../../types/forum'
 import { formatCompactNumber } from '../../mocks/forum'
 import Avatar from './Avatar.vue'
@@ -34,6 +37,7 @@ import { useForumStore } from '../../stores/forum'
 
 const props = defineProps<{ post: ForumPost }>()
 const store = useForumStore()
+const router = useRouter()
 const broken = ref(false)
 
 function nonEmpty(v?: string) {
@@ -84,6 +88,26 @@ function toggleLike() {
 
 function onThumbError() {
   broken.value = true
+}
+
+function normalizeProfileId(rawId: string) {
+  const n = Number(rawId)
+  if (Number.isFinite(n) && n > 0) return n
+  let hash = 0
+  for (let i = 0; i < rawId.length; i++) hash = (hash * 31 + rawId.charCodeAt(i)) >>> 0
+  return 10000 + (hash % 90000)
+}
+
+function goUserHome() {
+  const profileId = normalizeProfileId(props.post.author.id)
+  router.push({
+    path: `/user/home/${profileId}`,
+    query: {
+      name: props.post.author.name,
+      avatar: props.post.author.avatarUrl || '',
+      fromForumPostId: props.post.id,
+    },
+  })
 }
 </script>
 
@@ -186,6 +210,24 @@ function onThumbError() {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.authorLink {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.avatarBtn {
+  border-radius: 999px;
+}
+
+.nameBtn {
+  max-width: 120px;
+  color: #525252;
 }
 
 .name {

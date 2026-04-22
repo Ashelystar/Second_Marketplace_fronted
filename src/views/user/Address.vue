@@ -29,7 +29,7 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
             <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
           </template>
@@ -40,72 +40,64 @@
       </div>
     </div>
 
-    <!-- 地址列表 -->
-    <div class="addressList" v-if="addressList.length > 0">
-      <div 
-        class="addressItem" 
-        v-for="addr in addressList" 
-        :key="addr.id"
-        :class="{ selected: selectedId === addr.id }"
-        @click="selectAddress(addr)"
-      >
-        <div class="addressContent">
-          <div class="addressTop">
-            <span class="receiver">{{ addr.receiver }}</span>
-            <span class="phone">{{ addr.phone }}</span>
-            <span class="defaultTag" v-if="addr.isDefault">默认</span>
-          </div>
-          <div class="addressDetail">{{ addr.province }}{{ addr.city }}{{ addr.district }}{{ addr.detail }}</div>
+    <!-- 主内容区 - 左右布局 -->
+    <div class="mainContent">
+      <!-- 左侧 - 地址列表 -->
+      <div class="leftPanel">
+        <div class="panelHeader">
+          <h3>我的地址</h3>
+          <span class="addressCount">{{ addressList.length }} 个地址</span>
         </div>
-        <div class="actions">
-          <button 
-            class="defaultBtn" 
-            @click.stop="setDefault(addr.id)" 
-            v-if="!addr.isDefault"
+
+        <div class="addressList" v-if="addressList.length > 0">
+          <div 
+            class="addressItem" 
+            v-for="addr in addressList" 
+            :key="addr.id"
+            :class="{ selected: selectedId === addr.id }"
+            @click="selectAddress(addr)"
           >
-            <i class="fa fa-star"></i>
-            设为默认
-          </button>
-          <div class="defaultActions" v-else>
-            <span class="defaultBadge">
-              <i class="fa fa-check-circle"></i>
-              默认
-            </span>
-            <button class="cancelDefaultBtn" @click.stop="cancelDefault(addr.id)">
-              取消默认
-            </button>
+            <div class="addressContent">
+              <div class="addressTop">
+                <span class="receiver">{{ addr.receiver }}</span>
+                <span class="phone">{{ formatPhone(addr.phone) }}</span>
+                <span class="defaultTag" v-if="addr.isDefault">默认</span>
+              </div>
+              <div class="addressDetail">{{ addr.province }}{{ addr.city }}{{ addr.district }}{{ addr.detail }}</div>
+            </div>
+            <div class="actions">
+              <button 
+                class="actionBtn setDefault" 
+                @click.stop="setDefault(addr.id)" 
+                v-if="!addr.isDefault"
+              >
+                <i class="fa fa-star"></i>
+              </button>
+              <button class="actionBtn edit" @click.stop="editAddress(addr)">
+                <i class="fa fa-edit"></i>
+              </button>
+              <button class="actionBtn delete" @click.stop="deleteAddress(addr.id)">
+                <i class="fa fa-trash-alt"></i>
+              </button>
+            </div>
           </div>
-          <button class="editBtn" @click.stop="editAddress(addr)">
-            <i class="fa fa-edit"></i>
-            编辑
-          </button>
-          <button class="deleteBtn" @click.stop="deleteAddress(addr.id)">
-            <i class="fa fa-trash-alt"></i>
-            删除
-          </button>
+        </div>
+
+        <!-- 空状态 -->
+        <div v-else class="emptyState">
+          <i class="fa fa-map-marker-alt"></i>
+          <p>暂无收货地址</p>
+          <p class="emptyHint">在右侧添加新地址</p>
         </div>
       </div>
-    </div>
 
-    <!-- 空状态 -->
-    <div v-else class="emptyState">
-      <div class="emptyIcon">
-        <i class="fa fa-map-marker-alt"></i>
-      </div>
-      <p class="emptyText">暂无收货地址</p>
-      <p class="emptyHint">添加收货地址方便您购物</p>
-    </div>
-
-    <!-- 添加/编辑地址表单 -->
-    <div class="modal" v-if="showForm" @click.self="closeForm">
-      <div class="modalContent formModal">
-        <div class="modalHeader">
-          <span class="modalTitle">{{ isEditing ? '编辑地址' : '添加新地址' }}</span>
-          <button class="closeBtn" @click="closeForm">
-            <i class="fa fa-times"></i>
-          </button>
+      <!-- 右侧 - 地址编辑表单 -->
+      <div class="rightPanel">
+        <div class="panelHeader">
+          <h3>{{ editingId ? '编辑地址' : '添加新地址' }}</h3>
         </div>
-        <div class="modalBody">
+
+        <div class="formContent">
           <div class="formItem">
             <label class="formLabel">收货人</label>
             <input 
@@ -159,19 +151,14 @@
               <span>设为默认地址</span>
             </label>
           </div>
-          <button class="submitBtn" @click="submitForm" :disabled="!isFormValid">
-            保存地址
-          </button>
+          <div class="formActions">
+            <button class="cancelBtn" @click="resetForm" v-if="editingId">取消</button>
+            <button class="saveBtn" @click="submitForm" :disabled="!isFormValid">
+              {{ editingId ? '保存修改' : '添加地址' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- 底部添加按钮 -->
-    <div class="bottomBar" v-if="!showForm">
-      <button class="addBtn" @click="openAddForm">
-        <i class="fa fa-plus"></i>
-        添加新地址
-      </button>
     </div>
   </div>
 </template>
@@ -211,10 +198,14 @@ interface Address {
 }
 
 const addressList = ref<Address[]>([])
-const showForm = ref(false)
-const isEditing = ref(false)
 const editingId = ref<number | null>(null)
 const selectedId = ref<number | null>(null)
+
+// 手机号脱敏处理
+const formatPhone = (phone: string) => {
+  if (!phone || phone.length !== 11) return phone
+  return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+}
 
 const formData = ref({
   receiver: '',
@@ -226,7 +217,7 @@ const formData = ref({
   isDefault: false
 })
 
-// 省份数据（简化版）
+// 省份数据
 const provinces = ['北京市', '上海市', '广东省', '浙江省', '江苏省', '四川省', '湖北省', '湖南省', '河南省', '山东省']
 
 // 城市数据
@@ -243,7 +234,7 @@ const cityData: Record<string, string[]> = {
   '山东省': ['济南市', '青岛市', '烟台市', '威海市', '潍坊市']
 }
 
-// 区县数据（简化版，每个城市用同一套区县）
+// 区县数据
 const districtData = ['市区', '新区', '开发区', '高新区', '工业园']
 
 const cities = computed(() => {
@@ -257,9 +248,9 @@ const districts = computed(() => {
 })
 
 const isFormValid = computed(() => {
+  const phoneReg = /^1[3-9]\d{9}$/
   return formData.value.receiver.trim() !== '' &&
-    formData.value.phone.trim() !== '' &&
-    formData.value.phone.length === 11 &&
+    phoneReg.test(formData.value.phone) &&
     formData.value.province !== '' &&
     formData.value.city !== '' &&
     formData.value.district !== '' &&
@@ -283,8 +274,12 @@ const goBack = () => {
   }
 }
 
-const openAddForm = () => {
-  isEditing.value = false
+const editAddress = (addr: Address) => {
+  editingId.value = addr.id
+  formData.value = { ...addr }
+}
+
+const resetForm = () => {
   editingId.value = null
   formData.value = {
     receiver: '',
@@ -293,22 +288,8 @@ const openAddForm = () => {
     city: '',
     district: '',
     detail: '',
-    isDefault: addressList.value.length === 0
+    isDefault: false
   }
-  showForm.value = true
-}
-
-const editAddress = (addr: Address) => {
-  isEditing.value = true
-  editingId.value = addr.id
-  formData.value = { ...addr }
-  showForm.value = true
-}
-
-const closeForm = () => {
-  showForm.value = false
-  isEditing.value = false
-  editingId.value = null
 }
 
 const submitForm = () => {
@@ -317,18 +298,10 @@ const submitForm = () => {
     return
   }
 
-  // 验证手机号格式
-  const phoneReg = /^1[3-9]\d{9}$/
-  if (!phoneReg.test(formData.value.phone)) {
-    alert('请输入正确的手机号码')
-    return
-  }
-
-  if (isEditing.value && editingId.value !== null) {
+  if (editingId.value !== null) {
     // 编辑模式
     const index = addressList.value.findIndex(a => a.id === editingId.value)
     if (index !== -1) {
-      // 如果设为默认，取消其他默认
       if (formData.value.isDefault) {
         addressList.value.forEach(a => a.isDefault = false)
       }
@@ -337,20 +310,22 @@ const submitForm = () => {
   } else {
     // 新增模式
     const newId = Math.max(0, ...addressList.value.map(a => a.id)) + 1
-    // 如果设为默认，取消其他默认
     if (formData.value.isDefault) {
       addressList.value.forEach(a => a.isDefault = false)
     }
     addressList.value.push({ ...formData.value, id: newId })
   }
 
-  closeForm()
+  resetForm()
   alert('保存成功')
 }
 
 const deleteAddress = (id: number) => {
   if (confirm('确定删除该地址吗？')) {
     addressList.value = addressList.value.filter(a => a.id !== id)
+    if (editingId.value === id) {
+      resetForm()
+    }
   }
 }
 
@@ -361,48 +336,65 @@ const setDefault = (id: number) => {
   alert('已设为默认地址')
 }
 
-const cancelDefault = (id: number) => {
-  const addr = addressList.value.find(a => a.id === id)
-  if (addr) {
-    addr.isDefault = false
-    alert('已取消默认地址')
-  }
-}
-
 const selectAddress = (addr: Address) => {
   selectedId.value = addr.id
-  // 如果是从确认订单页面跳转来的，选择后返回
   if (route.query.returnTo === 'checkout') {
-    // 将选中的地址信息通过 localStorage 传递
     localStorage.setItem('selectedAddress', JSON.stringify(addr))
     router.back()
   }
 }
 
 onMounted(() => {
-  // 模拟加载已有地址
-  addressList.value = [
-    {
-      id: 1,
-      receiver: '张三',
-      phone: '13800138000',
-      province: '北京市',
-      city: '北京市',
-      district: '朝阳区',
-      detail: '望京SOHO大厦T3-1801',
-      isDefault: true
-    },
-    {
-      id: 2,
-      receiver: '李四',
-      phone: '13900139000',
-      province: '上海市',
-      city: '上海市',
-      district: '浦东新区',
-      detail: '环球金融中心1001',
-      isDefault: false
+  // 检查是否有从编辑页面返回的数据
+  const formDataStr = localStorage.getItem('addressFormData')
+  if (formDataStr) {
+    try {
+      const data = JSON.parse(formDataStr)
+      const index = addressList.value.findIndex(a => a.id === data.id)
+      if (index !== -1) {
+        // 编辑
+        if (data.isDefault) {
+          addressList.value.forEach(a => a.isDefault = false)
+        }
+        addressList.value[index] = data
+      } else {
+        // 新增
+        if (data.isDefault) {
+          addressList.value.forEach(a => a.isDefault = false)
+        }
+        addressList.value.push(data)
+      }
+      localStorage.removeItem('addressFormData')
+    } catch (e) {
+      console.error('解析地址数据失败', e)
     }
-  ]
+  }
+
+  // 模拟加载已有地址
+  if (addressList.value.length === 0) {
+    addressList.value = [
+      {
+        id: 1,
+        receiver: '张三',
+        phone: '13800138000',
+        province: '北京市',
+        city: '北京市',
+        district: '朝阳区',
+        detail: '望京SOHO大厦T3-1801',
+        isDefault: true
+      },
+      {
+        id: 2,
+        receiver: '李四',
+        phone: '13900139000',
+        province: '上海市',
+        city: '上海市',
+        district: '浦东新区',
+        detail: '环球金融中心1001',
+        isDefault: false
+      }
+    ]
+  }
 })
 </script>
 
@@ -410,10 +402,8 @@ onMounted(() => {
 .page {
   min-height: 100vh;
   background: #f5f5f5;
-  padding-bottom: 80px;
 }
 
-/* 顶部导航 */
 .top {
   position: sticky;
   top: 0;
@@ -427,6 +417,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .left {
@@ -450,16 +442,124 @@ onMounted(() => {
   color: #1f2937;
 }
 
-/* 地址列表 */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: #f97316;
+  font-weight: bold;
+}
+
+.logo i {
+  font-size: 20px;
+}
+
+.searchBox {
+  flex: 1;
+  max-width: 400px;
+  margin: 0 20px;
+}
+
+.searchRow {
+  display: flex;
+}
+
+.searchRow input {
+  flex: 1;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #e5e7eb;
+  border-right: none;
+  border-radius: 18px 0 0 18px;
+  background: #f3f4f6;
+  outline: none;
+  font-size: 13px;
+}
+
+.searchRow input:focus {
+  background: #fff;
+}
+
+.searchRow button {
+  width: 44px;
+  height: 36px;
+  border: none;
+  border-radius: 0 18px 18px 0;
+  background: #f97316;
+  color: #fff;
+  cursor: pointer;
+}
+
+.navLinks {
+  display: flex;
+  gap: 16px;
+}
+
+.navLinks a {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #6b7280;
+  text-decoration: none;
+}
+
+.navLinks a:hover {
+  color: #f97316;
+}
+
+/* 主内容区 */
+.mainContent {
+  display: flex;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 20px auto;
+  padding: 0 20px;
+  min-height: calc(100vh - 80px);
+}
+
+/* 左侧面板 */
+.leftPanel {
+  flex: 1;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  min-height: 500px;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.panelHeader h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.addressCount {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
 .addressList {
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .addressItem {
   background: #fff;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -467,9 +567,14 @@ onMounted(() => {
   transition: all 150ms;
 }
 
+.addressItem:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
 .addressItem.selected {
   background: #fef7f0;
-  border: 1px solid #f97316;
+  border-color: #f97316;
 }
 
 .addressContent {
@@ -481,17 +586,17 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .receiver {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: #1f2937;
 }
 
 .phone {
-  font-size: 14px;
+  font-size: 13px;
   color: #6b7280;
 }
 
@@ -511,101 +616,40 @@ onMounted(() => {
 
 .actions {
   display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.editBtn {
-  padding: 6px 12px;
-  background: none;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  color: #6b7280;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.editBtn:hover {
-  border-color: #f97316;
-  color: #f97316;
-}
-
-.deleteBtn {
-  padding: 6px 12px;
-  background: none;
-  border: 1px solid #fca5a5;
-  border-radius: 14px;
-  color: #ef4444;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 150ms;
-}
-
-.deleteBtn:hover {
-  background: #fef2f2;
-}
-
-.defaultBtn {
-  padding: 6px 12px;
-  background: none;
-  border: 1px solid #fbbf24;
-  border-radius: 14px;
-  color: #d97706;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 150ms;
-}
-
-.defaultBtn:hover {
-  background: #fffbeb;
-  border-color: #f59e0b;
-}
-
-.defaultBtn i {
-  color: #fbbf24;
-}
-
-.defaultBadge {
-  font-size: 12px;
-  color: #f97316;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.defaultBadge i {
-  font-size: 14px;
-}
-
-.defaultActions {
-  display: flex;
-  align-items: center;
   gap: 6px;
 }
 
-.cancelDefaultBtn {
-  padding: 6px 10px;
-  background: none;
-  border: 1px solid #d1d5db;
-  border-radius: 14px;
+.actionBtn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: #f3f4f6;
   color: #6b7280;
-  font-size: 11px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 150ms;
 }
 
-.cancelDefaultBtn:hover {
-  border-color: #f97316;
-  color: #f97316;
+.actionBtn:hover {
+  background: #e5e7eb;
+}
+
+.actionBtn.setDefault:hover {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.actionBtn.edit:hover {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.actionBtn.delete:hover {
+  background: #fef2f2;
+  color: #ef4444;
 }
 
 /* 空状态 */
@@ -614,125 +658,47 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 80px 20px;
+  padding: 60px 20px;
+  text-align: center;
 }
 
-.emptyIcon {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: #f3f4f6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
+.emptyState i {
+  font-size: 48px;
+  color: #d1d5db;
+  margin-bottom: 16px;
 }
 
-.emptyIcon i {
-  font-size: 40px;
-  color: #9ca3af;
-}
-
-.emptyText {
-  font-size: 16px;
-  color: #374151;
-  margin: 0 0 8px;
-}
-
-.emptyHint {
+.emptyState p {
   font-size: 14px;
-  color: #9ca3af;
+  color: #6b7280;
   margin: 0;
 }
 
-/* 底部栏 */
-.bottomBar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 12px 16px;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom));
-  background: #fff;
-  border-top: 1px solid #e5e7eb;
-}
-
-.addBtn {
-  width: 100%;
-  height: 48px;
-  background: #f97316;
-  color: #fff;
-  border: none;
-  border-radius: 24px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.addBtn:hover {
-  background: #ea580c;
-}
-
-/* 弹窗 */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 200;
-  display: flex;
-  align-items: flex-end;
-}
-
-.modalContent {
-  background: #fff;
-  border-radius: 16px 16px 0 0;
-  width: 100%;
-  max-height: 85vh;
-  overflow: hidden;
-}
-
-.formModal {
-  max-height: 90vh;
-}
-
-.modalHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.modalTitle {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.closeBtn {
-  padding: 8px;
-  background: none;
-  border: none;
-  cursor: pointer;
+.emptyHint {
+  font-size: 13px;
   color: #9ca3af;
-  font-size: 18px;
+  margin-top: 4px;
 }
 
-.modalBody {
-  padding: 16px;
-  max-height: calc(90vh - 60px);
-  overflow-y: auto;
+/* 右侧面板 */
+.rightPanel {
+  width: 420px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  height: fit-content;
+}
+
+.formContent {
+  padding-top: 4px;
 }
 
 .formItem {
   margin-bottom: 16px;
+}
+
+.formItem:last-child {
+  margin-bottom: 0;
 }
 
 .formLabel {
@@ -745,8 +711,8 @@ onMounted(() => {
 
 .formInput {
   width: 100%;
-  height: 44px;
-  padding: 0 14px;
+  height: 40px;
+  padding: 0 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
@@ -771,11 +737,11 @@ onMounted(() => {
 
 .formSelect {
   flex: 1;
-  height: 44px;
+  height: 40px;
   padding: 0 8px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   color: #1f2937;
   background: #fff;
   outline: none;
@@ -788,7 +754,7 @@ onMounted(() => {
 
 .formTextarea {
   width: 100%;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
@@ -815,31 +781,85 @@ onMounted(() => {
 }
 
 .checkbox {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   accent-color: #f97316;
 }
 
-.submitBtn {
-  width: 100%;
-  height: 48px;
-  background: #f97316;
-  color: #fff;
-  border: none;
-  border-radius: 24px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-top: 8px;
-  transition: background 200ms;
+.formActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
 }
 
-.submitBtn:hover:not(:disabled) {
+.cancelBtn {
+  flex: 1;
+  height: 44px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  font-size: 14px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.cancelBtn:hover {
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.saveBtn {
+  flex: 2;
+  height: 44px;
+  background: #f97316;
+  border: none;
+  border-radius: 22px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+.saveBtn:hover:not(:disabled) {
   background: #ea580c;
 }
 
-.submitBtn:disabled {
+.saveBtn:disabled {
   background: #d1d5db;
   cursor: not-allowed;
+}
+
+/* 响应式 */
+@media (max-width: 900px) {
+  .mainContent {
+    flex-direction: column;
+  }
+
+  .rightPanel {
+    width: 100%;
+  }
+
+  .topInner {
+    flex-wrap: wrap;
+  }
+
+  .searchBox {
+    order: 3;
+    max-width: none;
+    margin: 10px 0 0 0;
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .navLinks {
+    display: none;
+  }
+
+  .logo span {
+    display: none;
+  }
 }
 </style>

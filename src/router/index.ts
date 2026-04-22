@@ -40,12 +40,14 @@ const router = createRouter({
       path: '/detail',
       name: 'detail',
       component: Detail,
+      meta: { requiresAuth: true },
     },
     {
       path: '/goods/:id',
       name: 'goods-detail',
       component: () => import('../views/goods/Detail.vue'),
       props: true,
+      meta: { requiresAuth: true },
     },
     {
       path: '/publish',
@@ -72,6 +74,7 @@ const router = createRouter({
     {
       path: '/forum',
       component: ForumLayout,
+      meta: { requiresAuth: true },
       children: [
         {
           path: '',
@@ -163,6 +166,12 @@ const router = createRouter({
       name: 'register',
       component: UserRegister,
     },
+    {
+      path: '/user/home/:id',
+      name: 'user-home',
+      component: () => import('../views/user/PublicProfile.vue'),
+      props: true,
+    },
      {
       path: '/user',
       component: UserLayout,
@@ -182,11 +191,6 @@ const router = createRouter({
           name: 'user-setting',
           component: () => import('../views/user/Setting.vue'),
         },
-        {
-          path: 'address',
-          name: 'user-address',
-          component: () => import('../views/user/Address.vue'),
-        },
          {
           path: 'orders',
           name: 'user-orders',
@@ -197,7 +201,27 @@ const router = createRouter({
           name: 'user-favorites',
           component: () => import('../views/user/favorites.vue'),
         },
+        {
+          path: 'address',
+          name: 'user-address',
+          component: () => import('../views/user/UserAddress.vue'),
+        },
       ],
+    },
+    {
+      path: '/drafts',
+      name: 'drafts',
+      component: () => import('../views/goods/Drafts.vue'),
+    },
+    {
+      path: '/address',
+      name: 'address',
+      component: () => import('../views/user/Address.vue'),
+    },
+    {
+      path: '/address/edit',
+      name: 'address-edit',
+      component: () => import('../views/user/EditAddress.vue'),
     },
 
     // 错误页面路由
@@ -209,13 +233,14 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
-  if (!to.meta.requiresAuth) return true
+const guestAllowedPaths = new Set(['/','/user/login','/user/register'])
 
+router.beforeEach((to) => {
   const userStore = useUserStore()
   if (userStore.isLoggedIn) return true
+  if (guestAllowedPaths.has(to.path)) return true
 
-  alert('请先登录后再进行该操作')
+  alert('请先进行登录')
   return {
     path: '/user/login',
     query: { redirect: to.fullPath },

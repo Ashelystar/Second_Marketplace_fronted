@@ -118,6 +118,7 @@
 import { ref, onMounted,computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { logoutApi, getUserCreditScoreApi } from '@/api/user'
 
 const route = useRoute()
 const router = useRouter()
@@ -131,34 +132,13 @@ const positiveRate = ref<number>(99)
 
 const fetchCreditScore = async () => {
   try {
-    const response = await fetch('http://localhost:5000/predict', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        total_transactions: 120,
-        success_rate:1,
-        avg_transaction_amount: 2500,
-        dispute_count: 1,
-        account_age_days: 600,
-        is_verified: 1,
-        late_payment_count: 0,
-        positive_reviews: 60,
-        negative_reviews: 2,
-        risk_flag: 0
-      })
-    })
-
-    if (!response.ok) {
-      throw new Error('模型接口请求失败')
-    }
-
-    const result = await response.json()
-    creditScore.value = result.credit_score
+    const result = await getUserCreditScoreApi()
+    creditScore.value = Number(result.creditScore || 300)
+    positiveRate.value = Number(result.positiveRate || 99)
   } catch (error) {
     console.error('获取信用分失败:', error)
-    creditScore.value = 300 // 兜底值
+    creditScore.value = 300
+    positiveRate.value = 99
   }
 }
 onMounted(() => {
@@ -173,9 +153,16 @@ const linkClass = (path: string) => {
   ]
 }
 
-const handleLogout = () => {
-  userStore.logout()
-  router.push('/user/login')
+const handleLogout = async () => {
+  try {
+    await logoutApi()
+  } catch (error) {
+    // 即使后端登出失败，也清除本地登录态，避免用户被卡住
+    console.error('登出接口调用失败:', error)
+  } finally {
+    userStore.logout()
+    router.push('/user/login')
+  }
 }
 </script>
 

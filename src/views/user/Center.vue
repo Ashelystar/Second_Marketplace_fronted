@@ -48,6 +48,9 @@
           </button>
         </div>
         <div class="filterActions">
+          <button class="draftBtn" @click="$router.push('/drafts')">
+            <i class="fa fa-file-text-o"></i> 草稿箱
+          </button>
           <button class="publishBtn" @click="$router.push('/publish')">
             <i class="fa fa-plus"></i> 发布商品
           </button>
@@ -59,8 +62,12 @@
         <div v-if="filteredProducts.length === 0" class="empty">
           <i class="fa fa-cube"></i>
           <p>{{ filterStatus === 'all' ? '暂无发布的商品' : filterStatus === 'onSale' ? '暂无在售商品' : '暂无下架商品' }}</p>
-          <button class="btnPrimary" @click="$router.push('/publish')">
-            <i class="fa fa-plus"></i> 发布商品
+          <button
+            v-if="filterStatus !== 'offSale'"
+            :class="['emptyActionBtn', filterStatus === 'onSale' ? 'compact' : '']"
+            @click="$router.push('/publish')"
+          >
+            <span>发布商品</span>
           </button>
         </div>
         <div
@@ -93,11 +100,11 @@
             <button class="actionBtn" @click="toggleStatus(product)">
               <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
             </button>
-            <button class="actionBtn" @click="editProduct(product.id)">
+            <button class="actionBtn" @click="editProduct(product)">
               <i class="fa fa-edit"></i>
             </button>
             <button class="actionBtn delete" @click="deleteProduct(product)">
-              <i class="fa fa-trash-alt"></i>
+              <i class="fa fa-trash"></i>
             </button>
           </div>
         </div>
@@ -109,8 +116,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { offShelfProduct } from '@/api/goods'
 
 const router = useRouter()
+const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
+
 const filterStatus = ref('all')
 
 interface Product {
@@ -225,20 +235,33 @@ const goToSellerProductDetail = (id: number) => {
   router.push({ path: '/seller/product', query: { id: id.toString() } })
 }
 
-const editProduct = (id: number) => {
-  router.push({ path: '/edit', query: { id: id.toString() } })
+const editProduct = (product: Product) => {
+  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(product))
+  router.push({ path: '/edit', query: { id: product.id.toString() } })
 }
 
-const toggleStatus = (product: Product) => {
-  const newStatus = product.status === '在售' ? '已下架' : '在售'
-  if (confirm(`确定要${newStatus === '在售' ? '上架' : '下架'}该商品吗？`)) {
-    product.status = newStatus
+const toggleStatus = async (product: Product) => {
+  if (product.status === '在售') {
+    // 点击暂停：在售 -> 已下架
+    product.status = '已下架'
+    try {
+      await offShelfProduct(product.id)
+    } catch (err) {
+      console.error('下架接口调用失败:', err)
+      alert('商品已在本地切换为已下架，后端同步失败，请稍后重试')
+    }
+    return
   }
+
+  // 点击继续：已下架 -> 在售（当前先做前端恢复）
+  product.status = '在售'
+  alert('商品已恢复为在售状态')
 }
 
 const deleteProduct = (product: Product) => {
   if (confirm(`确定要删除商品「${product.title}」吗？删除后不可恢复！`)) {
     products.value = products.value.filter(p => p.id !== product.id)
+    alert('商品已删除')
   }
 }
 </script>
@@ -319,6 +342,30 @@ const deleteProduct = (product: Product) => {
   color: #fff;
 }
 
+.filterActions {
+  display: flex;
+  gap: 10px;
+}
+
+.draftBtn {
+  padding: 10px 20px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #6b7280;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 200ms;
+}
+
+.draftBtn:hover {
+  border-color: #f97316;
+  color: #f97316;
+}
+
 .publishBtn {
   padding: 10px 20px;
   background: #f97316;
@@ -364,21 +411,44 @@ const deleteProduct = (product: Product) => {
   margin-bottom: 20px;
 }
 
-.btnPrimary {
-  padding: 10px 24px;
+.emptyActionBtn {
+  padding: 10px 22px;
   background: #f97316;
   border: none;
-  border-radius: 8px;
+  border-radius: 999px;
   color: #fff;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  line-height: 1;
+  transition: all 150ms ease;
 }
 
-.btnPrimary:hover {
+.emptyActionBtn i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.emptyActionBtn:hover {
   background: #ea580c;
+  transform: translateY(-1px);
+}
+
+.emptyActionBtn.compact {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.emptyActionBtn.compact i {
+  font-size: 12px;
 }
 
 .productCard {
