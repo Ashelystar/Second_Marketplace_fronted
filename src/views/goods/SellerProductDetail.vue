@@ -30,9 +30,13 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-comment"></i> 信息</a>
-          <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
-          <a href="#" @click.prevent="router.push(userStore.isLoggedIn ? '/user/center' : '/user/login')"><i class="fa fa-user"></i> {{ userStore.isLoggedIn ? '我的' : '登录/注册' }}</a>
+          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <template v-if="userStore.isLoggedIn">
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+          </template>
+          <template v-else>
+            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
+          </template>
         </nav>
       </div>
     </div>
@@ -324,6 +328,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { offShelfProduct } from '@/api/goods'
 
 defineOptions({ name: 'SellerProductDetail' })
 
@@ -354,7 +359,7 @@ interface ConsultReply {
   id: number
   isSeller: boolean
   name: string
-  avatar?: string
+  avatar?: string | null
   time: string
   content: string
 }
@@ -584,11 +589,20 @@ const handleLogin = () => {
 
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
 
-const toggleStatus = () => {
+const toggleStatus = async () => {
   if (!product.value) return
-  if (confirm(product.value.status === '在售' ? '确定要下架该商品吗？' : '确定要重新上架该商品吗？')) {
-    product.value.status = product.value.status === '在售' ? '已下架' : '在售'
-    alert(product.value.status === '在售' ? '商品已上架' : '商品已下架')
+  if (product.value.status !== '在售') {
+    alert('重新上架功能待后端接口支持')
+    return
+  }
+  if (confirm('确定要下架该商品吗？')) {
+    try {
+      await offShelfProduct(product.value.id)
+      product.value.status = '已下架'
+      alert('商品已下架')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '下架失败')
+    }
   }
 }
 

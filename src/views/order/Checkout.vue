@@ -2,14 +2,10 @@
   <div class="page">
     <!-- 顶部导航 -->
     <div class="top">
-      <div class="topInner">
-        <div class="left">
-          <button class="backBtn" @click="goBack">
-            <i class="fa fa-arrow-left"></i>
-          </button>
-          <span class="title">确认订单</span>
-        </div>
-      </div>
+      <button class="backBtn" @click="goBack">
+        <i class="fa fa-arrow-left"></i>
+      </button>
+      <span class="title">确认订单</span>
     </div>
 
     <!-- 主体内容 -->
@@ -22,7 +18,7 @@
         <div class="addressInfo" v-if="selectedAddress">
           <div class="addressTop">
             <span class="receiver">{{ selectedAddress.receiver }}</span>
-            <span class="phone">{{ selectedAddress.phone }}</span>
+            <span class="phone">{{ formatPhone(selectedAddress.phone) }}</span>
             <span class="defaultTag" v-if="selectedAddress.isDefault">默认</span>
           </div>
           <div class="addressDetail">{{ selectedAddress.province }}{{ selectedAddress.city }}{{ selectedAddress.district }}{{ selectedAddress.detail }}</div>
@@ -149,7 +145,7 @@
             <div class="addressContent">
               <div class="addressTop">
                 <span class="receiver">{{ addr.receiver }}</span>
-                <span class="phone">{{ addr.phone }}</span>
+                <span class="phone">{{ formatPhone(addr.phone) }}</span>
                 <span class="defaultTag" v-if="addr.isDefault">默认</span>
               </div>
               <div class="addressDetail">{{ addr.province }}{{ addr.city }}{{ addr.district }}{{ addr.detail }}</div>
@@ -204,6 +200,12 @@ const fromCart = ref(false)
 
 const selectedAddress = ref<Address | null>(null)
 const selectedPayment = ref('alipay')
+
+// 手机号脱敏处理
+const formatPhone = (phone: string) => {
+  if (!phone || phone.length !== 11) return phone
+  return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+}
 
 const addressList = ref<Address[]>([
   {
@@ -291,8 +293,8 @@ const addToCart = () => {
 }
 
 const goToAddAddress = () => {
-  // 跳转到地址管理页面，带上返回参数
-  router.push('/user/address?returnTo=checkout')
+  // 跳转到新建地址页面，带上返回参数
+  router.push('/address/edit?from=checkout')
 }
 
 onMounted(() => {
@@ -386,18 +388,10 @@ onMounted(() => {
   z-index: 100;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
-}
-
-.topInner {
-  padding: 14px 80px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
-}
-
-.left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .backBtn {
@@ -417,7 +411,7 @@ onMounted(() => {
 
 /* 主体内容 */
 .mainContent {
-  padding: 12px 80px;
+  padding: 12px;
 }
 
 /* 通用区块 */

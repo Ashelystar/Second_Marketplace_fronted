@@ -28,9 +28,13 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-comment"></i> 信息</a>
-          <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
-          <a href="#" @click.prevent="router.push(userStore.isLoggedIn ? '/user/center' : '/user/login')"><i class="fa fa-user"></i> {{ userStore.isLoggedIn ? '我的' : '登录/注册' }}</a>
+          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <template v-if="userStore.isLoggedIn">
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+          </template>
+          <template v-else>
+            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
+          </template>
         </nav>
       </div>
     </div>
@@ -153,6 +157,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { offShelfProduct } from '@/api/goods'
 
 defineOptions({ name: 'SellerProducts' })
 
@@ -298,11 +303,19 @@ const editProduct = (product: Product) => {
   router.push({ path: '/edit', query: { id: product.id.toString() } })
 }
 
-const toggleStatus = (product: Product) => {
-  const newStatus = product.status === '在售' ? '已下架' : '在售'
-  if (confirm(`确定要${newStatus === '在售' ? '上架' : '下架'}该商品吗？`)) {
-    product.status = newStatus
-    alert(`商品已${newStatus === '在售' ? '上架' : '下架'}`)
+const toggleStatus = async (product: Product) => {
+  if (product.status !== '在售') {
+    alert('重新上架功能待后端接口支持')
+    return
+  }
+  if (confirm('确定要下架该商品吗？')) {
+    try {
+      await offShelfProduct(product.id)
+      product.status = '已下架'
+      alert('商品已下架')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '下架失败')
+    }
   }
 }
 
@@ -331,7 +344,7 @@ const handleTool = (t: { id: number }) => {
 }
 
 onMounted(() => {
-  // 初始化数据
+  // TODO: 后端提供用户商品列表接口后替换为 API 调用
 })
 </script>
 
@@ -480,7 +493,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  margin-bottom: 20px;
+  margin: 0 0 20px -80px;
 }
 
 .statCard {

@@ -7,15 +7,19 @@
           <button class="backBtn" @click="goBack">
             <i class="fa fa-arrow-left"></i>
           </button>
-          <span class="pageTitle">编辑商品</span>
+          <span class="pageTitle">{{ isEditing ? '编辑商品' : '发布商品' }}</span>
         </div>
 
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-comment"></i> 信息</a>
-          <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
-          <a href="#" @click.prevent="router.push(userStore.isLoggedIn ? '/user/center' : '/user/login')"><i class="fa fa-user"></i> {{ userStore.isLoggedIn ? '我的' : '登录/注册' }}</a>
+          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <template v-if="userStore.isLoggedIn">
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+          </template>
+          <template v-else>
+            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
+          </template>
         </nav>
       </div>
     </div>
@@ -107,13 +111,13 @@
         <h3>商品分类</h3>
         <div class="chipGroup">
           <button
-            v-for="cat in categories"
-            :key="cat"
+            v-for="cat in categoryList"
+            :key="cat.id"
             class="chip"
-            :class="{ active: form.category === cat }"
-            @click="form.category = cat"
+            :class="{ active: form.categoryId === cat.id }"
+            @click="form.categoryId = cat.id"
           >
-            {{ cat }}
+            {{ cat.categoryName }}
           </button>
         </div>
       </section>
@@ -198,6 +202,7 @@
 
     <!-- 底部保存 -->
     <div class="bottomBar">
+      <button class="draftBtn" @click="handleSaveDraft">保存草稿</button>
       <button class="saveFullBtn" @click="handleSave">
         {{ isEditing ? '保存修改' : '保存并发布' }}
       </button>
@@ -208,21 +213,51 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
+import { getProductDetail, updateProduct, createProduct, saveToDraft, getCategoryList, type UpdateProductParams, type Category } from '@/api/goods'
 
 defineOptions({ name: 'EditProduct' })
 
 const route = useRoute()
 const router = useRouter()
-const store = useProductStore()
 const userStore = useUserStore()
+
+// 分类列表（从接口加载）
+const categoryList = ref<Category[]>([])
+const categoryMap = ref<Record<string, number>>({}) // name -> id
+const categoryIdMap = ref<Record<number, string>>({}) // id -> name
+
+// 加载分类列表
+const loadCategories = async () => {
+  try {
+    const list = await getCategoryList()
+    categoryList.value = list.filter(c => c.isEnabled)
+    // 构建映射
+    categoryMap.value = {}
+    categoryIdMap.value = {}
+    list.forEach(c => {
+      categoryMap.value[c.categoryName] = c.id
+      categoryIdMap.value[c.id] = c.categoryName
+    })
+  } catch (err) {
+    console.error('加载分类失败:', err)
+  }
+}
+
+// 成色名称到接口值的映射
+const conditionMap: Record<string, UpdateProductParams['conditionLevel']> = {
+  '全新': 'new',
+  '99新': 'almost_new',
+  '95新': 'good',
+  '9成新': 'fair',
+  '8成新': 'poor',
+  '7成新及以下': 'poor'
+}
 
 const productId = ref<number | null>(null)
 const isEditing = ref(false)
 const newTag = ref('')
 
-const categories = ['手机数码', '电脑办公', '数码配件', '家用电器', '服饰鞋包', '美妆护肤', '图书音像', '家居用品', '运动户外', '其他闲置']
 const conditions = ['全新', '99新', '95新', '9成新', '8成新', '7成新及以下']
 const suggestedTags = ['包邮', '可议价', '全新未拆封', '正品', '保修期内', '送配件']
 
@@ -235,35 +270,52 @@ const form = reactive({
   canBargain: false,
   freeFreight: false,
   freight: 0,
-  category: '手机数码',
+  categoryId: 1, // 默认选中第一个分类
   condition: '9成新',
   brand: '',
   location: '',
   tags: [] as string[]
 })
 
-const loadProduct = () => {
+const loadProduct = async () => {
   const id = parseInt(route.query.id as string)
   if (!isNaN(id)) {
     isEditing.value = true
     productId.value = id
-    const product = store.getProductById(id)
-    if (product) {
+    try {
+      const product = await getProductDetail(id)
       form.images = product.images?.map(img => img.url) || [product.image]
       form.title = product.title
-      form.description = product.description
-      form.price = product.price
-      form.originalPrice = product.originalPrice
-      form.canBargain = product.canBargain || false
-      form.freeFreight = product.freight === 0
-      form.freight = product.freight || 0
-      form.category = product.category || '手机数码'
-      form.condition = product.condition
+      form.description = product.description || ''
+      form.price = String(product.sellingPrice || product.price)
+      form.originalPrice = product.originalPrice || ''
+      // 根据分类名称查找ID
+      if (product.category && categoryIdMap.value[0]) {
+        const catEntry = categoryList.value.find(c => c.categoryName === product.category)
+        form.categoryId = catEntry?.id || 1
+      }
+      form.condition = getConditionLabel(product.conditionLevel)
       form.brand = product.brand || ''
-      form.location = product.location
-      form.tags = [...(product.tags || [])]
+      form.location = product.pickupCity || ''
+    } catch (err) {
+      console.error('加载商品失败:', err)
+      alert('加载商品信息失败')
     }
   }
+}
+
+// 将接口的 conditionLevel 转换为界面显示的标签
+const conditionLevelMap: Record<string, string> = {
+  'new': '全新',
+  'almost_new': '99新',
+  'good': '95新',
+  'fair': '9成新',
+  'poor': '8成新'
+}
+
+const getConditionLabel = (level?: string): string => {
+  if (!level) return '9成新'
+  return conditionLevelMap[level] || '9成新'
 }
 
 const handleImageUpload = (e: Event) => {
@@ -297,7 +349,40 @@ const removeTag = (index: number) => {
   form.tags.splice(index, 1)
 }
 
-const handleSave = () => {
+// 保存草稿
+const handleSaveDraft = async () => {
+  if (!form.title.trim()) {
+    alert('请填写商品标题')
+    return
+  }
+
+  const params: UpdateProductParams = {
+    categoryId: form.categoryId,
+    title: form.title,
+    description: form.description,
+    originalPrice: Number(form.originalPrice) || 0,
+    sellingPrice: Number(form.price) || 0,
+    conditionLevel: conditionMap[form.condition] || 'fair',
+    brand: form.brand,
+    tradeMode: 'both',
+    pickupCity: form.location,
+    images: form.images
+  }
+
+  try {
+    console.log('【保存草稿】调用 saveToDraft 接口')
+    console.log('请求参数:', params)
+    const result = await saveToDraft(params)
+    console.log('【保存草稿】接口返回:', result)
+    alert('已保存至草稿箱')
+    router.push('/drafts')
+  } catch (err) {
+    console.error('保存草稿失败:', err)
+    alert(err instanceof Error ? err.message : '保存草稿失败')
+  }
+}
+
+const handleSave = async () => {
   if (!form.title.trim()) {
     alert('请填写商品标题')
     return
@@ -310,8 +395,43 @@ const handleSave = () => {
     alert('请至少上传一张商品图片')
     return
   }
-  alert('商品信息已保存！')
-  router.back()
+
+  // 构建接口参数
+  const params: UpdateProductParams = {
+    categoryId: form.categoryId,
+    title: form.title,
+    description: form.description,
+    originalPrice: Number(form.originalPrice) || 0,
+    sellingPrice: Number(form.price),
+    conditionLevel: conditionMap[form.condition] || 'fair',
+    brand: form.brand,
+    tradeMode: 'both',
+    pickupCity: form.location,
+    images: form.images
+  }
+
+  try {
+    if (isEditing.value && productId.value) {
+      // 编辑商品
+      console.log('【编辑商品】调用 updateProduct 接口')
+      console.log('商品ID:', productId.value)
+      console.log('请求参数:', params)
+      const result = await updateProduct(productId.value, params)
+      console.log('【编辑商品】接口返回:', result)
+      alert('商品信息已保存！')
+    } else {
+      // 发布新商品
+      console.log('【发布商品】调用 createProduct 接口')
+      console.log('请求参数:', params)
+      const result = await createProduct(params)
+      console.log('【发布商品】接口返回:', result)
+      alert('商品发布成功！')
+    }
+    router.back()
+  } catch (err) {
+    console.error('操作失败:', err)
+    alert(err instanceof Error ? err.message : '操作失败')
+  }
 }
 
 const goBack = () => router.back()
@@ -320,8 +440,8 @@ const handleLogin = () => {
   router.push('/user/login')
 }
 
-onMounted(() => {
-  store.initialize()
+onMounted(async () => {
+  await loadCategories()
   loadProduct()
 })
 </script>
@@ -781,16 +901,37 @@ onMounted(() => {
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.draftBtn {
+  width: 140px;
+  height: 48px;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.draftBtn:hover {
+  border-color: #f97316;
+  color: #f97316;
 }
 
 .saveFullBtn {
-  width: 300px;
+  width: 140px;
   height: 48px;
   border: none;
   border-radius: 24px;
   background: #f97316;
   color: #fff;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   box-shadow: 0 4px 20px rgba(249, 115, 22, 0.3);
@@ -831,7 +972,7 @@ onMounted(() => {
   }
   
   .saveFullBtn {
-    width: 100%;
+    max-width: none;
   }
 }
 </style>

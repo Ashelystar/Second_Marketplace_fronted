@@ -2,11 +2,20 @@
   <div class="page">
     <!-- 顶部导航 -->
     <div class="top">
-      <button class="backBtn" @click="goBack">
-        <i class="fa fa-arrow-left"></i>
-      </button>
-      <span class="title">购物车</span>
-      <div class="right"></div>
+      <div class="topInner">
+        <div class="left">
+          <button class="backBtn" @click="goBack">
+            <i class="fa fa-arrow-left"></i>
+          </button>
+          <span class="title">购物车</span>
+        </div>
+        <div class="right" v-if="selectedCount > 0">
+          <button class="deleteBtn" @click="deleteSelected">
+            <i class="fa fa-trash-alt"></i>
+            删除
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 购物车为空 -->
@@ -21,9 +30,9 @@
 
     <!-- 购物车列表 -->
     <div v-else class="cartList">
-      <div
-        v-for="item in cartItems"
-        :key="item.id"
+      <div 
+        v-for="item in cartItems" 
+        :key="item.id" 
         class="cartItem"
         :class="{ selected: item.selected }"
       >
@@ -67,12 +76,12 @@
         </div>
         <span class="selectAllText">全选</span>
       </div>
-
+      
       <div class="totalInfo">
         <span class="totalLabel">合计：</span>
         <span class="totalPrice">¥{{ totalPrice }}</span>
       </div>
-
+      
       <button class="settleBtn" @click="settle" :disabled="selectedCount === 0">
         结算 ({{ selectedCount }})
       </button>
@@ -84,7 +93,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
-defineOptions({ name: 'CartIndex' })
+defineOptions({ name: 'CartPage' })
 
 const router = useRouter()
 
@@ -182,18 +191,11 @@ const settle = () => {
     alert('请先选择要结算的商品')
     return
   }
-  // 获取所有选中商品的ID
-  const selectedIds = cartItems.value
-    .filter(item => item.selected)
-    .map(item => item.id)
-  // 跳转到确认订单页面，传递商品ID列表和来源标识
-  router.push({
-    path: '/checkout',
-    query: {
-      productIds: selectedIds.join(','),
-      fromCart: 'true'
-    }
-  })
+  // 跳转到确认订单页面
+  const firstSelected = cartItems.value.find(item => item.selected)
+  if (firstSelected) {
+    router.push({ path: '/checkout', query: { productId: firstSelected.id } })
+  }
 }
 
 const goBack = () => {
@@ -219,10 +221,19 @@ const goBack = () => {
   z-index: 100;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.topInner {
   padding: 14px 16px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .backBtn {

@@ -8,6 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
+            <i class="fa fa-fish"></i>
             <span>荔园交易</span>
           </a>
         </div>
@@ -27,9 +28,13 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-comment"></i> 信息</a>
-          <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
-          <a href="#" @click.prevent="router.push(userStore.isLoggedIn ? '/user/center' : '/user/login')"><i class="fa fa-user"></i> {{ userStore.isLoggedIn ? '我的' : '登录/注册' }}</a>
+          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <template v-if="userStore.isLoggedIn">
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+          </template>
+          <template v-else>
+            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
+          </template>
         </nav>
       </div>
     </div>

@@ -8,6 +8,7 @@
             <i class="fa fa-arrow-left"></i>
           </button>
           <a href="#" class="logo" @click.prevent="router.push('/')">
+            <i class="fa fa-fish"></i>
             <span>荔园交易</span>
           </a>
         </div>
@@ -28,12 +29,17 @@
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-          <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-comment"></i> 信息</a>
-          <a href="#" @click.prevent="router.push('/orders')"><i class="fa fa-shopping-bag"></i> 订单</a>
-          <a href="#" @click.prevent="router.push(userStore.isLoggedIn ? '/user/center' : '/user/login')"><i class="fa fa-user"></i> {{ userStore.isLoggedIn ? '我的' : '登录/注册' }}</a>
+          <a href="#" @click.prevent="router.push('/message')"><i class="fa fa-bell"></i> 消息</a>
+          <template v-if="userStore.isLoggedIn">
+            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+          </template>
+          <template v-else>
+            <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
+          </template>
         </nav>
       </div>
     </div>
+
 
     <!-- 面包屑 -->
     <div class="breadcrumb">
@@ -83,7 +89,7 @@
               </div>
             </div>
           </div>
-          <button class="viewProfileBtn" @click="goToSellerHome">
+          <button class="viewProfileBtn">
             <i class="fa fa-user"></i> 查看主页
           </button>
         </div>
@@ -191,7 +197,7 @@
               </button>
             </div>
             <div class="actionRow">
-              <button class="actionBtn secondary">
+              <button class="actionBtn secondary" @click="goToChat">
                 <i class="fa fa-comment"></i> 聊一聊
               </button>
               <button class="actionBtn primary" @click="goToCheckout">
@@ -208,15 +214,15 @@
           <h3><i class="fa fa-comments"></i> 商品评论</h3>
           <span class="commentCount">{{ comments.length }} 条评论</span>
         </div>
-        
+
         <!-- 评论输入框 -->
         <div class="commentInput">
           <img v-if="userStore.userInfo?.avatar" :src="userStore.userInfo.avatar" class="commentAvatar" />
           <div v-else class="commentAvatar avatarDefault">{{ userStore.userInfo?.username?.charAt(0) || '游' }}</div>
           <div class="inputWrapper">
-            <textarea 
-              v-model="newComment" 
-              placeholder="发表你的看法..." 
+            <textarea
+              v-model="newComment"
+              placeholder="发表你的看法..."
               rows="3"
               @focus="handleCommentFocus"
             ></textarea>
@@ -236,10 +242,13 @@
               <div class="commentMeta">
                 <span class="commentName">{{ comment.name }}</span>
                 <span class="commentTime">{{ comment.time }}</span>
+                <button class="subReplyBtn" @click="toggleReplyInput(comment.id, null)">
+                  <i class="fa fa-commenting"></i> 回复
+                </button>
               </div>
             </div>
             <div class="commentContent">{{ comment.content }}</div>
-            
+
             <!-- 回复列表 -->
             <div class="replyList" v-if="comment.replies && comment.replies.length > 0">
               <div v-for="reply in getDisplayReplies(comment)" :key="reply.id" class="replyItem">
@@ -256,24 +265,19 @@
                 </div>
                 <div class="replyContent">{{ reply.content }}</div>
               </div>
-              
+
               <!-- 查看更多子回复 -->
               <button v-if="comment.replies.length > 3" class="toggleSubRepliesBtn" @click="comment.showAllReplies = !comment.showAllReplies">
                 <i :class="comment.showAllReplies ? 'fa fa-chevron-up' : 'fa fa-chevron-down'"></i>
                 {{ comment.showAllReplies ? '收起回复' : `查看全部 ${comment.replies.length} 条回复` }}
               </button>
             </div>
-            
-            <!-- 回复按钮 -->
-            <button class="replyBtn" @click="toggleReplyInput(comment.id, null)">
-              <i class="fa fa-commenting"></i> 回复 ({{ comment.replies?.length || 0 }})
-            </button>
-            
+
             <!-- 回复输入框 -->
             <div v-if="activeReplyId === comment.id" class="replyInput">
-              <textarea 
-                v-model="replyContent" 
-                :placeholder="replyToUser ? `回复 @${replyToUser}...` : `回复 @${comment.name}...`" 
+              <textarea
+                v-model="replyContent"
+                :placeholder="replyToUser ? `回复 @${replyToUser}...` : `回复 @${comment.name}...`"
                 rows="2"
               ></textarea>
               <div class="inputActions">
@@ -282,7 +286,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- 查看更多按钮 -->
           <div v-if="comments.length > 3" class="loadMore">
             <button class="loadMoreBtn" @click="showAllComments = !showAllComments">
@@ -291,7 +295,7 @@
             </button>
           </div>
         </div>
-        
+
         <!-- 无评论状态 -->
         <div v-else class="noComments">
           <i class="fa fa-comments-o"></i>
@@ -339,27 +343,26 @@
     </div>
 
     <!-- 悬浮工具栏 -->
-    <div class="floatTools">
+    <!-- <div class="floatTools">
       <button v-for="t in floatingTools" :key="t.id" class="floatBtn" @click="handleTool(t)">
         <i :class="t.icon"></i>
         <span class="floatTip">{{ t.label }}</span>
       </button>
-    </div>
+    </div>-->
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
+import { getProductDetail, incrementProductView } from '@/api/goods'
 
 defineOptions({ name: 'ProductDetail' })
 
 const route = useRoute()
 const router = useRouter()
-const store = useProductStore()
 const userStore = useUserStore()
 
 const ensureLoggedIn = (actionHint: string) => {
@@ -421,38 +424,38 @@ const cancelComment = () => {
 
 const submitComment = () => {
   if (!newComment.value.trim()) return
-  
+
   const comment: Comment = {
     id: Date.now(),
     name: userStore.userInfo?.username || '匿名用户',
-    avatar: userStore.userInfo?.avatar,
+    avatar: userStore.userInfo?.avatar ?? undefined,
     time: '刚刚',
     content: newComment.value.trim(),
     replies: []
   }
-  
+
   comments.value.unshift(comment)
   cancelComment()
 }
 
 const submitReply = (commentId: number) => {
   if (!replyContent.value.trim()) return
-  
+
   const comment = comments.value.find(c => c.id === commentId)
   if (comment) {
     if (!comment.replies) comment.replies = []
-    
+
     const reply: Reply = {
       id: Date.now(),
       name: userStore.userInfo?.username || '匿名用户',
-      avatar: userStore.userInfo?.avatar,
+      avatar: userStore.userInfo?.avatar ?? undefined,
       time: '刚刚',
       content: replyContent.value.trim()
     }
-    
+
     comment.replies.push(reply)
   }
-  
+
   cancelReply()
 }
 
@@ -624,30 +627,16 @@ const goToCheckout = () => {
   if (!ensureLoggedIn('购买商品')) return
   router.push({ path: '/checkout', query: { productId: route.query.id } })
 }
+const goToChat = () => {
+  if (!ensureLoggedIn('和卖家聊天')) return
+  router.push('/chat')
+}
 
 const handleLogin = () => {
   router.push('/user/login')
 }
 
-const goToSellerHome = () => {
-  if (!product.value?.sellerId || !product.value?.id) return
-  router.push({
-    name: 'user-home',
-    params: { id: String(product.value.sellerId) },
-    query: { fromProductId: String(product.value.id) },
-  })
-}
-
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })
-
-const floatingTools = [
-  { id: 1, icon: 'fa fa-plus', label: '发闲置', action: 'publish' },
-  { id: 2, icon: 'fa fa-envelope', label: '消息', action: 'message' },
-  { id: 3, icon: 'fa fa-qrcode', label: '二维码', action: 'qrcode' },
-  { id: 4, icon: 'fa fa-mobile', label: 'APP', action: 'app' },
-  { id: 5, icon: 'fa fa-commenting', label: '反馈', action: 'feedback' },
-  { id: 6, icon: 'fa fa-headphones', label: '客服', action: 'service' }
-]
 
 const getPublishTime = (id: number) => {
   if (id >= 21 && id <= 24) return '今天发布'
@@ -656,36 +645,43 @@ const getPublishTime = (id: number) => {
   return '1周前发布'
 }
 
-const loadDetails = () => {
+const loadDetails = async () => {
   const id = parseInt(route.query.id as string)
+  console.log('=== 商品详情请求 ===')
+  console.log('商品ID:', id)
   if (isNaN(id)) {
     loadError.value = '无效的商品ID'
     isLoading.value = false
     return
   }
-  const found = store.getProductById(id)
-  if (found) {
-    product.value = found
-    if (found.images && found.images.length > 0) {
-      images.value = found.images
+  try {
+    const data = await getProductDetail(id)
+    console.log('接口返回数据:', data)
+    product.value = data
+    // 增加浏览量（不阻塞主流程）
+    incrementProductView(id).catch(err => console.error('增加浏览量失败:', err))
+    if (data.images && data.images.length > 0) {
+      images.value = data.images
     } else {
       images.value = [
-        { id: 1, url: found.image, alt: found.title },
-        { id: 2, url: `https://picsum.photos/id/${id * 10}/800/800`, alt: found.title + ' 细节图' },
-        { id: 3, url: `https://picsum.photos/id/${id * 20}/800/800`, alt: found.title + ' 包装图' }
+        { id: 1, url: data.image, alt: data.title },
+        { id: 2, url: `https://picsum.photos/id/${id * 10}/800/800`, alt: data.title + ' 细节图' },
+        { id: 3, url: `https://picsum.photos/id/${id * 20}/800/800`, alt: data.title + ' 包装图' }
       ]
     }
     currentIndex.value = 0
     isLoading.value = false
-  } else {
-    loadError.value = `未找到商品ID: ${id}`
+  } catch (err) {
+    console.error('获取商品详情失败:', err)
+    const msg = err instanceof Error ? err.message : '加载失败'
+    loadError.value = msg.includes('商品不存在') ? '该商品不存在或已下架' : msg
     isLoading.value = false
   }
 }
 
 const loadRecs = () => {
-  const id = parseInt(route.query.id as string)
-  if (!isNaN(id)) recommendations.value = store.getRecommendations(id, 18)
+  // 推荐商品暂时使用空数组，后续可接入推荐接口
+  recommendations.value = []
 }
 
 const prevImage = () => { if (currentIndex.value > 0) currentIndex.value-- }
@@ -695,17 +691,7 @@ const performSearch = () => {
   if (searchInput.value.trim()) router.push({ path: '/search', query: { q: searchInput.value.trim() } })
 }
 
-const handleTool = (t: { action: string }) => {
-  const msgs: Record<string, string> = {
-    publish: '正在跳转到发布页面...',
-    message: '正在跳转到消息页面...',
-    qrcode: `商品码功能：扫描二维码查看"${product.value?.title || '当前商品'}"的详细信息`,
-    app: '打开应用商店下载荔园APP',
-    feedback: '欢迎提出宝贵意见和建议！',
-    service: '正在为您连接客服...'
-  }
-  alert(msgs[t.action])
-}
+
 
 const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
@@ -713,7 +699,6 @@ const goBack = () => window.history.length > 1 ? router.back() : router.push('/'
 watch(() => route.query.id, (id) => {
   if (id) {
     isLoading.value = true
-    store.initialize()
     loadDetails()
     loadRecs()
   }
@@ -727,7 +712,6 @@ watch(() => product.value?.id, (newId) => {
 })
 
 onMounted(() => {
-  store.initialize()
   loadComments()
   // 初始化收藏状态
   if (product.value) {
@@ -1507,8 +1491,8 @@ onMounted(() => {
 
 .commentMeta {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
 }
 
 .commentName {
@@ -1520,6 +1504,10 @@ onMounted(() => {
 .commentTime {
   font-size: 12px;
   color: var(--muted);
+}
+
+.commentMeta .subReplyBtn {
+  margin-left: auto;
 }
 
 .commentContent {
@@ -1580,8 +1568,9 @@ onMounted(() => {
 
 .replyMeta {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
 }
 
 .replyName {
@@ -1640,7 +1629,6 @@ onMounted(() => {
 }
 
 .toggleSubRepliesBtn {
-  display: block;
   width: 100%;
   padding: 6px;
   margin-top: 6px;
@@ -1822,57 +1810,7 @@ onMounted(() => {
   color: #f97316;
 }
 
-/* 悬浮工具栏 */
-.floatTools {
-  position: fixed;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 30;
-}
 
-.floatBtn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--panel);
-  border: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  color: var(--text);
-  position: relative;
-  transition: transform 120ms ease, background 120ms ease;
-}
-
-.floatBtn:hover {
-  transform: translateY(-2px);
-  background: #f5f5f5;
-}
-
-.floatTip {
-  position: absolute;
-  right: calc(100% + 8px);
-  padding: 4px 8px;
-  background: #333;
-  color: #fff;
-  font-size: 12px;
-  border-radius: 4px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms;
-}
-
-.floatBtn:hover .floatTip {
-  opacity: 1;
-}
 
 /* 响应式 */
 @media (max-width: 900px) {
