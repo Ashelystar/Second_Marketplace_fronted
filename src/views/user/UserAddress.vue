@@ -296,7 +296,7 @@ const saveAddress = async () => {
     
     if (isEditing.value && editingId.value) {
       // 编辑地址 - 使用PUT请求
-      response = await axios.put(`/api/user/addresses/${editingId.value}`, currentAddress, {
+      response = await axios.put(`/api/user/address/${editingId.value}`, currentAddress, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -304,7 +304,7 @@ const saveAddress = async () => {
       })
     } else {
       // 新增地址 - 使用POST请求
-      response = await axios.post('/api/user/addresses', currentAddress, {
+      response = await axios.post('/api/user/address', currentAddress, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -342,7 +342,7 @@ const deleteAddress = async (id: number) => {
   console.log('删除地址ID:', id)
   if (confirm('确定删除该地址吗？')) {
     try {
-      await axios.delete(`/api/user/addresses/${id}`, {
+      await axios.delete(`/api/user/address/${id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -359,7 +359,7 @@ const deleteAddress = async (id: number) => {
 const setDefault = async (id: number) => {
   console.log('设置默认地址ID:', id)
   try {
-    await axios.put(`/api/user/addresses/${id}/default`, {}, {
+    await axios.put(`/api/user/address/${id}/default`, {}, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
