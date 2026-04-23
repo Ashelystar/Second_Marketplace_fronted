@@ -33,7 +33,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { loginApi } from '@/api/user'
+import { loginApi, getUserPermissionsApi } from '@/api/user'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -45,7 +46,7 @@ async function handleLogin() {
   loading.value = true
   try {
     if (!account.value.trim() || !password.value.trim()) {
-      alert('请输入账号和密码')
+      ElMessage.info('请输入账号和密码')
       return
     }
     const data = await loginApi({
@@ -59,14 +60,22 @@ async function handleLogin() {
       },
       data.token
     )
-    alert('登录成功！')
-    await router.push('/user/center')
+    
+    // 检查用户权限
+    const permissions = await getUserPermissionsApi()
+    if (permissions.isAdmin) {
+        ElMessage.success('登录成功！您是管理员')
+        await router.push('/admin')
+      } else {
+        ElMessage.success('登录成功！')
+        await router.push('/user/center')
+      }
   } catch (error) {
     // 详细错误提示
     if (error instanceof Error) {
-      alert('登录失败：' + error.message)
+      ElMessage.error('登录失败：' + error.message)
     } else {
-      alert('登录失败，未知错误')
+      ElMessage.error('登录失败，未知错误')
     }
   } finally {
     loading.value = false

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { ElMessage } from 'element-plus'
 
 import Home from '../views/home/Index.vue'
 import Detail from '../views/goods/Detail.vue'
@@ -213,6 +214,56 @@ const router = createRouter({
       name: 'drafts',
       component: () => import('../views/goods/Drafts.vue'),
     },
+    {
+      path: '/address',
+      name: 'address',
+      component: () => import('../views/user/Address.vue'),
+    },
+    {
+      path: '/address/edit',
+      name: 'address-edit',
+      component: () => import('../views/user/EditAddress.vue'),
+    },
+
+    // 管理员路由
+    {
+      path: '/admin',
+      component: () => import('../views/admin/Index.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'admin-dashboard',
+          component: () => import('../components/admin/Dashboard.vue'),
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('../components/admin/Users.vue'),
+        },
+        {
+          path: 'products',
+          name: 'admin-products',
+          component: () => import('../components/admin/Products.vue'),
+        },
+        {
+          path: 'disputes',
+          name: 'admin-disputes',
+          component: () => import('../components/admin/Disputes.vue'),
+        },
+        {
+          path: 'forum',
+          name: 'admin-forum',
+          component: () => import('../components/admin/Forum.vue'),
+        },
+        {
+          path: 'notifications',
+          name: 'admin-notifications',
+          component: () => import('../components/admin/Notifications.vue'),
+        },
+      ],
+    },
+    
     // 错误页面路由
     {
       path: '/:pathMatch(.*)*',
@@ -229,7 +280,7 @@ router.beforeEach((to) => {
   if (userStore.isLoggedIn) return true
   if (guestAllowedPaths.has(to.path)) return true
 
-  alert('请先进行登录')
+  ElMessage.info('请先进行登录')
   return {
     path: '/user/login',
     query: { redirect: to.fullPath },
