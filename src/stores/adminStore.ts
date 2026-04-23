@@ -200,32 +200,21 @@ export const useAdminStore = defineStore('admin', () => {
 
   // 模拟数据
   const loadMockData = () => {
-    // 模拟用户数据
+    // 使用真实用户数据
     users.value = [
-      {
-        id: 1,
-        username: 'user1',
-        nickname: '测试用户1',
-        phone: '13800138001',
-        email: 'user1@example.com',
-        userStatus: 'active',
-        lastLoginAt: new Date().toISOString(),
-        registeredAt: new Date().toISOString(),
-        avatar: null
-      },
-      {
-        id: 2,
-        username: 'user2',
-        nickname: '测试用户2',
-        phone: '13800138002',
-        email: 'user2@example.com',
-        userStatus: 'active',
-        lastLoginAt: new Date().toISOString(),
-        registeredAt: new Date().toISOString(),
-        avatar: null
-      }
+      { id: 1, username: 'admin', nickname: 'admin', phone: '13800000000', email: 'admin@example.com', userStatus: 'banned', lastLoginAt: '2026-04-23T14:19:55', registeredAt: '2026-04-15T14:43:00', avatar: null, isAdmin: true, canBuy: true, canSell: true },
+      { id: 10001, username: '张三', nickname: '张三', phone: '13800000001', email: 'zhangsan@example.com', userStatus: 'active', lastLoginAt: '2026-04-20T06:11:48', registeredAt: '2026-04-15T14:43:00', avatar: null, isAdmin: false, canBuy: true, canSell: true },
+      { id: 10002, username: '李四', nickname: '李四', phone: '13800000002', email: 'lisi@example.com', userStatus: 'active', lastLoginAt: '', registeredAt: '2026-04-15T14:43:00', avatar: null, isAdmin: false, canBuy: true, canSell: true },
+      { id: 10003, username: '王五', nickname: '王五', phone: '13800000003', email: 'wangwu@example.com', userStatus: 'active', lastLoginAt: '', registeredAt: '2026-04-15T14:43:00', avatar: null, isAdmin: false, canBuy: true, canSell: true },
+      { id: 10004, username: '赵六', nickname: '赵六', phone: '13800000004', email: 'zhaoliu@example.com', userStatus: 'active', lastLoginAt: '', registeredAt: '2026-04-15T14:43:00', avatar: null, isAdmin: false, canBuy: true, canSell: true },
+      { id: 10005, username: '小明', nickname: '小明', phone: '13800000005', email: 'xiaoming@example.com', userStatus: 'active', lastLoginAt: '', registeredAt: '2026-04-15T14:43:00', avatar: null, isAdmin: false, canBuy: true, canSell: true },
+      { id: 10006, username: '小红', nickname: '小红', phone: '13800000006', email: 'xiaohong@example.com', userStatus: 'banned', lastLoginAt: '', registeredAt: '2026-04-15T14:43:00', avatar: null, isAdmin: false, canBuy: true, canSell: true },
+      { id: 10007, username: '大刘', nickname: '大刘', phone: '13800000007', email: 'daliu@example.com', userStatus: 'active', lastLoginAt: '', registeredAt: '2026-04-15T14:43:00', avatar: null, isAdmin: false, canBuy: true, canSell: true },
+      { id: 10008, username: '小陈', nickname: '小陈', phone: '13800000008', email: 'xiaochen@example.com', userStatus: 'active', lastLoginAt: '', registeredAt: '2026-04-15T14:43:00', avatar: null, isAdmin: false, canBuy: true, canSell: true },
+      { id: 900001, username: 'seed_seller_1', nickname: '测试卖家1', phone: '13990000001', email: 'seed_seller_1@example.com', userStatus: 'active', lastLoginAt: '', registeredAt: '2026-04-15T14:43:03', avatar: null, isAdmin: false, canBuy: true, canSell: true },
+      { id: 900002, username: 'seed_seller_2', nickname: '测试卖家2', phone: '13990000002', email: 'seed_seller_2@example.com', userStatus: 'active', lastLoginAt: '', registeredAt: '2026-04-15T14:43:03', avatar: null, isAdmin: false, canBuy: true, canSell: true }
     ]
-    totalUsers.value = 2
+    totalUsers.value = users.value.length
 
     // 模拟商品数据
     products.value = [
@@ -433,7 +422,38 @@ export const useAdminStore = defineStore('admin', () => {
     notifications,
     notificationLoading,
 
-    // 方法
+    // 封禁/解封用户
+  async banUser(userId: number, ban: boolean, reason?: string, notify?: boolean) {
+    try {
+      const token = localStorage.getItem('token')
+      const endpoint = ban ? `/api/admin/user/ban/${userId}` : `/api/admin/user/unban/${userId}`
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason, notify })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`${ban ? '封禁' : '解封'}用户失败: ${response.status}`)
+      }
+      
+      // 更新本地数据
+      const user = users.value.find(u => u.id === userId)
+      if (user) {
+        user.userStatus = ban ? 'banned' : 'active'
+      }
+      
+      return true
+    } catch (error) {
+      console.error(`${ban ? '封禁' : '解封'}用户失败:`, error)
+      return false
+    }
+  },
+
+  // 方法
   loadMockData,
   loadStats: loadMockData,
   loadUsers: loadMockData,

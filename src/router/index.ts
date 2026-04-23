@@ -219,11 +219,6 @@ const router = createRouter({
       name: 'address',
       component: () => import('../views/user/Address.vue'),
     },
-    {
-      path: '/address/edit',
-      name: 'address-edit',
-      component: () => import('../views/user/EditAddress.vue'),
-    },
 
     // 管理员路由
     {
