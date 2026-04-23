@@ -213,12 +213,6 @@ const router = createRouter({
       name: 'drafts',
       component: () => import('../views/goods/Drafts.vue'),
     },
-    {
-      path: '/address/edit',
-      name: 'address-edit',
-      component: () => import('../views/user/EditAddress.vue'),
-    },
-
     // 错误页面路由
     {
       path: '/:pathMatch(.*)*',
