@@ -281,15 +281,35 @@ const submitOrder = () => {
     alert('请选择收货地址')
     return
   }
+  
+  // 生成模拟订单号
+  const orderId = 'ORD' + Date.now()
   const productNames = products.value.map(p => p.title).join('、')
-  alert(`订单提交成功！\n商品：${productNames}\n数量：${totalQuantity.value}\n总价：¥${totalPrice.value}\n收货人：${selectedAddress.value.receiver}`)
-  // 使用 replace 跳转，这样返回键不会回到下单页面
-  router.replace('/orders')
+  const address = `${selectedAddress.value.province}${selectedAddress.value.city}${selectedAddress.value.district}${selectedAddress.value.detail}`
+  
+  // 将订单信息存储到本地，用于付款页面展示
+  const orderInfo = {
+    orderId,
+    productNames,
+    address,
+    remark: remark.value,
+    totalAmount: totalPrice.value,
+    selectedPayment: selectedPayment.value
+  }
+  localStorage.setItem('pendingPaymentOrder', JSON.stringify(orderInfo))
+  
+  // 跳转到付款页面
+  router.push('/payment')
 }
 
 const addToCart = () => {
   alert('已加入购物车')
-  router.push('/cart')
+  // 返回上一页（商品详情页）
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/')
+  }
 }
 
 const goToAddAddress = () => {

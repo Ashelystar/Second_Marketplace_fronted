@@ -103,7 +103,7 @@ const router = createRouter({
     {
       path: '/orders',
       name: 'orders',
-      component: () => import('../views/order/Orders.vue'),
+      component: () => import('../views/user/orders.vue'),
     },
     {
       path: '/checkout',
@@ -134,6 +134,12 @@ const router = createRouter({
       path: '/order/confirm',
       name: 'order-confirm',
       component: () => import('../views/order/Confirm.vue'),
+    },
+    {
+      path: '/payment',
+      name: 'payment',
+      component: () => import('../views/order/Payment.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/order/order-detail/:id',

@@ -709,8 +709,16 @@ const loadDetails = async () => {
     try {
       const status = await getProductStatus(id)
       productStatus.value = status
-      if (status !== 'published') {
-        loadError.value = status === 'offline' ? '该商品已下架' : '该商品暂不可见'
+      console.log('商品状态:', status)
+      // 可展示状态：on_sale(在售), published(已发布)
+      if (status === 'on_sale' || status === 'published') {
+        // 正常状态，继续加载
+      } else if (status === 'offline' || status === 'off_shelf') {
+        loadError.value = '该商品已下架'
+        isLoading.value = false
+        return
+      } else {
+        loadError.value = `该商品状态为：${status}，暂不可见`
         isLoading.value = false
         return
       }
