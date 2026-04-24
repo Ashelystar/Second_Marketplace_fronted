@@ -152,8 +152,8 @@
 
           <!-- 数据统计 -->
           <div class="stats">
-            <span><i class="fa fa-eye"></i> {{ product.viewCount || 0 }}人想要</span>
-            <span><i class="fa fa-heart"></i> {{ product.favoriteCount || 0 }}人收藏</span>
+            <span><i class="fa fa-eye"></i> {{ productStats.viewCount || 0 }}人看过</span>
+            <span><i class="fa fa-heart"></i> {{ productStats.favoriteCount || 0 }}人收藏</span>
             <span><i class="fa fa-clock-o"></i> {{ getPublishTime(product.id) }}</span>
           </div>
 
@@ -357,7 +357,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
-import { getProductDetail, incrementProductView } from '@/api/goods'
+import { getProductDetail, incrementProductView, getProductStats, getProductStatus } from '@/api/goods'
 
 defineOptions({ name: 'ProductDetail' })
 
@@ -377,6 +377,8 @@ const product = ref<Product | null>(null)
 const currentIndex = ref(0)
 const images = ref<ProductImage[]>([])
 const recommendations = ref<Product[]>([])
+const productStats = ref({ viewCount: 0, favoriteCount: 0, orderCount: 0 })
+const productStatus = ref('')
 const isLoading = ref(true)
 const loadError = ref('')
 const isFavorited = ref(false)
@@ -703,11 +705,31 @@ const loadDetails = async () => {
     return
   }
   try {
+    // 先查询商品状态
+    try {
+      const status = await getProductStatus(id)
+      productStatus.value = status
+      if (status !== 'published') {
+        loadError.value = status === 'offline' ? '该商品已下架' : '该商品暂不可见'
+        isLoading.value = false
+        return
+      }
+    } catch (err) {
+      console.error('查询商品状态失败:', err)
+    }
+
     const data = await getProductDetail(id)
     console.log('接口返回数据:', data)
     product.value = data
     // 增加浏览量（不阻塞主流程）
     incrementProductView(id).catch(err => console.error('增加浏览量失败:', err))
+    // 获取商品统计（浏览量、收藏量等）
+    try {
+      const stats = await getProductStats(id)
+      productStats.value = stats
+    } catch (err) {
+      console.error('获取商品统计失败:', err)
+    }
     if (data.images && data.images.length > 0) {
       images.value = data.images
     } else {
