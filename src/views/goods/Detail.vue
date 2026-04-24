@@ -357,7 +357,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
-import { getProductDetail, incrementProductView, getProductStats } from '@/api/goods'
+import { getProductDetail, incrementProductView, getProductStats, getProductStatus } from '@/api/goods'
 
 defineOptions({ name: 'ProductDetail' })
 
@@ -378,6 +378,7 @@ const currentIndex = ref(0)
 const images = ref<ProductImage[]>([])
 const recommendations = ref<Product[]>([])
 const productStats = ref({ viewCount: 0, favoriteCount: 0, orderCount: 0 })
+const productStatus = ref('')
 const isLoading = ref(true)
 const loadError = ref('')
 const isFavorited = ref(false)
@@ -704,6 +705,19 @@ const loadDetails = async () => {
     return
   }
   try {
+    // 先查询商品状态
+    try {
+      const status = await getProductStatus(id)
+      productStatus.value = status
+      if (status !== 'published') {
+        loadError.value = status === 'offline' ? '该商品已下架' : '该商品暂不可见'
+        isLoading.value = false
+        return
+      }
+    } catch (err) {
+      console.error('查询商品状态失败:', err)
+    }
+
     const data = await getProductDetail(id)
     console.log('接口返回数据:', data)
     product.value = data
