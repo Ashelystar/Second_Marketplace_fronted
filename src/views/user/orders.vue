@@ -34,6 +34,47 @@
 
     <!-- 订单列表 -->
     <div class="orderList">
+      <!-- 全部 -->
+      <template v-if="orderTab === 'all'">
+        <div v-if="orders.length === 0" class="empty">
+          <i class="fa fa-inbox"></i>
+          <p>暂无订单</p>
+          <button class="btnPrimary" @click="router.push('/')">去逛逛</button>
+        </div>
+        <div v-else v-for="order in orders" :key="order.id" class="orderCard">
+          <div class="order-item">
+            <div class="order-header">
+              <span class="order-id">订单号: {{ order.orderNo }}</span>
+              <span class="order-status" :style="{ color: order.statusColor }">{{ order.statusText }}</span>
+            </div>
+            <div class="order-product" @click="goToProductDetail(order)">
+              <img :src="order.productImage" :alt="order.productTitle" class="product-img" />
+              <div class="product-info">
+                <span class="product-title">{{ order.productTitle }}</span>
+                <div class="product-meta">
+                  <span class="product-price">¥{{ order.productPrice }} x {{ order.productCount }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="order-footer">
+              <div class="total-price">
+                共 {{ order.productCount }} 件商品，合计: <strong>¥{{ order.totalPrice }}</strong>
+              </div>
+              <div class="order-actions">
+                <button class="action-btn secondary" @click="viewOrderDetail(order)">查看详情</button>
+                <button v-if="order.status === 'pending'" class="action-btn secondary" @click="cancelOrder(order)">取消订单</button>
+                <button v-if="order.status === 'pending'" class="action-btn primary" @click="payOrder(order)">立即支付</button>
+                <button v-if="order.status === 'paid'" class="action-btn secondary" @click="remindShip(order)">提醒发货</button>
+                <button v-if="order.status === 'shipped'" class="action-btn secondary" @click="checkLogistics(order)">查看物流</button>
+                <button v-if="order.status === 'shipped'" class="action-btn primary" @click="confirmReceipt(order)">确认收货</button>
+                <button v-if="order.status === 'refunding'" class="action-btn secondary" @click="viewRefundDetail(order)">退款详情</button>
+                <button v-if="order.status === 'completed'" class="action-btn primary" @click="reviewOrder(order)">去评价</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
       <!-- 待付款 -->
       <template v-if="orderTab === 'pending'">
         <div v-if="pendingOrders.length === 0" class="empty">
@@ -236,6 +277,7 @@ interface Order {
 }
 
 const orderTabs = [
+  { id: 'all', name: '全部' },
   { id: 'pending', name: '待付款' },
   { id: 'paid', name: '待发货' },
   { id: 'shipped', name: '待收货' },
@@ -325,6 +367,7 @@ const completedOrders = computed(() => orders.value.filter(o => o.status === 'co
 
 const getCount = (tabId: string) => {
   switch (tabId) {
+    case 'all': return orders.value.length
     case 'pending': return pendingOrders.value.length
     case 'paid': return paidOrders.value.length
     case 'shipped': return shippedOrders.value.length
@@ -340,7 +383,16 @@ const goToProductDetail = (order: Order) => {
 }
 
 const payOrder = (order: Order) => {
-  alert(`正在跳转到支付页面，订单号: ${order.orderNo}`)
+  // 将订单信息存储到本地，用于付款页面展示
+  const orderInfo = {
+    orderId: order.orderNo,
+    productNames: order.productTitle,
+    address: '-',
+    remark: '',
+    totalAmount: order.totalPrice.toString()
+  }
+  localStorage.setItem('pendingPaymentOrder', JSON.stringify(orderInfo))
+  router.push('/payment')
 }
 
 const cancelOrder = (order: Order) => {
