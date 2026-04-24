@@ -76,6 +76,18 @@ export async function offShelfProduct(id: number): Promise<string> {
   return handleRequest<string>(`/api/product/${id}`, { method: 'DELETE' }, '下架商品失败')
 }
 
+/** 商品简要统计 */
+export interface ProductStats {
+  viewCount: number
+  favoriteCount: number
+  orderCount: number
+}
+
+/** 获取商品简要统计 */
+export async function getProductStats(id: number): Promise<ProductStats> {
+  return handleRequest<ProductStats>(`/api/product/${id}/stats`, { method: 'GET' }, '获取商品统计失败')
+}
+
 /** 增加商品浏览量 */
 export async function incrementProductView(id: number): Promise<string> {
   return handleRequest<string>(`/api/product/${id}/view`, { method: 'PUT' }, '增加浏览量失败')
