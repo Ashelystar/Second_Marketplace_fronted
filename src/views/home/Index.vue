@@ -1,88 +1,90 @@
 <template>
-  <div class="bg-pageBg min-h-screen">
-    <!-- 顶部导航栏 -->
-    <Topnav v-if="showNav" />
-    <!-- 主体内容 -->
-    <div class="main">
-      <!-- 左侧分类 -->
-      <aside class="sidebar">
-        <div class="categoryCard">
-          <ul class="categoryList">
-            <li
-              v-for="(cat, index) in mainCategories"
-              :key="cat.id"
-              class="categoryItem"
-              :class="{ active: activeMainCategory === cat.id }"
-              :ref="(el) => setCategoryRef(el as HTMLElement, index)"
-              @mouseenter="showSubMenu(cat.id, index)"
-              @mouseleave="hideSubMenu"
-            >
-              <a href="#" @click.prevent>
-                <i :class="cat.iconClass" class="catIcon"></i>
-                <span>{{ cat.name }}</span>
-                <i class="fa fa-chevron-right arrow"></i>
-              </a>
-            </li>
-          </ul>
-        </div>
-
-        <!-- 悬浮子分类 -->
-        <div
-          v-if="hoveredCategory"
-          class="subMenu card"
-          :style="{ top: subMenuTop + 'px', left: subMenuLeft + 'px' }"
-          @mouseenter="keepSubMenu"
-          @mouseleave="hideSubMenu"
-        >
-          <div class="subMenuHeader">
-            <strong>{{ hoveredCategory.name }}</strong>
-            <span class="subCount">共{{ hoveredCategory.children.length }}个分类</span>
+  <div class="bg-pageBg min-h-screen flex flex-col">
+    <div class="flex-grow">
+      <!-- 顶部导航栏 -->
+      <Topnav v-if="showNav" />
+      <!-- 主体内容 -->
+      <div class="main">
+        <!-- 左侧分类 -->
+        <aside class="sidebar">
+          <div class="categoryCard">
+            <ul class="categoryList">
+              <li
+                v-for="(cat, index) in mainCategories"
+                :key="cat.id"
+                class="categoryItem"
+                :class="{ active: activeMainCategory === cat.id }"
+                :ref="(el) => setCategoryRef(el as HTMLElement, index)"
+                @mouseenter="showSubMenu(cat.id, index)"
+                @mouseleave="hideSubMenu"
+              >
+                <a href="#" @click.prevent>
+                  <i :class="cat.iconClass" class="catIcon"></i>
+                  <span>{{ cat.name }}</span>
+                  <i class="fa fa-chevron-right arrow"></i>
+                </a>
+              </li>
+            </ul>
           </div>
-          <div class="subGrid">
-            <div
-              v-for="child in hoveredCategory.children"
-              :key="child.id"
-              class="subItem"
-              :class="{ active: activeSubCategory === child.id }"
-              @click="selectSubCategory(child.id)"
-            >
-              <div class="subIcon" :class="child.iconBgClass">
-                <i :class="child.iconClass"></i>
-              </div>
-              <span>{{ child.name }}</span>
-            </div>
-          </div>
-        </div>
-      </aside>
 
-      <!-- 商品列表 -->
-      <section class="productSection">
-        <div class="productGrid">
+          <!-- 悬浮子分类 -->
           <div
-            v-for="p in displayedProducts"
-            :key="p.id"
-            class="productCard card"
-            @click="goToDetail(p.id)"
+            v-if="hoveredCategory"
+            class="subMenu card"
+            :style="{ top: subMenuTop + 'px', left: subMenuLeft + 'px' }"
+            @mouseenter="keepSubMenu"
+            @mouseleave="hideSubMenu"
           >
-            <div class="productImg">
-              <img :src="p.image" :alt="p.title" />
-              <span class="condition">{{ p.condition }}</span>
+            <div class="subMenuHeader">
+              <strong>{{ hoveredCategory.name }}</strong>
+              <span class="subCount">共{{ hoveredCategory.children.length }}个分类</span>
             </div>
-            <div class="productInfo">
-              <h3 class="productTitle">{{ p.title }}</h3>
-              <p class="productDesc">{{ p.description }}</p>
-              <div class="productFooter">
-                <div class="price">
-                  <span class="currentPrice">¥{{ p.price }}</span>
-                  <span class="originalPrice">¥{{ p.originalPrice }}</span>
+            <div class="subGrid">
+              <div
+                v-for="child in hoveredCategory.children"
+                :key="child.id"
+                class="subItem"
+                :class="{ active: activeSubCategory === child.id }"
+                @click="selectSubCategory(child.id)"
+              >
+                <div class="subIcon" :class="child.iconBgClass">
+                  <i :class="child.iconClass"></i>
                 </div>
-                <span class="location">{{ p.location }}</span>
+                <span>{{ child.name }}</span>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </aside>
 
+        <!-- 商品列表 -->
+        <section class="productSection">
+          <div class="productGrid">
+            <div
+              v-for="p in displayedProducts"
+              :key="p.id"
+              class="productCard card"
+              @click="goToDetail(p.id)"
+            >
+              <div class="productImg">
+                <img :src="p.image" :alt="p.title" />
+                <span class="condition">{{ p.condition }}</span>
+              </div>
+              <div class="productInfo">
+                <h3 class="productTitle">{{ p.title }}</h3>
+                <p class="productDesc">{{ p.description }}</p>
+                <div class="productFooter">
+                  <div class="price">
+                    <span class="currentPrice">¥{{ p.price }}</span>
+                    <span class="originalPrice">¥{{ p.originalPrice }}</span>
+                  </div>
+                  <span class="location">{{ p.location }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
     </div>
     <SiteFooter />
   </div>
@@ -93,8 +95,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
-import { useUserStore } from '@/stores/userStore'
-import Topnav from '@/components/TopNav.vue' 
+import { getCategoryList } from '@/api/goods'
+import Topnav from '@/components/TopNav.vue'
 import SiteFooter from '@/components/layout/SiteFooter.vue'
 defineOptions({ name: 'HomePage' })
 
@@ -104,12 +106,10 @@ const showNav = computed(() => !hideNavRoutes.includes(route.path))
 
 const router = useRouter()
 const store = useProductStore()
-const userStore = useUserStore()
 
-const searchInput = ref('')
 const activeMainCategory = ref<number | null>(null)
 const activeSubCategory = ref<number | null>(null)
-const hoveredCategory = ref<typeof mainCategories[0] | null>(null)
+const hoveredCategory = ref<typeof mainCategories.value[0] | null>(null)
 const subMenuTop = ref(0)
 const subMenuLeft = ref(0)
 const categoryRefs = ref<(HTMLElement | null)[]>([])
@@ -119,135 +119,70 @@ const setCategoryRef = (el: HTMLElement | null, index: number) => {
   categoryRefs.value[index] = el
 }
 
-const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+// 分类图标映射
+const iconClassMap: Record<number, { iconClass: string; iconBgClass: string }> = {
+  1: { iconClass: 'fa fa-mobile', iconBgClass: 'bg-orange-100' },
+  2: { iconClass: 'fa fa-camera', iconBgClass: 'bg-blue-100' },
+  3: { iconClass: 'fa fa-laptop', iconBgClass: 'bg-gray-100' },
+  4: { iconClass: 'fa fa-joomla', iconBgClass: 'bg-pink-100' },
+  5: { iconClass: 'fa fa-briefcase', iconBgClass: 'bg-purple-100' },
+  6: { iconClass: 'fa fa-bicycle', iconBgClass: 'bg-green-100' },
+  7: { iconClass: 'fa fa-television', iconBgClass: 'bg-blue-100' },
+  8: { iconClass: 'fa fa-bed', iconBgClass: 'bg-amber-100' },
+  9: { iconClass: 'fa fa-paint-brush', iconBgClass: 'bg-red-100' },
+  10: { iconClass: 'fa fa-child', iconBgClass: 'bg-rose-100' },
+  11: { iconClass: 'fa fa-book', iconBgClass: 'bg-teal-100' },
+  12: { iconClass: 'fa fa-ellipsis-h', iconBgClass: 'bg-gray-100' },
+}
 
-const mainCategories = [
-  { id: 1, name: '手机', iconClass: 'fa fa-mobile text-orange-500',
-    children: [
-      { id: 11, name: 'iPhone', iconClass: 'fa fa-apple', iconBgClass: 'bg-gray-100' },
-      { id: 12, name: '华为', iconClass: 'fa fa-android', iconBgClass: 'bg-green-100' },
-      { id: 13, name: '小米', iconClass: 'fa fa-mobile', iconBgClass: 'bg-orange-100' },
-      { id: 14, name: 'OPPO', iconClass: 'fa fa-mobile', iconBgClass: 'bg-pink-100' },
-      { id: 15, name: 'vivo', iconClass: 'fa fa-mobile', iconBgClass: 'bg-blue-100' },
-      { id: 16, name: '荣耀', iconClass: 'fa fa-mobile', iconBgClass: 'bg-indigo-100' }
-    ]
-  },
-  { id: 2, name: '数码', iconClass: 'fa fa-camera text-blue-500',
-    children: [
-      { id: 21, name: '相机', iconClass: 'fa fa-camera', iconBgClass: 'bg-gray-100' },
-      { id: 22, name: '无人机', iconClass: 'fa fa-paper-plane', iconBgClass: 'bg-teal-100' },
-      { id: 23, name: '游戏机', iconClass: 'fa fa-gamepad', iconBgClass: 'bg-purple-100' },
-      { id: 24, name: '耳机', iconClass: 'fa fa-headphones', iconBgClass: 'bg-pink-100' },
-      { id: 25, name: '音箱', iconClass: 'fa fa-volume-up', iconBgClass: 'bg-orange-100' },
-      { id: 26, name: '平板', iconClass: 'fa fa-tablet', iconBgClass: 'bg-blue-100' }
-    ]
-  },
-  { id: 3, name: '电脑', iconClass: 'fa fa-laptop text-gray-600',
-    children: [
-      { id: 31, name: '笔记本', iconClass: 'fa fa-laptop', iconBgClass: 'bg-blue-100' },
-      { id: 32, name: '台式机', iconClass: 'fa fa-desktop', iconBgClass: 'bg-gray-100' },
-      { id: 33, name: '显示器', iconClass: 'fa fa-television', iconBgClass: 'bg-indigo-100' },
-      { id: 34, name: '键鼠', iconClass: 'fa fa-keyboard-o', iconBgClass: 'bg-purple-100' }
-    ]
-  },
-  { id: 4, name: '服饰', iconClass: 'fa fa-joomla text-pink-500',
-    children: [
-      { id: 41, name: '男装', iconClass: 'fa fa-male', iconBgClass: 'bg-blue-100' },
-      { id: 42, name: '女装', iconClass: 'fa fa-female', iconBgClass: 'bg-pink-100' },
-      { id: 43, name: '童装', iconClass: 'fa fa-child', iconBgClass: 'bg-orange-100' },
-      { id: 44, name: '鞋', iconClass: 'fa fa-gittip', iconBgClass: 'bg-red-100' },
-      { id: 45, name: '配饰', iconClass: 'fa fa-diamond', iconBgClass: 'bg-yellow-100' }
-    ]
-  },
-  { id: 5, name: '箱包', iconClass: 'fa fa-briefcase text-purple-500',
-    children: [
-      { id: 51, name: '女包', iconClass: 'fa fa-handbag', iconBgClass: 'bg-pink-100' },
-      { id: 52, name: '男包', iconClass: 'fa fa-briefcase', iconBgClass: 'bg-gray-100' },
-      { id: 53, name: '旅行箱', iconClass: 'fa fa-suitcase-rolling', iconBgClass: 'bg-blue-100' },
-      { id: 54, name: '双肩包', iconClass: 'fa fa-backpack', iconBgClass: 'bg-green-100' }
-    ]
-  },
-  { id: 6, name: '运动', iconClass: 'fa fa-bicycle text-green-500',
-    children: [
-      { id: 61, name: '球类', iconClass: 'fa fa-circle-o', iconBgClass: 'bg-orange-100' },
-      { id: 62, name: '健身', iconClass: 'fa fa-dumbbell', iconBgClass: 'bg-red-100' },
-      { id: 63, name: '骑行', iconClass: 'fa fa-bicycle', iconBgClass: 'bg-green-100' },
-      { id: 64, name: '游泳', iconClass: 'fa fa-tint', iconBgClass: 'bg-blue-100' }
-    ]
-  },
-  { id: 7, name: '家电', iconClass: 'fa fa-television text-blue-500',
-    children: [
-      { id: 71, name: '电视', iconClass: 'fa fa-television', iconBgClass: 'bg-blue-100' },
-      { id: 72, name: '空调', iconClass: 'fa fa-snowflake-o', iconBgClass: 'bg-cyan-100' },
-      { id: 73, name: '冰箱', iconClass: 'fa fa-square', iconBgClass: 'bg-blue-100' },
-      { id: 74, name: '洗衣机', iconClass: 'fa fa-circle-o-notch', iconBgClass: 'bg-indigo-100' },
-      { id: 75, name: '小家电', iconClass: 'fa fa-coffee', iconBgClass: 'bg-amber-100' }
-    ]
-  },
-  { id: 8, name: '家居', iconClass: 'fa fa-bed text-amber-600',
-    children: [
-      { id: 81, name: '家具', iconClass: 'fa fa-bed', iconBgClass: 'bg-amber-100' },
-      { id: 82, name: '床垫', iconClass: 'fa fa-sticky-note', iconBgClass: 'bg-purple-100' },
-      { id: 83, name: '灯饰', iconClass: 'fa fa-lightbulb-o', iconBgClass: 'bg-yellow-100' },
-      { id: 84, name: '厨具', iconClass: 'fa fa-cutlery', iconBgClass: 'bg-orange-100' }
-    ]
-  },
-  { id: 9, name: '美妆', iconClass: 'fa fa-paint-brush text-red-400',
-    children: [
-      { id: 91, name: '护肤', iconClass: 'fa fa-smile-o', iconBgClass: 'bg-pink-100' },
-      { id: 92, name: '彩妆', iconClass: 'fa fa-paint-brush', iconBgClass: 'bg-red-100' },
-      { id: 93, name: '香水', iconClass: 'fa fa-fire', iconBgClass: 'bg-amber-100' },
-      { id: 94, name: '个护', iconClass: 'fa fa-heart', iconBgClass: 'bg-rose-100' }
-    ]
-  },
-  { id: 10, name: '母婴', iconClass: 'fa fa-child text-rose-400',
-    children: [
-      { id: 101, name: '童装', iconClass: 'fa fa-child', iconBgClass: 'bg-pink-100' },
-      { id: 102, name: '玩具', iconClass: 'fa fa-gamepad', iconBgClass: 'bg-yellow-100' },
-      { id: 103, name: '婴儿车', iconClass: 'fa fa-stroller', iconBgClass: 'bg-blue-100' },
-      { id: 104, name: '用品', iconClass: 'fa fa-baby', iconBgClass: 'bg-teal-100' }
-    ]
-  },
-  { id: 11, name: '图书', iconClass: 'fa fa-book text-teal-500',
-    children: [
-      { id: 111, name: '小说', iconClass: 'fa fa-book', iconBgClass: 'bg-blue-100' },
-      { id: 112, name: '教辅', iconClass: 'fa fa-graduation-cap', iconBgClass: 'bg-green-100' },
-      { id: 113, name: '绘本', iconClass: 'fa fa-bookmark', iconBgClass: 'bg-pink-100' },
-      { id: 114, name: '文具', iconClass: 'fa fa-pencil', iconBgClass: 'bg-yellow-100' }
-    ]
-  },
-  { id: 12, name: '更多', iconClass: 'fa fa-ellipsis-h text-gray-500',
-    children: [
-      { id: 121, name: '乐器', iconClass: 'fa fa-music', iconBgClass: 'bg-violet-100' },
-      { id: 122, name: '虚拟', iconClass: 'fa fa-gamepad', iconBgClass: 'bg-cyan-100' },
-      { id: 123, name: '票券', iconClass: 'fa fa-ticket', iconBgClass: 'bg-yellow-100' },
-      { id: 124, name: '租房', iconClass: 'fa fa-home', iconBgClass: 'bg-green-100' },
-      { id: 125, name: '汽车', iconClass: 'fa fa-car', iconBgClass: 'bg-gray-100' }
-    ]
+const getIconConfig = (id: number) => {
+  const baseIndex = ((id - 1) % 12) + 1
+  return iconClassMap[baseIndex] || { iconClass: 'fa fa-tag', iconBgClass: 'bg-gray-100' }
+}
+
+// 响应式分类数据
+const mainCategories = ref<Array<{
+  id: number
+  name: string
+  iconClass: string
+  children: Array<{ id: number; name: string; iconClass: string; iconBgClass: string }>
+}>>([])
+
+// 加载分类列表
+const loadCategories = async () => {
+  try {
+    const categories = await getCategoryList()
+    const sortedCategories = categories
+      .filter(c => c.isEnabled)
+      .sort((a, b) => a.sortNo - b.sortNo)
+
+    mainCategories.value = sortedCategories.map(cat => {
+      const iconConfig = getIconConfig(cat.id)
+      const subCategoryNames = ['综合', '热门推荐', '新品上架', '精选好物', '限时特惠', '更多']
+      return {
+        id: cat.id,
+        name: cat.categoryName,
+        iconClass: iconConfig.iconClass + ' text-orange-500',
+        children: subCategoryNames.map((name, index) => ({
+          id: cat.id * 100 + index,
+          name,
+          iconClass: iconConfig.iconClass,
+          iconBgClass: iconConfig.iconBgClass,
+        }))
+      }
+    })
+  } catch (error) {
+    console.error('获取分类列表失败:', error)
   }
-]
+}
 
 
 const displayedProducts = computed(() => store.products.slice(0, 12))
 
 onMounted(() => {
   store.initialize()
+  loadCategories()
 })
-
-const handleLogin = () => {
-  router.push('/user/login')
-}
-
-const handleSearch = () => {
-  if (searchInput.value.trim()) {
-    router.push({ path: '/search', query: { q: searchInput.value.trim() } })
-  }
-}
-
-const searchTag = (tag: string) => {
-  searchInput.value = tag
-  handleSearch()
-}
 
 const goToDetail = (id: number) => {
   router.push({ path: '/detail', query: { id: id.toString() } })
@@ -255,7 +190,7 @@ const goToDetail = (id: number) => {
 
 const showSubMenu = (id: number, index: number) => {
   if (hideTimeout) clearTimeout(hideTimeout)
-  hoveredCategory.value = mainCategories.find(c => c.id === id) || null
+  hoveredCategory.value = mainCategories.value.find(c => c.id === id) || null
   const el = document.querySelectorAll('.categoryItem')[index] as HTMLElement
   if (el) {
     const rect = el.getBoundingClientRect()
@@ -284,6 +219,10 @@ const selectSubCategory = (id: number) => {
 .page {
   min-height: 100vh;
   background: #f5f5f5;
+}
+
+:deep(.site-footer) {
+  margin-top: auto;
 }
 
 /* 顶部导航 */
