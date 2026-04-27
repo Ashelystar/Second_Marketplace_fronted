@@ -6,6 +6,20 @@
         <i class="fa fa-user-circle text-xianyuText"></i>
         个人资料
       </h1>
+      <div class="mb-6 flex flex-wrap gap-2 text-sm">
+        <span class="px-3 py-1 rounded-full bg-orange-50 text-orange-700">
+          用户状态：{{ userStore.userStatus || '未知' }}
+        </span>
+        <span class="px-3 py-1 rounded-full bg-blue-50 text-blue-700">
+          买家权限：{{ userStore.userPermissions.canBuy ? '已开启' : '已关闭' }}
+        </span>
+        <span class="px-3 py-1 rounded-full bg-green-50 text-green-700">
+          卖家权限：{{ userStore.userPermissions.canSell ? '已开启' : '已关闭' }}
+        </span>
+        <span class="px-3 py-1 rounded-full bg-purple-50 text-purple-700">
+          管理员：{{ userStore.userPermissions.isAdmin ? '是' : '否' }}
+        </span>
+      </div>
 
       <!-- 基本信息 -->
       <div class="max-w-3xl">
@@ -16,8 +30,8 @@
             <div class="relative">
               <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow">
                 <img
-                  v-if="form.avatarUrl"
-                  :src="form.avatarUrl"
+                  v-if="avatarPreviewUrl || form.avatarUrl"
+                  :src="avatarPreviewUrl || form.avatarUrl"
                   alt="头像"
                   class="w-full h-full object-cover"
                 />
@@ -27,10 +41,34 @@
               </div>
             </div>
             <div>
-              <button class="px-4 py-2 bg-xianyuText text-white rounded-md hover:bg-xianyuTextDark transition">
-                上传头像
+              <button
+                type="button"
+                @click="chooseAvatarFile"
+                :disabled="isUploadingAvatar"
+                class="px-4 py-2 bg-xianyuText text-white rounded-md hover:bg-xianyuTextDark transition"
+              >
+                {{ isUploadingAvatar ? '头像上传中...' : '上传头像' }}
               </button>
+              <input
+                ref="avatarInputRef"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="onAvatarFileChange"
+              />
+              <p class="mt-2 text-xs text-gray-500">
+                请选择图片后自动上传并回填头像 URL，最后点击“保存修改”生效。
+              </p>
             </div>
+          </div>
+          <div class="mt-3">
+            <label class="block text-sm font-medium text-gray-700 mb-2">头像 URL</label>
+            <input
+              v-model="form.avatarUrl"
+              type="text"
+              placeholder="请输入头像链接（http/https）"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
           </div>
         </div>
 
@@ -143,8 +181,13 @@
 
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
-import axios from 'axios'
+import { ref, reactive, onMounted } from 'vue'
+import {
+  getUserProfileApi,
+  updateUserProfileApi,
+  uploadAvatarApi,
+} from '@/api/user'
+import { useUserStore } from '@/stores/userStore'
 
 // 城市列表（示例）
 const cityList = ref([
@@ -235,6 +278,10 @@ const form = reactive({
 })
 
 const districtList = ref([])
+const avatarInputRef = ref(null)
+const avatarPreviewUrl = ref('')
+const isUploadingAvatar = ref(false)
+const userStore = useUserStore()
 
 // 监听城市变化，更新区县列表
 const onCityChange = () => {
@@ -251,7 +298,6 @@ const onCityChange = () => {
   }
 }
 
-// 从 localStorage 获取用户信息
 const loadUserInfoFromLocalStorage = () => {
   const userInfoStr = localStorage.getItem('userInfo')
   if (!userInfoStr) return
@@ -273,41 +319,34 @@ const loadUserInfoFromLocalStorage = () => {
   }
 }
 
-// 从 API 获取用户信息
 const fetchUserProfile = async () => {
-  const token = localStorage.getItem('token')
-  if (!token) {
-    alert('请先登录')
-    return
-  }
-
   try {
-    const res = await axios.get('/api/user/profile', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
+    const d = await getUserProfileApi()
+    form.avatarUrl = d.avatarUrl || ''
+    form.username = d.username || ''
+    form.nickname = d.nickname || ''
+    form.gender = d.gender || 'male'
+    form.birthday = d.birthday || ''
+    form.bio = d.bio || ''
+    form.city = d.city || ''
+    form.district = (d.district ?? '').toString().trim()
+    avatarPreviewUrl.value = ''
 
-    if (res.data.code === 200) {
-      const d = res.data.data
+    if (form.city && districtMap[form.city]) {
+      districtList.value = districtMap[form.city]
+    }
 
-      form.avatarUrl = d.avatarUrl || ''
-      form.username = d.username || ''
-      form.nickname = d.nickname || ''
-      form.gender = d.gender || 'male'
-      form.birthday = d.birthday || ''
-      form.bio = d.bio || ''
-      form.city = d.city || ''
-      form.district = (d.district ?? '').toString().trim()
-
-      // 关键：生成 districtList
-      if (form.city && districtMap[form.city]) {
-        districtList.value = districtMap[form.city]
-      }
-
-      localStorage.setItem('userInfo', JSON.stringify(d))
+    if (userStore.userInfo) {
+      userStore.login(
+        {
+          ...userStore.userInfo,
+          ...d,
+          avatar: d.avatarUrl || userStore.userInfo.avatar || null,
+        },
+        localStorage.getItem('token') || undefined
+      )
     } else {
-      alert(res.data.message || '获取用户信息失败')
+      localStorage.setItem('userInfo', JSON.stringify(d))
     }
   } catch (err) {
     console.error('获取用户信息失败', err)
@@ -315,16 +354,9 @@ const fetchUserProfile = async () => {
   }
 }
 
-// 保存修改
 const handleSave = async () => {
-  const token = localStorage.getItem('token')
-  if (!token) {
-    alert('请先登录')
-    return
-  }
-
   try {
-    const res = await axios.put('/api/user/profile', {
+    await updateUserProfileApi({
       avatarUrl: form.avatarUrl,
       nickname: form.nickname,
       gender: form.gender,
@@ -332,31 +364,69 @@ const handleSave = async () => {
       bio: form.bio,
       city: form.city,
       district: form.district
-    }, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
     })
+    alert('修改成功')
 
-    if (res.data.code === 200) {
-      alert('修改成功')
-      // 更新 localStorage
-      const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
-      Object.assign(userInfo, {
-        nickname: form.nickname,
-        gender: form.gender,
-        birthday: form.birthday,
-        bio: form.bio,
-        city: form.city,
-        district: form.district
-      })
-      localStorage.setItem('userInfo', JSON.stringify(userInfo))
-    } else {
-      alert(res.data.message || '修改失败')
-    }
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
+    Object.assign(userInfo, {
+      avatarUrl: form.avatarUrl,
+      avatar: form.avatarUrl,
+      nickname: form.nickname,
+      gender: form.gender,
+      birthday: form.birthday,
+      bio: form.bio,
+      city: form.city,
+      district: form.district
+    })
+    localStorage.setItem('userInfo', JSON.stringify(userInfo))
+    avatarPreviewUrl.value = ''
+
+    userStore.login(
+      {
+        ...userStore.userInfo,
+        ...userInfo,
+        avatar: userInfo.avatarUrl || userInfo.avatar || null,
+      },
+      localStorage.getItem('token') || undefined
+    )
+    await userStore.loadUserSecurityInfo()
   } catch (err) {
     console.error('保存失败', err)
     alert('网络错误，请稍后重试')
+  }
+}
+
+const chooseAvatarFile = () => {
+  avatarInputRef.value?.click()
+}
+
+const onAvatarFileChange = async (event) => {
+  const target = event.target
+  const file = target?.files?.[0]
+  if (!file) return
+
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件')
+    target.value = ''
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    alert('图片大小不能超过 5MB')
+    target.value = ''
+    return
+  }
+
+  isUploadingAvatar.value = true
+  try {
+    const uploadedAvatarUrl = await uploadAvatarApi(file)
+    form.avatarUrl = uploadedAvatarUrl
+    avatarPreviewUrl.value = uploadedAvatarUrl
+    alert('头像上传成功，已自动填充头像 URL，请点击“保存修改”完成更新')
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '头像上传失败，请稍后重试')
+  } finally {
+    isUploadingAvatar.value = false
+    target.value = ''
   }
 }
 

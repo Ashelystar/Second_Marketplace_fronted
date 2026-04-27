@@ -41,6 +41,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { registerApi } from '@/api/user'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -56,11 +57,19 @@ async function handleRegister() {
     if (!username.value.trim() || !password.value.trim()) {
       throw new Error('用户名和密码不能为空')
     }
-    userStore.login({
-      id: Date.now(),
-      username: nickname.value.trim() || username.value.trim(),
-      avatar: '',
+    const data = await registerApi({
+      username: username.value.trim(),
+      nickname: nickname.value.trim() || username.value.trim(),
+      phone: phone.value.trim() || undefined,
+      password: password.value.trim(),
     })
+    userStore.login(
+      {
+        ...data.userInfo,
+        avatar: data.userInfo.avatarUrl || data.userInfo.avatar || null,
+      },
+      data.token
+    )
     await router.push('/user/profile')
   } catch (error) {
     alert((error as Error).message)
@@ -72,9 +81,14 @@ async function handleRegister() {
 
 <style scoped>
 .page-panel {
-  min-height: 72vh;
+  min-height: calc(100vh - 88px);
   display: grid;
   place-items: center;
+  padding: 32px 16px;
+}
+
+.auth-panel {
+  background: linear-gradient(180deg, #fffaf5 0%, #fff 45%);
 }
 
 .auth-card {
@@ -82,6 +96,7 @@ async function handleRegister() {
   background: #fff;
   border-radius: 24px;
   padding: 36px 32px;
+  border: 1px solid #f2f2f2;
   box-shadow: 0 20px 55px rgba(106, 115, 141, 0.12);
 }
 
@@ -118,6 +133,7 @@ async function handleRegister() {
 
 .field-group label {
   font-size: 0.95rem;
+  font-weight: 600;
   color: #4e4e4e;
 }
 
@@ -133,6 +149,8 @@ async function handleRegister() {
 
 .field-group input:focus {
   border-color: #ff8c00;
+  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.14);
+  background: #fff;
 }
 
 .primary-button {
@@ -144,6 +162,13 @@ async function handleRegister() {
   color: white;
   font-weight: 700;
   cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #f27300;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(255, 127, 0, 0.3);
 }
 
 .primary-button:disabled {
@@ -154,6 +179,8 @@ async function handleRegister() {
 .auth-footer {
   display: flex;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-top: 22px;
   font-size: 0.95rem;
 }
@@ -161,5 +188,21 @@ async function handleRegister() {
 .auth-footer a {
   color: #ff6d00;
   text-decoration: none;
+  padding: 2px 0;
+}
+
+.auth-footer a:hover {
+  color: #f27300;
+}
+
+@media (max-width: 640px) {
+  .auth-card {
+    border-radius: 18px;
+    padding: 28px 20px;
+  }
+
+  .auth-card h2 {
+    font-size: 1.6rem;
+  }
 }
 </style>

@@ -11,6 +11,8 @@ import ChatList from '../views/chat/Index.vue'
 import OrderList from '../views/order/List.vue'
 import UserLogin from '../views/user/Login.vue'
 import UserRegister from '../views/user/Register.vue'
+import UserForgotPassword from '../views/user/ForgotPassword.vue'
+import UserResetPassword from '../views/user/ResetPassword.vue'
 import UserLayout from '../views/user/UserLayout.vue' 
 import Center from '../views/user/Center.vue'
 
@@ -167,6 +169,16 @@ const router = createRouter({
       component: UserRegister,
     },
     {
+      path: '/user/forgot-password',
+      name: 'forgot-password',
+      component: UserForgotPassword,
+    },
+    {
+      path: '/user/reset-password',
+      name: 'reset-password',
+      component: UserResetPassword,
+    },
+    {
       path: '/user/home/:id',
       name: 'user-home',
       component: () => import('../views/user/PublicProfile.vue'),
@@ -233,7 +245,7 @@ const router = createRouter({
   ],
 })
 
-const guestAllowedPaths = new Set(['/','/user/login','/user/register'])
+const guestAllowedPaths = new Set(['/','/user/login','/user/register','/user/forgot-password','/user/reset-password'])
 
 router.beforeEach((to) => {
   const userStore = useUserStore()

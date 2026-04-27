@@ -105,20 +105,49 @@
             <div class="h-full bg-green-500 rounded-full" :style="{ width: positiveRate + '%' }"></div>
           </div>
         </div>
+        <div class="text-sm text-gray-600">
+          总评价数：<span class="font-semibold text-xianyuText">{{ totalReviewCount }}</span>
+        </div>
       </div>
       <button class="mt-4 w-full text-sm text-xianyuText hover:text-xianyuText/80" @click="$router.push('/user/setting')">
         查看详情 >
       </button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm p-6 mt-6 border border-gray-100">
+      <h3 class="font-semibold text-lg mb-4">用户统计</h3>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div class="rounded-lg bg-gray-50 p-3">
+          <div class="text-gray-500">商品数</div>
+          <div class="text-lg font-semibold text-xianyuText">{{ userStats.productCount }}</div>
+        </div>
+        <div class="rounded-lg bg-gray-50 p-3">
+          <div class="text-gray-500">订单数</div>
+          <div class="text-lg font-semibold text-xianyuText">{{ userStats.orderCount }}</div>
+        </div>
+        <div class="rounded-lg bg-gray-50 p-3">
+          <div class="text-gray-500">收藏数</div>
+          <div class="text-lg font-semibold text-xianyuText">{{ userStats.favoriteCount }}</div>
+        </div>
+        <div class="rounded-lg bg-gray-50 p-3">
+          <div class="text-gray-500">关注数</div>
+          <div class="text-lg font-semibold text-xianyuText">{{ userStats.followCount }}</div>
+        </div>
+        <div class="rounded-lg bg-gray-50 p-3 col-span-2">
+          <div class="text-gray-500">粉丝数</div>
+          <div class="text-lg font-semibold text-xianyuText">{{ userStats.followerCount }}</div>
+        </div>
+      </div>
     </div>
         </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted,computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { logoutApi, getUserCreditScoreApi } from '@/api/user'
+import { logoutApi, getUserCreditScoreApi, getUserStatsApi } from '@/api/user'
 
 const route = useRoute()
 const router = useRouter()
@@ -126,25 +155,83 @@ const userStore = useUserStore()
 
 const avatarUrl = computed(() => userStore.userInfo?.avatar || '')
 const displayName = computed(() => userStore.userInfo?.username || '未登录用户')
-const creditScore = ref<number>(300) // 默认给一个初始值
-const positiveRate = ref<number>(99)
+const creditScore = ref<number>(0)
+const positiveRate = ref<number>(0)
+const totalReviewCount = ref<number>(0)
+const userStats = ref({
+  productCount: 0,
+  orderCount: 0,
+  favoriteCount: 0,
+  followCount: 0,
+  followerCount: 0,
+})
 
+const resetCreditData = () => {
+  creditScore.value = 0
+  positiveRate.value = 0
+  totalReviewCount.value = 0
+}
 
-const fetchCreditScore = async () => {
-  try {
-    const result = await getUserCreditScoreApi()
-    creditScore.value = Number(result.creditScore || 300)
-    positiveRate.value = Number(result.positiveRate || 99)
-  } catch (error) {
-    console.error('获取信用分失败:', error)
-    creditScore.value = 300
-    positiveRate.value = 99
+const resetUserStats = () => {
+  userStats.value = {
+    productCount: 0,
+    orderCount: 0,
+    favoriteCount: 0,
+    followCount: 0,
+    followerCount: 0,
   }
 }
+
+const fetchCreditScore = async () => {
+  if (!userStore.isLoggedIn) {
+    resetCreditData()
+    return
+  }
+  try {
+    const result = await getUserCreditScoreApi()
+    // 使用 ?? 保留后端返回的 0 值，避免 0 被错误替换为默认值
+    creditScore.value = Math.max(0, Number(result.creditScore ?? 0))
+    positiveRate.value = Math.max(0, Math.min(100, Number(result.positiveRate ?? 0)))
+    totalReviewCount.value = Math.max(0, Number(result.totalReviewCount ?? 0))
+  } catch (error) {
+    console.error('获取信用分失败:', error)
+    resetCreditData()
+  }
+}
+
+const fetchUserStats = async () => {
+  if (!userStore.isLoggedIn) {
+    resetUserStats()
+    return
+  }
+  try {
+    const stats = await getUserStatsApi()
+    userStats.value = {
+      productCount: Math.max(0, Number(stats.productCount ?? 0)),
+      orderCount: Math.max(0, Number(stats.orderCount ?? 0)),
+      favoriteCount: Math.max(0, Number(stats.favoriteCount ?? 0)),
+      followCount: Math.max(0, Number(stats.followCount ?? 0)),
+      followerCount: Math.max(0, Number(stats.followerCount ?? 0)),
+    }
+  } catch (error) {
+    console.error('获取用户统计失败:', error)
+    resetUserStats()
+  }
+}
+
 onMounted(() => {
   console.log('✅ 用户侧边栏组件已挂载')
   fetchCreditScore()
+  fetchUserStats()
 })
+
+watch(
+  () => userStore.isLoggedIn,
+  () => {
+    fetchCreditScore()
+    fetchUserStats()
+  }
+)
 const linkClass = (path: string) => {
   const active = route.path === path || route.path.startsWith(`${path}/`)
   return [

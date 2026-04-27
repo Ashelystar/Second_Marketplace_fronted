@@ -52,6 +52,21 @@ export interface UpdateUserProfileRequest {
   district?: string
 }
 
+export interface UserProfileData {
+  id: number
+  username: string
+  nickname: string
+  avatarUrl: string | null
+  gender: 'male' | 'female' | 'other' | null
+  birthday: string | null
+  bio: string | null
+  city: string | null
+  district: string | null
+  email?: string | null
+  phone?: string | null
+  userStatus?: string | null
+}
+
 export interface ChangePasswordRequest {
   oldPassword: string
   newPassword: string
@@ -438,6 +453,26 @@ export async function changePasswordApi(body: ChangePasswordRequest): Promise<vo
   }
 }
 
+export async function uploadAvatarApi(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch('/api/upload/avatar', {
+    method: 'POST',
+    headers: getAuthHeader(),
+    body: formData,
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<string>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '上传头像失败')
+  }
+  return json.data
+}
+
 export async function updateUserProfileApi(body: UpdateUserProfileRequest): Promise<void> {
   const response = await fetch('/api/user/profile', {
     method: 'PUT',
@@ -455,6 +490,22 @@ export async function updateUserProfileApi(body: UpdateUserProfileRequest): Prom
   if (json.code !== 200) {
     throw new Error(json.message || '更新个人信息失败')
   }
+}
+
+export async function getUserProfileApi(): Promise<UserProfileData> {
+  const response = await fetch('/api/user/profile', {
+    method: 'GET',
+    headers: getAuthHeader(),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<UserProfileData>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '获取个人信息失败')
+  }
+  return json.data
 }
 
 export async function getAddressListApi(): Promise<UserAddressItem[]> {

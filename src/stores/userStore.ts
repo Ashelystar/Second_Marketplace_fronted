@@ -4,6 +4,9 @@ import {
   favoriteProductApi,
   unfavoriteProductApi,
   getFavoriteIdsApi,
+  getUserStatusApi,
+  getUserPermissionsApi,
+  type UserPermissions,
 } from '@/api/user'
 
 export interface FavoriteItem {
@@ -30,18 +33,40 @@ export interface UserInfo {
 }
 
 export const useUserStore = defineStore('user', () => {
-  const token = ref<string>(localStorage.getItem('token') || '')
-  const userInfo = ref<UserInfo | null>(
-    JSON.parse(localStorage.getItem('userInfo') || 'null')
-  )
+  const cachedToken = localStorage.getItem('token') || ''
+  const cachedUserInfo = localStorage.getItem('userInfo')
+
+  let parsedUserInfo: UserInfo | null = null
+  if (cachedUserInfo) {
+    try {
+      parsedUserInfo = JSON.parse(cachedUserInfo) as UserInfo | null
+    } catch {
+      parsedUserInfo = null
+    }
+  }
+
+  const hasValidAuthCache = Boolean(cachedToken && parsedUserInfo)
+  const token = ref<string>(hasValidAuthCache ? cachedToken : '')
+  const userInfo = ref<UserInfo | null>(hasValidAuthCache ? parsedUserInfo : null)
+
+  if (!hasValidAuthCache) {
+    localStorage.removeItem('token')
+    localStorage.removeItem('userInfo')
+  }
 
   // 收藏列表
   const favorites = ref<FavoriteItem[]>(
     JSON.parse(localStorage.getItem('favorites') || '[]')
   )
   const favoriteIds = ref<number[]>([])
+  const userStatus = ref<string>(userInfo.value?.userStatus || '')
+  const userPermissions = ref<UserPermissions>({
+    canBuy: true,
+    canSell: true,
+    isAdmin: false,
+  })
 
-  const isLoggedIn = computed(() => !!token.value)
+  const isLoggedIn = computed(() => !!token.value && !!userInfo.value)
 
   const isFavorited = (productId: number) => {
     return favoriteIds.value.includes(productId) || favorites.value.some(item => item.id === productId)
@@ -107,36 +132,71 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('favorites', JSON.stringify(favorites.value))
   }
 
+  const loadUserSecurityInfo = async () => {
+    if (!isLoggedIn.value) {
+      userStatus.value = ''
+      userPermissions.value = { canBuy: true, canSell: true, isAdmin: false }
+      return
+    }
+    const [statusResult, permissionsResult] = await Promise.allSettled([
+      getUserStatusApi(),
+      getUserPermissionsApi(),
+    ])
+    if (statusResult.status === 'fulfilled') {
+      userStatus.value = statusResult.value
+      if (userInfo.value) {
+        userInfo.value = {
+          ...userInfo.value,
+          userStatus: statusResult.value,
+        }
+        localStorage.setItem('userInfo', JSON.stringify(userInfo.value))
+      }
+    }
+    if (permissionsResult.status === 'fulfilled') {
+      userPermissions.value = permissionsResult.value
+    }
+  }
+
   const login = (user: typeof userInfo.value, tokenValue?: string) => {
     userInfo.value = user
     localStorage.setItem('userInfo', JSON.stringify(user))
     if (tokenValue) {
       localStorage.setItem('token', tokenValue)
       token.value = tokenValue
+    } else {
+      token.value = ''
+      localStorage.removeItem('token')
     }
     loadFavoriteIds()
+    void loadUserSecurityInfo()
   }
 
   const logout = () => {
     userInfo.value = null
     token.value = ''
+    userStatus.value = ''
+    userPermissions.value = { canBuy: true, canSell: true, isAdmin: false }
     localStorage.removeItem('userInfo')
     localStorage.removeItem('token')
     favoriteIds.value = favorites.value.map(item => item.id)
   }
 
   loadFavoriteIds()
+  void loadUserSecurityInfo()
 
   return {
     userInfo,
     isLoggedIn,
     favorites,
     favoriteIds,
+    userStatus,
+    userPermissions,
     isFavorited,
     addFavorite,
     removeFavorite,
     toggleFavorite,
     loadFavoriteIds,
+    loadUserSecurityInfo,
     login,
     logout
   }
