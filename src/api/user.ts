@@ -52,6 +52,21 @@ export interface UpdateUserProfileRequest {
   district?: string
 }
 
+export interface UserProfileData {
+  id: number
+  username: string
+  nickname: string
+  avatarUrl: string | null
+  gender: 'male' | 'female' | 'other' | null
+  birthday: string | null
+  bio: string | null
+  city: string | null
+  district: string | null
+  email?: string | null
+  phone?: string | null
+  userStatus?: string | null
+}
+
 export interface ChangePasswordRequest {
   oldPassword: string
   newPassword: string
@@ -113,6 +128,31 @@ export interface BindPhoneRequest {
 export interface BindEmailRequest {
   email: string
   verifyCode: string
+}
+
+export interface RealNameVerificationRequest {
+  realName: string
+  idCardNumber: string
+}
+
+export interface VerificationStatusItem {
+  id?: number | string
+  verificationId?: number | string
+  verifyType: string
+  verifyStatus: string
+  rejectReason: string | null
+  submittedAt: string | null
+}
+
+export interface VerificationDetailData {
+  id: number
+  verifyType: string
+  realName: string
+  idCardNumber: string
+  verifyStatus: string
+  rejectReason: string | null
+  submittedAt: string | null
+  reviewedAt: string | null
 }
 
 export async function favoriteProductApi(productId: number | string): Promise<void> {
@@ -438,6 +478,26 @@ export async function changePasswordApi(body: ChangePasswordRequest): Promise<vo
   }
 }
 
+export async function uploadAvatarApi(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch('/api/upload/avatar', {
+    method: 'POST',
+    headers: getAuthHeader(),
+    body: formData,
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<string>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '上传头像失败')
+  }
+  return json.data
+}
+
 export async function updateUserProfileApi(body: UpdateUserProfileRequest): Promise<void> {
   const response = await fetch('/api/user/profile', {
     method: 'PUT',
@@ -455,6 +515,22 @@ export async function updateUserProfileApi(body: UpdateUserProfileRequest): Prom
   if (json.code !== 200) {
     throw new Error(json.message || '更新个人信息失败')
   }
+}
+
+export async function getUserProfileApi(): Promise<UserProfileData> {
+  const response = await fetch('/api/user/profile', {
+    method: 'GET',
+    headers: getAuthHeader(),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<UserProfileData>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '获取个人信息失败')
+  }
+  return json.data
 }
 
 export async function getAddressListApi(): Promise<UserAddressItem[]> {
@@ -591,6 +667,81 @@ export async function bindEmailApi(body: BindEmailRequest): Promise<void> {
   const json = await parseResponse<ApiResponse<null>>(response)
   if (json.code !== 200) {
     throw new Error(json.message || '绑定邮箱失败')
+  }
+}
+
+export async function submitRealNameVerificationApi(body: RealNameVerificationRequest): Promise<void> {
+  const response = await fetch('/api/user/verification/realname', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<null>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '提交实名认证失败')
+  }
+}
+
+export async function getVerificationStatusApi(): Promise<VerificationStatusItem[]> {
+  const response = await fetch('/api/user/verification/status', {
+    method: 'GET',
+    headers: getAuthHeader(),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<VerificationStatusItem[]>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '查询认证状态失败')
+  }
+  return json.data || []
+}
+
+export async function getVerificationDetailApi(
+  verificationId: number | string
+): Promise<VerificationDetailData> {
+  const response = await fetch(`/api/user/verification/detail/${verificationId}`, {
+    method: 'GET',
+    headers: getAuthHeader(),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<VerificationDetailData>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '查询认证记录详情失败')
+  }
+  return json.data
+}
+
+export async function resubmitVerificationApi(
+  verificationId: number | string,
+  body: RealNameVerificationRequest
+): Promise<void> {
+  const query = new URLSearchParams({
+    realName: body.realName,
+    idCardNumber: body.idCardNumber,
+  })
+  const response = await fetch(`/api/user/verification/${verificationId}/resubmit?${query.toString()}`, {
+    method: 'GET',
+    headers: getAuthHeader(),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<null>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '重新提交认证失败')
   }
 }
 

@@ -381,7 +381,11 @@ const productStats = ref({ viewCount: 0, favoriteCount: 0, orderCount: 0 })
 const productStatus = ref('')
 const isLoading = ref(true)
 const loadError = ref('')
-const isFavorited = ref(false)
+const favoritePending = ref(false)
+const isFavorited = computed(() => {
+  if (!product.value?.id) return false
+  return userStore.isFavorited(product.value.id)
+})
 
 // 评论相关
 const comments = ref<Comment[]>([])
@@ -649,6 +653,8 @@ const goToUserProfile = (user: { userId?: number; name: string; avatar?: string 
 const toggleFavorite = async () => {
   if (!product.value) return
   if (!ensureLoggedIn('收藏商品')) return
+  if (favoritePending.value) return
+  favoritePending.value = true
   try {
     await userStore.toggleFavorite({
       id: product.value.id,
@@ -659,15 +665,21 @@ const toggleFavorite = async () => {
       location: product.value.location,
       addTime: new Date().toLocaleString()
     })
-    isFavorited.value = userStore.isFavorited(product.value.id)
   } catch (error) {
     alert(error instanceof Error ? error.message : '收藏操作失败')
+  } finally {
+    favoritePending.value = false
   }
 }
 
 const goToCheckout = () => {
   if (!ensureLoggedIn('购买商品')) return
-  router.push({ path: '/checkout', query: { productId: route.query.id } })
+  const productId = resolveRouteProductId()
+  if (!productId) {
+    alert('商品信息异常，请返回后重试')
+    return
+  }
+  router.push({ path: '/checkout', query: { productId: String(productId) } })
 }
 const goToChat = () => {
   if (!ensureLoggedIn('和卖家聊天')) return
@@ -678,7 +690,12 @@ const goToSellerProfile = () => {
   if (!product.value?.sellerId) return
   router.push({
     path: `/user/home/${product.value.sellerId}`,
-    query: { fromProductId: String(product.value.id) }
+    query: {
+      fromProductId: String(product.value.id),
+      name: product.value.sellerName || '',
+      avatar: product.value.sellerAvatar || '',
+      location: product.value.location || '未知',
+    },
   })
 }
 
@@ -695,11 +712,30 @@ const getPublishTime = (id: number) => {
   return '1周前发布'
 }
 
+const normalizeRouteId = (value: unknown): number | null => {
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    return normalizeRouteId(value[0])
+  }
+  return null
+}
+
+const resolveRouteProductId = (): number | null => {
+  const queryId = normalizeRouteId(route.query.id)
+  if (queryId) return queryId
+  const paramId = normalizeRouteId(route.params.id)
+  if (paramId) return paramId
+  return null
+}
+
 const loadDetails = async () => {
-  const id = parseInt(route.query.id as string)
+  const id = resolveRouteProductId()
   console.log('=== 商品详情请求 ===')
   console.log('商品ID:', id)
-  if (isNaN(id)) {
+  if (!id) {
     loadError.value = '无效的商品ID'
     isLoading.value = false
     return
@@ -774,26 +810,18 @@ const performSearch = () => {
 const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
 
-watch(() => route.query.id, (id) => {
-  if (id) {
+watch(() => [route.query.id, route.params.id], () => {
+  if (resolveRouteProductId()) {
     isLoading.value = true
     loadDetails()
     loadRecs()
   }
 }, { immediate: true })
 
-// 监听商品变化，更新收藏状态
-watch(() => product.value?.id, (newId) => {
-  if (newId) {
-    isFavorited.value = userStore.isFavorited(newId)
-  }
-})
-
 onMounted(() => {
   loadComments()
-  // 初始化收藏状态
-  if (product.value) {
-    isFavorited.value = userStore.isFavorited(product.value.id)
+  if (userStore.isLoggedIn) {
+    void userStore.loadFavoriteIds()
   }
 })
 </script>

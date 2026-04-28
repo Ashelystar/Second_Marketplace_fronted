@@ -6,6 +6,20 @@
         <i class="fa fa-user-circle text-xianyuText"></i>
         个人资料
       </h1>
+      <div class="mb-6 flex flex-wrap gap-2 text-sm">
+        <span class="px-3 py-1 rounded-full bg-orange-50 text-orange-700">
+          用户状态：{{ userStore.userStatus || '未知' }}
+        </span>
+        <span class="px-3 py-1 rounded-full bg-blue-50 text-blue-700">
+          买家权限：{{ userStore.userPermissions.canBuy ? '已开启' : '已关闭' }}
+        </span>
+        <span class="px-3 py-1 rounded-full bg-green-50 text-green-700">
+          卖家权限：{{ userStore.userPermissions.canSell ? '已开启' : '已关闭' }}
+        </span>
+        <span class="px-3 py-1 rounded-full bg-purple-50 text-purple-700">
+          管理员：{{ userStore.userPermissions.isAdmin ? '是' : '否' }}
+        </span>
+      </div>
 
       <!-- 基本信息 -->
       <div class="max-w-3xl">
@@ -16,8 +30,8 @@
             <div class="relative">
               <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow">
                 <img
-                  v-if="form.avatarUrl"
-                  :src="form.avatarUrl"
+                  v-if="avatarPreviewUrl || form.avatarUrl"
+                  :src="avatarPreviewUrl || form.avatarUrl"
                   alt="头像"
                   class="w-full h-full object-cover"
                 />
@@ -40,6 +54,15 @@
                 @change="handleFileChange"
               />
             </div>
+          </div>
+          <div class="mt-3">
+            <label class="block text-sm font-medium text-gray-700 mb-2">头像 URL</label>
+            <input
+              v-model="form.avatarUrl"
+              type="text"
+              placeholder="请输入头像链接（http/https）"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
           </div>
         </div>
 
@@ -153,7 +176,12 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
-import axios from 'axios'
+import { useUserStore } from '@/stores/userStore'
+import {
+  getUserProfileApi,
+  updateUserProfileApi,
+  uploadAvatarApi,
+} from '@/api/user'
 // 在已有声明（如 const cityList = ref...）附近添加
 const fileInputRef = ref(null)
 // 城市列表（示例）
@@ -245,6 +273,34 @@ const form = reactive({
 })
 
 const districtList = ref([])
+const avatarInputRef = ref(null)
+const avatarPreviewUrl = ref('')
+const isUploadingAvatar = ref(false)
+const userStore = useUserStore()
+
+const syncUserInfoToStore = (payload) => {
+  const raw = localStorage.getItem('userInfo')
+  const cached = raw ? JSON.parse(raw) : {}
+  const merged = {
+    ...cached,
+    ...payload,
+  }
+  merged.avatar = merged.avatarUrl || merged.avatar || ''
+  localStorage.setItem('userInfo', JSON.stringify(merged))
+
+  if (userStore.userInfo) {
+    userStore.userInfo = {
+      ...userStore.userInfo,
+      ...merged,
+      avatar: merged.avatar || null,
+    }
+    return
+  }
+  userStore.userInfo = {
+    ...merged,
+    avatar: merged.avatar || null,
+  }
+}
 
 // 监听城市变化，更新区县列表
 const onCityChange = () => {
@@ -261,7 +317,6 @@ const onCityChange = () => {
   }
 }
 
-// 从 localStorage 获取用户信息
 const loadUserInfoFromLocalStorage = () => {
   const userInfoStr = localStorage.getItem('userInfo')
   if (!userInfoStr) return
@@ -284,58 +339,33 @@ const loadUserInfoFromLocalStorage = () => {
   console.log('从 localStorage 加载的用户信息:', form)  // 调试用
 }
 
-// 从 API 获取用户信息
 const fetchUserProfile = async () => {
-  const token = localStorage.getItem('token')
-  if (!token) {
-    alert('请先登录')
-    return
-  }
-
   try {
-    const res = await axios.get('/api/user/profile', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
+    const d = await getUserProfileApi()
+    form.avatarUrl = d.avatarUrl || ''
+    form.username = d.username || ''
+    form.nickname = d.nickname || ''
+    form.gender = d.gender || 'male'
+    form.birthday = d.birthday || ''
+    form.bio = d.bio || ''
+    form.city = d.city || ''
+    form.district = (d.district ?? '').toString().trim()
+    avatarPreviewUrl.value = ''
 
-    if (res.data.code === 200) {
-      const d = res.data.data
-
-      form.avatarUrl = d.avatarUrl || ''
-      form.username = d.username || ''
-      form.nickname = d.nickname || ''
-      form.gender = d.gender || 'male'
-      form.birthday = d.birthday || ''
-      form.bio = d.bio || ''
-      form.city = d.city || ''
-      form.district = (d.district ?? '').toString().trim()
-
-      // 关键：生成 districtList
-      if (form.city && districtMap[form.city]) {
-        districtList.value = districtMap[form.city]
-      }
-
-      localStorage.setItem('userInfo', JSON.stringify(d))
-    } else {
-      alert(res.data.message || '获取用户信息失败')
+    if (form.city && districtMap[form.city]) {
+      districtList.value = districtMap[form.city]
     }
+
+    syncUserInfoToStore(d)
   } catch (err) {
     console.error('获取用户信息失败', err)
     alert('网络错误，请稍后重试')
   }
 }
 
-// 保存修改
 const handleSave = async () => {
-  const token = localStorage.getItem('token')
-  if (!token) {
-    alert('请先登录')
-    return
-  }
-
   try {
-    const res = await axios.put('/api/user/profile', {
+    await updateUserProfileApi({
       avatarUrl: form.avatarUrl,
       nickname: form.nickname,
       gender: form.gender,
@@ -343,28 +373,22 @@ const handleSave = async () => {
       bio: form.bio,
       city: form.city,
       district: form.district
-    }, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
     })
+    alert('修改成功')
 
-    if (res.data.code === 200) {
-      alert('修改成功')
-      // 更新 localStorage
-      const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
-      Object.assign(userInfo, {
-        nickname: form.nickname,
-        gender: form.gender,
-        birthday: form.birthday,
-        bio: form.bio,
-        city: form.city,
-        district: form.district
-      })
-      localStorage.setItem('userInfo', JSON.stringify(userInfo))
-    } else {
-      alert(res.data.message || '修改失败')
+    const userInfo = {
+      avatarUrl: form.avatarUrl,
+      avatar: form.avatarUrl,
+      nickname: form.nickname,
+      gender: form.gender,
+      birthday: form.birthday,
+      bio: form.bio,
+      city: form.city,
+      district: form.district
     }
+    syncUserInfoToStore(userInfo)
+    avatarPreviewUrl.value = ''
+    await userStore.loadUserSecurityInfo()
   } catch (err) {
     console.error('保存失败', err)
     alert('网络错误，请稍后重试')
@@ -380,59 +404,17 @@ const handleFileChange = async (event) => {
   const file = event.target.files[0]
   if (!file) return
 
-  const token = localStorage.getItem('token')
-  if (!token) {
-    alert('请先登录')
-    return
-  }
-
-  // 第一步：上传文件到 /api/upload/avatar
-  const formData = new FormData()
-  formData.append('file', file)
-
   try {
-    const uploadRes = await axios.post('/api/upload/avatar', formData, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data'
-      }
-    })
-
-    console.log('上传接口返回:', uploadRes.data)  // 调试用
-
-    if (uploadRes.data.code === 200) {
-      // 注意：根据截图，data是字符串，不是对象
-      const avatarUrl = uploadRes.data.data
-      
-      console.log('获取到的头像URL:', avatarUrl)  // 调试用
-      
-      // 将返回的URL更新到表单数据中
-      form.avatarUrl = avatarUrl
-      
-      // 第二步：自动调用保存函数，将新头像URL及其他资料更新到 /api/user/profile
-      await handleSave()
-      
-      alert('头像上传并更新成功')
-    } else {
-      alert(uploadRes.data.message || '头像上传失败')
-    }
+    isUploadingAvatar.value = true
+    const avatarUrl = await uploadAvatarApi(file)
+    form.avatarUrl = avatarUrl
+    await handleSave()
+    alert('头像上传并更新成功')
   } catch (err) {
     console.error('头像上传失败', err)
-    if (err.response) {
-      // 服务器返回了错误状态码
-      console.error('响应数据:', err.response.data)
-      console.error('响应状态:', err.response.status)
-      alert(`上传失败: ${err.response.data.message || '服务器错误'}`)
-    } else if (err.request) {
-      // 请求已发送但无响应
-      console.error('无响应:', err.request)
-      alert('网络错误，请检查网络连接')
-    } else {
-      // 请求配置错误
-      console.error('请求错误:', err.message)
-      alert('请求配置错误: ' + err.message)
-    }
+    alert(err instanceof Error ? `上传失败: ${err.message}` : '网络错误，请稍后重试')
   } finally {
+    isUploadingAvatar.value = false
     // 清空input的值，允许重复选择同一文件
     event.target.value = ''
   }

@@ -2,28 +2,28 @@
   <section class="page-panel auth-panel">
     <div class="auth-card">
       <header class="auth-header">
-        <p class="auth-label">销售管理系统</p>
-        <h2>登录你的账户</h2>
-        <p>支持用户名 / 手机 / 邮箱登录，快速进入交易和用户中心。</p>
+        <p class="auth-label">账户安全</p>
+        <h2>重置密码</h2>
+        <p>请输入新密码并确认，提交后将完成密码重置。</p>
       </header>
 
-      <form class="auth-form" @submit.prevent="handleLogin">
+      <form class="auth-form" @submit.prevent="handleResetPassword">
         <div class="field-group">
-          <label>用户名 / 手机 / 邮箱</label>
-          <input v-model="account" type="text" placeholder="请输入登录账号" />
+          <label>新密码</label>
+          <input v-model="newPassword" type="password" placeholder="请输入新密码" />
         </div>
         <div class="field-group">
-          <label>密码</label>
-          <input v-model="password" type="password" placeholder="请输入登录密码" />
+          <label>确认新密码</label>
+          <input v-model="confirmPassword" type="password" placeholder="请再次输入新密码" />
         </div>
         <button class="primary-button" type="submit" :disabled="loading">
-          {{ loading ? '登录中...' : '立即登录' }}
+          {{ loading ? '提交中...' : '确认重置' }}
         </button>
       </form>
 
       <footer class="auth-footer">
-        <RouterLink to="/user/register">新用户注册</RouterLink>
-        <RouterLink to="/user/forgot-password">忘记密码</RouterLink>
+        <RouterLink to="/user/forgot-password">返回忘记密码</RouterLink>
+        <RouterLink to="/user/login">返回登录</RouterLink>
         <RouterLink to="/">返回首页</RouterLink>
       </footer>
     </div>
@@ -32,42 +32,52 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/userStore'
-import { loginApi } from '@/api/user'
+import { useRoute, useRouter } from 'vue-router'
+import { resetPasswordApi } from '@/api/user'
 
+const route = useRoute()
 const router = useRouter()
-const userStore = useUserStore()
-const account = ref('')
-const password = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
 const loading = ref(false)
 
-async function handleLogin() {
+async function handleResetPassword() {
+  const rawToken = typeof route.query.token === 'string' ? route.query.token : ''
+  const trimmedToken = rawToken.trim()
+  const trimmedPassword = newPassword.value.trim()
+  const trimmedConfirmPassword = confirmPassword.value.trim()
+
+  if (!trimmedToken) {
+    alert('缺少验证码，请先在“忘记密码”页面完成验证码验证')
+    await router.push('/user/forgot-password')
+    return
+  }
+  if (!trimmedPassword) {
+    alert('请输入新密码')
+    return
+  }
+  if (trimmedPassword.length < 6) {
+    alert('新密码长度不能少于 6 位')
+    return
+  }
+  if (trimmedPassword !== trimmedConfirmPassword) {
+    alert('两次输入的新密码不一致')
+    return
+  }
+
   loading.value = true
   try {
-    if (!account.value.trim() || !password.value.trim()) {
-      alert('请输入账号和密码')
-      return
-    }
-    const data = await loginApi({
-      account: account.value.trim(),
-      password: password.value.trim(),
+    await resetPasswordApi({
+      token: trimmedToken,
+      newPassword: trimmedPassword,
     })
-    userStore.login(
-      {
-        ...data.userInfo,
-        avatar: data.userInfo.avatarUrl || data.userInfo.avatar || null,
-      },
-      data.token
-    )
-    alert('登录成功！')
-    await router.push('/user/center')
+    alert('密码重置成功，请重新登录。')
+    await router.push('/user/login')
   } catch (error) {
-    // 详细错误提示
     if (error instanceof Error) {
-      alert('登录失败：' + error.message)
+      alert('重置失败：' + error.message)
     } else {
-      alert('登录失败，未知错误')
+      alert('重置失败，未知错误')
     }
   } finally {
     loading.value = false

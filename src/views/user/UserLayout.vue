@@ -2,13 +2,15 @@
   <div class="user-layout min-h-screen bg-gray-50">
     <HeaderNav />
 
-    <div class="max-w-7xl mx-auto px-4 py-6 md:py-8">
+    <div class="max-w-7xl mx-auto px-4 py-6 md:py-8 user-layout-shell">
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         <UserSidebar />
 
         <div class="lg:col-span-3 user-main-wrap">
-          <router-view v-slot="{ Component }">
-            <component :is="Component" />
+          <router-view v-slot="{ Component, route }">
+            <Transition name="user-fade-slide" mode="out-in">
+              <component :is="Component" :key="route.fullPath" class="user-route-panel" />
+            </Transition>
           </router-view>
         </div>
       </div>
@@ -47,13 +49,22 @@ import UserSidebar from '@/components/layout/UserSidebar.vue'
 
 <style scoped>
 .user-main-wrap {
-  animation: main-panel-in 280ms ease both;
+  animation: main-panel-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  will-change: transform, opacity;
+}
+
+.user-layout-shell {
+  position: relative;
+}
+
+.user-route-panel {
+  min-height: 320px;
 }
 
 @keyframes main-panel-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -63,26 +74,28 @@ import UserSidebar from '@/components/layout/UserSidebar.vue'
 
 :deep(.user-fade-slide-enter-active),
 :deep(.user-fade-slide-leave-active) {
-  transition: all 220ms ease;
+  transition: opacity 260ms ease, transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 260ms ease;
 }
 
 :deep(.user-fade-slide-enter-from),
 :deep(.user-fade-slide-leave-to) {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(12px) scale(0.995);
+  filter: blur(2px);
 }
 
 :deep(.user-page-card) {
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 14px rgba(17, 24, 39, 0.06);
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(17, 24, 39, 0.06);
   border: 1px solid rgba(229, 231, 235, 0.9);
-  transition: transform 180ms ease, box-shadow 180ms ease;
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
 }
 
 :deep(.user-page-card:hover) {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.12);
+  transform: translateY(-2px);
+  border-color: rgba(249, 115, 22, 0.25);
+  box-shadow: 0 14px 28px rgba(17, 24, 39, 0.08);
 }
 
 :deep(.user-page-title) {
@@ -97,6 +110,22 @@ import UserSidebar from '@/components/layout/UserSidebar.vue'
 @media (max-width: 1024px) {
   .user-layout {
     padding-bottom: 20px;
+  }
+
+  .user-route-panel {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-main-wrap {
+    animation: none;
+  }
+
+  :deep(.user-fade-slide-enter-active),
+  :deep(.user-fade-slide-leave-active),
+  :deep(.user-page-card) {
+    transition: none;
   }
 }
 </style>

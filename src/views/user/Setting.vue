@@ -91,6 +91,39 @@
           </div>
           <p class="text-sm text-gray-500">绑定邮箱可用于登录、找回密码和接收重要通知</p>
         </div>
+
+        <!-- 实名认证 -->
+        <div class="border border-gray-200 rounded-lg p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-lg font-semibold">实名认证</h3>
+              <p class="text-sm text-gray-500">
+                当前状态：{{ realNameStatusText }}
+              </p>
+              <p v-if="realNameSubmittedAtText" class="text-xs text-gray-400 mt-1">
+                提交时间：{{ realNameSubmittedAtText }}
+              </p>
+              <p v-if="realNameRejectReason" class="text-xs text-red-500 mt-1">
+                驳回原因：{{ realNameRejectReason }}
+              </p>
+            </div>
+            <button
+              @click="showRealNameModal = true"
+              class="px-4 py-2 text-xianyuText border border-xianyuText rounded-lg hover:bg-xianyuText/5"
+              :disabled="!canSubmitRealName"
+            >
+              {{ realNameActionText }}
+            </button>
+            <button
+              @click="openVerificationDetail"
+              class="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60"
+              :disabled="!canViewVerificationDetail || verificationDetailLoading"
+            >
+              {{ verificationDetailLoading ? '加载中...' : '查看记录' }}
+            </button>
+          </div>
+          <p class="text-sm text-gray-500">完成实名认证后可提升账户可信度并解锁更多能力。</p>
+        </div>
         
         <!-- 账号保护 -->
         <div class="border border-gray-200 rounded-lg p-6">
@@ -301,17 +334,138 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 实名认证弹窗 -->
+    <Teleport to="body">
+      <div
+        v-if="showRealNameModal"
+        class="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4"
+        @click.self="closeRealNameModal"
+      >
+        <div class="bg-white rounded-xl w-full max-w-md p-6">
+          <h3 class="text-lg font-semibold mb-4">提交实名认证</h3>
+          <div class="space-y-4">
+            <input
+              v-model="realNameForm.realName"
+              type="text"
+              placeholder="请输入真实姓名"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
+            <input
+              v-model="realNameForm.idCardNumber"
+              type="text"
+              placeholder="请输入18位身份证号"
+              maxlength="18"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-xianyuText focus:border-transparent"
+            />
+          </div>
+          <div class="mt-6 flex justify-end gap-3">
+            <button
+              @click="closeRealNameModal"
+              class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              :disabled="realNameSubmitting"
+            >
+              取消
+            </button>
+            <button
+              @click="submitRealNameVerification"
+              class="px-4 py-2 bg-xianyuText text-white rounded-lg hover:bg-xianyuTextDark disabled:opacity-60"
+              :disabled="realNameSubmitting"
+            >
+              {{ realNameSubmitting ? '提交中...' : '确认提交' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 认证记录详情弹窗 -->
+    <Teleport to="body">
+      <div
+        v-if="showVerificationDetailModal"
+        class="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4"
+        @click.self="closeVerificationDetailModal"
+      >
+        <div class="bg-white rounded-xl w-full max-w-md p-6">
+          <h3 class="text-lg font-semibold mb-4">认证记录详情</h3>
+          <div v-if="verificationDetail" class="space-y-3 text-sm text-gray-700">
+            <div class="flex justify-between gap-4">
+              <span class="text-gray-500">记录ID</span>
+              <span class="font-medium">{{ verificationDetail.id }}</span>
+            </div>
+            <div class="flex justify-between gap-4">
+              <span class="text-gray-500">认证类型</span>
+              <span class="font-medium">{{ verificationDetail.verifyType }}</span>
+            </div>
+            <div class="flex justify-between gap-4">
+              <span class="text-gray-500">真实姓名</span>
+              <span class="font-medium">{{ verificationDetail.realName }}</span>
+            </div>
+            <div class="flex justify-between gap-4">
+              <span class="text-gray-500">身份证号</span>
+              <span class="font-medium">{{ verificationDetail.idCardNumber }}</span>
+            </div>
+            <div class="flex justify-between gap-4">
+              <span class="text-gray-500">认证状态</span>
+              <span class="font-medium">{{ getVerifyStatusText(verificationDetail.verifyStatus) }}</span>
+            </div>
+            <div class="flex justify-between gap-4">
+              <span class="text-gray-500">提交时间</span>
+              <span class="font-medium">{{ formatDateTime(verificationDetail.submittedAt) }}</span>
+            </div>
+            <div class="flex justify-between gap-4">
+              <span class="text-gray-500">审核时间</span>
+              <span class="font-medium">{{ formatDateTime(verificationDetail.reviewedAt) }}</span>
+            </div>
+            <div
+              v-if="verificationDetail.rejectReason"
+              class="rounded-lg bg-red-50 border border-red-100 p-3 text-red-600"
+            >
+              驳回原因：{{ verificationDetail.rejectReason }}
+            </div>
+          </div>
+          <div v-else class="text-sm text-gray-500">暂无认证记录详情</div>
+          <div class="mt-6 flex justify-end">
+            <button
+              @click="closeVerificationDetailModal"
+              class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { changePasswordApi, bindPhoneApi, bindEmailApi } from '@/api/user'
+import { computed, ref, onMounted } from 'vue'
+import { useUserStore } from '@/stores/userStore'
+import {
+  changePasswordApi,
+  bindPhoneApi,
+  bindEmailApi,
+  submitRealNameVerificationApi,
+  resubmitVerificationApi,
+  getVerificationStatusApi,
+  getVerificationDetailApi,
+  type VerificationStatusItem,
+  type VerificationDetailData,
+} from '@/api/user'
 
 // 模态框状态
 const showPasswordModal = ref(false)
 const showPhoneModal = ref(false)
 const showEmailModal = ref(false)
+const showRealNameModal = ref(false)
+const showVerificationDetailModal = ref(false)
+const realNameSubmitting = ref(false)
+const verificationStatusLoading = ref(false)
+const verificationDetailLoading = ref(false)
+const userStore = useUserStore()
+const verificationStatuses = ref<VerificationStatusItem[]>([])
+const verificationDetail = ref<VerificationDetailData | null>(null)
 
 const passwordForm = ref({
   oldPassword: '',
@@ -327,6 +481,11 @@ const phoneForm = ref({
 const emailForm = ref({
   newEmail: '',
   verifyCode: ''
+})
+
+const realNameForm = ref({
+  realName: '',
+  idCardNumber: '',
 })
 
 // 账号信息
@@ -438,6 +597,129 @@ const closeEmailModal = () => {
   resetEmailForm()
 }
 
+const closeRealNameModal = () => {
+  showRealNameModal.value = false
+  realNameForm.value = {
+    realName: '',
+    idCardNumber: '',
+  }
+}
+
+const isRealNameVerified = computed(() => {
+  return realNameVerifyStatus.value === 'approved'
+})
+
+const realNameVerification = computed(() =>
+  verificationStatuses.value.find(
+    (item) => item.verifyType === 'real_name' || item.verifyType === 'realname'
+  ) || null
+)
+
+const realNameVerificationId = computed<number | null>(() => {
+  const raw = realNameVerification.value?.id ?? realNameVerification.value?.verificationId
+  const id = Number(raw)
+  if (!Number.isFinite(id) || id <= 0) return null
+  return id
+})
+
+const realNameVerifyStatus = computed(() => {
+  if (realNameVerification.value?.verifyStatus) {
+    return realNameVerification.value.verifyStatus.toLowerCase()
+  }
+  const status = String(userStore.userStatus || '').toLowerCase()
+  if (/verified|已实名|realname|认证通过/.test(status)) return 'approved'
+  return ''
+})
+
+const isRejectedRealName = computed(
+  () => realNameVerifyStatus.value === 'rejected' || realNameVerifyStatus.value === 'reject'
+)
+
+const realNameStatusText = computed(() => {
+  if (realNameVerifyStatus.value === 'approved') return '已实名'
+  if (realNameVerifyStatus.value === 'pending') return '审核中'
+  if (isRejectedRealName.value) return '已驳回'
+  return '未实名'
+})
+
+const realNameRejectReason = computed(() => {
+  if (!isRejectedRealName.value) return ''
+  return realNameVerification.value?.rejectReason || '无'
+})
+
+const realNameSubmittedAtText = computed(() => {
+  const raw = realNameVerification.value?.submittedAt
+  if (!raw) return ''
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw
+  return date.toLocaleString('zh-CN')
+})
+
+const canSubmitRealName = computed(() => {
+  if (realNameSubmitting.value || verificationStatusLoading.value) return false
+  return realNameVerifyStatus.value !== 'pending' && realNameVerifyStatus.value !== 'approved'
+})
+
+const realNameActionText = computed(() => {
+  if (verificationStatusLoading.value) return '加载中...'
+  if (realNameVerifyStatus.value === 'pending') return '审核中'
+  if (realNameVerifyStatus.value === 'approved') return '已认证'
+  if (isRejectedRealName.value) return '重新提交'
+  return '去认证'
+})
+
+const canViewVerificationDetail = computed(() => Boolean(realNameVerificationId.value))
+
+const isValidRealName = (value: string) => /^[\u4e00-\u9fa5a-zA-Z·\s]{2,30}$/.test(value.trim())
+const isValidIdCardNumber = (value: string) => /^\d{17}[\dXx]$/.test(value.trim())
+
+const fetchVerificationStatus = async () => {
+  verificationStatusLoading.value = true
+  try {
+    verificationStatuses.value = await getVerificationStatusApi()
+  } catch (error) {
+    console.error('查询认证状态失败:', error)
+    verificationStatuses.value = []
+  } finally {
+    verificationStatusLoading.value = false
+  }
+}
+
+const getVerifyStatusText = (status: string) => {
+  const normalized = String(status || '').toLowerCase()
+  if (normalized === 'approved') return '已通过'
+  if (normalized === 'pending') return '审核中'
+  if (normalized === 'rejected' || normalized === 'reject') return '已驳回'
+  return status || '未知'
+}
+
+const formatDateTime = (value: string | null) => {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('zh-CN')
+}
+
+const closeVerificationDetailModal = () => {
+  showVerificationDetailModal.value = false
+}
+
+const openVerificationDetail = async () => {
+  if (!realNameVerificationId.value) {
+    alert('暂无可查询的认证记录ID')
+    return
+  }
+  verificationDetailLoading.value = true
+  try {
+    verificationDetail.value = await getVerificationDetailApi(realNameVerificationId.value)
+    showVerificationDetailModal.value = true
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '查询认证记录详情失败')
+  } finally {
+    verificationDetailLoading.value = false
+  }
+}
+
 const submitPasswordChange = async () => {
   const { oldPassword, newPassword, confirmPassword } = passwordForm.value
   if (!oldPassword || !newPassword || !confirmPassword) {
@@ -527,7 +809,48 @@ const submitEmailChange = async () => {
   }
 }
 
+const submitRealNameVerification = async () => {
+  if (!canSubmitRealName.value) return
+  const realName = realNameForm.value.realName.trim()
+  const idCardNumber = realNameForm.value.idCardNumber.trim().toUpperCase()
+
+  if (!isValidRealName(realName)) {
+    alert('请输入正确的真实姓名')
+    return
+  }
+  if (!isValidIdCardNumber(idCardNumber)) {
+    alert('请输入正确的18位身份证号')
+    return
+  }
+
+  realNameSubmitting.value = true
+  try {
+    if (isRejectedRealName.value && realNameVerificationId.value) {
+      await resubmitVerificationApi(realNameVerificationId.value, { realName, idCardNumber })
+    } else {
+      await submitRealNameVerificationApi({ realName, idCardNumber })
+    }
+    await fetchVerificationStatus()
+    await userStore.loadUserSecurityInfo()
+    operationLogs.value.unshift({
+      id: Date.now(),
+      time: new Date().toLocaleString('zh-CN'),
+      action: isRejectedRealName.value ? '重新提交实名认证' : '提交实名认证',
+      ip: '127.0.0.1',
+      device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
+      status: 'success',
+    })
+    alert(isRejectedRealName.value ? '实名认证重新提交成功' : '实名认证提交成功')
+    closeRealNameModal()
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '实名认证提交失败')
+  } finally {
+    realNameSubmitting.value = false
+  }
+}
+
 onMounted(() => {
-  // 这里可以加载账号安全信息
+  void fetchVerificationStatus()
+  void userStore.loadUserSecurityInfo()
 })
 </script>
