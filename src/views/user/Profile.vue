@@ -41,24 +41,18 @@
               </div>
             </div>
             <div>
-              <button
-                type="button"
-                @click="chooseAvatarFile"
-                :disabled="isUploadingAvatar"
-                class="px-4 py-2 bg-xianyuText text-white rounded-md hover:bg-xianyuTextDark transition"
-              >
-                {{ isUploadingAvatar ? '头像上传中...' : '上传头像' }}
+              <!-- 修改后的代码 -->
+              <button @click="triggerFileInput" type="button" class="px-4 py-2 bg-xianyuText text-white rounded-md hover:bg-xianyuTextDark transition">
+                上传头像
               </button>
+              <!-- 隐藏的文件输入框 -->
               <input
-                ref="avatarInputRef"
+                ref="fileInputRef"
                 type="file"
                 accept="image/*"
-                class="hidden"
-                @change="onAvatarFileChange"
+                style="display: none;"
+                @change="handleFileChange"
               />
-              <p class="mt-2 text-xs text-gray-500">
-                请选择图片后自动上传并回填头像 URL，最后点击“保存修改”生效。
-              </p>
             </div>
           </div>
           <div class="mt-3">
@@ -181,14 +175,10 @@
 
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import {
-  getUserProfileApi,
-  updateUserProfileApi,
-  uploadAvatarApi,
-} from '@/api/user'
-import { useUserStore } from '@/stores/userStore'
-
+import { ref, reactive, onMounted, watch } from 'vue'
+import axios from 'axios'
+// 在已有声明（如 const cityList = ref...）附近添加
+const fileInputRef = ref(null)
 // 城市列表（示例）
 const cityList = ref([
   '河北省',
@@ -317,6 +307,7 @@ const loadUserInfoFromLocalStorage = () => {
   if (form.city && districtMap[form.city]) {
     districtList.value = districtMap[form.city]
   }
+  console.log('从 localStorage 加载的用户信息:', form)  // 调试用
 }
 
 const fetchUserProfile = async () => {
@@ -395,41 +386,73 @@ const handleSave = async () => {
     alert('网络错误，请稍后重试')
   }
 }
-
-const chooseAvatarFile = () => {
-  avatarInputRef.value?.click()
+// 触发隐藏的文件输入框点击
+const triggerFileInput = () => {
+  fileInputRef.value?.click()
 }
 
-const onAvatarFileChange = async (event) => {
-  const target = event.target
-  const file = target?.files?.[0]
+// 处理文件选择变化
+const handleFileChange = async (event) => {
+  const file = event.target.files[0]
   if (!file) return
 
-  if (!file.type.startsWith('image/')) {
-    alert('请选择图片文件')
-    target.value = ''
-    return
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    alert('图片大小不能超过 5MB')
-    target.value = ''
+  const token = localStorage.getItem('token')
+  if (!token) {
+    alert('请先登录')
     return
   }
 
-  isUploadingAvatar.value = true
+  // 第一步：上传文件到 /api/upload/avatar
+  const formData = new FormData()
+  formData.append('file', file)
+
   try {
-    const uploadedAvatarUrl = await uploadAvatarApi(file)
-    form.avatarUrl = uploadedAvatarUrl
-    avatarPreviewUrl.value = uploadedAvatarUrl
-    alert('头像上传成功，已自动填充头像 URL，请点击“保存修改”完成更新')
-  } catch (error) {
-    alert(error instanceof Error ? error.message : '头像上传失败，请稍后重试')
+    const uploadRes = await axios.post('/api/upload/avatar', formData, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+
+    console.log('上传接口返回:', uploadRes.data)  // 调试用
+
+    if (uploadRes.data.code === 200) {
+      // 注意：根据截图，data是字符串，不是对象
+      const avatarUrl = uploadRes.data.data
+      
+      console.log('获取到的头像URL:', avatarUrl)  // 调试用
+      
+      // 将返回的URL更新到表单数据中
+      form.avatarUrl = avatarUrl
+      
+      // 第二步：自动调用保存函数，将新头像URL及其他资料更新到 /api/user/profile
+      await handleSave()
+      
+      alert('头像上传并更新成功')
+    } else {
+      alert(uploadRes.data.message || '头像上传失败')
+    }
+  } catch (err) {
+    console.error('头像上传失败', err)
+    if (err.response) {
+      // 服务器返回了错误状态码
+      console.error('响应数据:', err.response.data)
+      console.error('响应状态:', err.response.status)
+      alert(`上传失败: ${err.response.data.message || '服务器错误'}`)
+    } else if (err.request) {
+      // 请求已发送但无响应
+      console.error('无响应:', err.request)
+      alert('网络错误，请检查网络连接')
+    } else {
+      // 请求配置错误
+      console.error('请求错误:', err.message)
+      alert('请求配置错误: ' + err.message)
+    }
   } finally {
-    isUploadingAvatar.value = false
-    target.value = ''
+    // 清空input的值，允许重复选择同一文件
+    event.target.value = ''
   }
 }
-
 // 页面加载时初始化
 onMounted(() => {
   loadUserInfoFromLocalStorage()
