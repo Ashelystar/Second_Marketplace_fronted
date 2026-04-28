@@ -176,7 +176,12 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
-import axios from 'axios'
+import { useUserStore } from '@/stores/userStore'
+import {
+  getUserProfileApi,
+  updateUserProfileApi,
+  uploadAvatarApi,
+} from '@/api/user'
 // 在已有声明（如 const cityList = ref...）附近添加
 const fileInputRef = ref(null)
 // 城市列表（示例）
@@ -273,6 +278,30 @@ const avatarPreviewUrl = ref('')
 const isUploadingAvatar = ref(false)
 const userStore = useUserStore()
 
+const syncUserInfoToStore = (payload) => {
+  const raw = localStorage.getItem('userInfo')
+  const cached = raw ? JSON.parse(raw) : {}
+  const merged = {
+    ...cached,
+    ...payload,
+  }
+  merged.avatar = merged.avatarUrl || merged.avatar || ''
+  localStorage.setItem('userInfo', JSON.stringify(merged))
+
+  if (userStore.userInfo) {
+    userStore.userInfo = {
+      ...userStore.userInfo,
+      ...merged,
+      avatar: merged.avatar || null,
+    }
+    return
+  }
+  userStore.userInfo = {
+    ...merged,
+    avatar: merged.avatar || null,
+  }
+}
+
 // 监听城市变化，更新区县列表
 const onCityChange = () => {
   const city = form.city
@@ -327,18 +356,7 @@ const fetchUserProfile = async () => {
       districtList.value = districtMap[form.city]
     }
 
-    if (userStore.userInfo) {
-      userStore.login(
-        {
-          ...userStore.userInfo,
-          ...d,
-          avatar: d.avatarUrl || userStore.userInfo.avatar || null,
-        },
-        localStorage.getItem('token') || undefined
-      )
-    } else {
-      localStorage.setItem('userInfo', JSON.stringify(d))
-    }
+    syncUserInfoToStore(d)
   } catch (err) {
     console.error('获取用户信息失败', err)
     alert('网络错误，请稍后重试')
@@ -358,8 +376,7 @@ const handleSave = async () => {
     })
     alert('修改成功')
 
-    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
-    Object.assign(userInfo, {
+    const userInfo = {
       avatarUrl: form.avatarUrl,
       avatar: form.avatarUrl,
       nickname: form.nickname,
@@ -368,18 +385,9 @@ const handleSave = async () => {
       bio: form.bio,
       city: form.city,
       district: form.district
-    })
-    localStorage.setItem('userInfo', JSON.stringify(userInfo))
+    }
+    syncUserInfoToStore(userInfo)
     avatarPreviewUrl.value = ''
-
-    userStore.login(
-      {
-        ...userStore.userInfo,
-        ...userInfo,
-        avatar: userInfo.avatarUrl || userInfo.avatar || null,
-      },
-      localStorage.getItem('token') || undefined
-    )
     await userStore.loadUserSecurityInfo()
   } catch (err) {
     console.error('保存失败', err)
@@ -396,59 +404,17 @@ const handleFileChange = async (event) => {
   const file = event.target.files[0]
   if (!file) return
 
-  const token = localStorage.getItem('token')
-  if (!token) {
-    alert('请先登录')
-    return
-  }
-
-  // 第一步：上传文件到 /api/upload/avatar
-  const formData = new FormData()
-  formData.append('file', file)
-
   try {
-    const uploadRes = await axios.post('/api/upload/avatar', formData, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data'
-      }
-    })
-
-    console.log('上传接口返回:', uploadRes.data)  // 调试用
-
-    if (uploadRes.data.code === 200) {
-      // 注意：根据截图，data是字符串，不是对象
-      const avatarUrl = uploadRes.data.data
-      
-      console.log('获取到的头像URL:', avatarUrl)  // 调试用
-      
-      // 将返回的URL更新到表单数据中
-      form.avatarUrl = avatarUrl
-      
-      // 第二步：自动调用保存函数，将新头像URL及其他资料更新到 /api/user/profile
-      await handleSave()
-      
-      alert('头像上传并更新成功')
-    } else {
-      alert(uploadRes.data.message || '头像上传失败')
-    }
+    isUploadingAvatar.value = true
+    const avatarUrl = await uploadAvatarApi(file)
+    form.avatarUrl = avatarUrl
+    await handleSave()
+    alert('头像上传并更新成功')
   } catch (err) {
     console.error('头像上传失败', err)
-    if (err.response) {
-      // 服务器返回了错误状态码
-      console.error('响应数据:', err.response.data)
-      console.error('响应状态:', err.response.status)
-      alert(`上传失败: ${err.response.data.message || '服务器错误'}`)
-    } else if (err.request) {
-      // 请求已发送但无响应
-      console.error('无响应:', err.request)
-      alert('网络错误，请检查网络连接')
-    } else {
-      // 请求配置错误
-      console.error('请求错误:', err.message)
-      alert('请求配置错误: ' + err.message)
-    }
+    alert(err instanceof Error ? `上传失败: ${err.message}` : '网络错误，请稍后重试')
   } finally {
+    isUploadingAvatar.value = false
     // 清空input的值，允许重复选择同一文件
     event.target.value = ''
   }

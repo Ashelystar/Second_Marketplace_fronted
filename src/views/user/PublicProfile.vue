@@ -34,10 +34,22 @@
             </p>
           </div>
 
-          <button class="contact-btn" @click="goToChat">
-            <i class="fa fa-commenting"></i>
-            沟通一下
-          </button>
+          <div class="action-buttons">
+            <button
+              v-if="canFollowSeller"
+              class="follow-btn"
+              :class="{ following: isFollowingSeller }"
+              :disabled="followPending"
+              @click="handleToggleFollow"
+            >
+              <i class="fa" :class="isFollowingSeller ? 'fa-user-times' : 'fa-user-plus'"></i>
+              {{ isFollowingSeller ? '取消关注' : '关注TA' }}
+            </button>
+            <button class="contact-btn" @click="goToChat">
+              <i class="fa fa-commenting"></i>
+              沟通一下
+            </button>
+          </div>
         </div>
 
         <div class="stats">
@@ -84,19 +96,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Topnav from '@/components/TopNav.vue'
 import { useProductStore } from '@/stores/productStore'
+import { useUserStore } from '@/stores/userStore'
 
 defineOptions({ name: 'PublicProfile' })
 
 const route = useRoute()
 const router = useRouter()
 const productStore = useProductStore()
+const userStore = useUserStore()
 
 const sellerId = computed(() => Number(route.params.id))
 const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
+const followPending = ref(false)
 
 const sellerProducts = computed(() => {
   if (!Number.isFinite(sellerId.value)) return []
@@ -124,20 +139,32 @@ const sellerFromQuery = computed(() => {
 })
 
 const seller = computed(() => {
+  const querySeller = sellerFromQuery.value
   const base = sellerProducts.value[0]
-  if (!base) return sellerFromQuery.value
+  if (!base) return querySeller
 
   return {
     id: base.sellerId,
-    name: base.sellerName,
-    avatar: base.sellerAvatar || '',
-    location: base.location,
+    name: querySeller?.name || base.sellerName || `用户${sellerId.value}`,
+    avatar: querySeller?.avatar || base.sellerAvatar || '',
+    location: querySeller?.location || base.location || '未知',
     rating: base.sellerRating || 0,
     verified: Boolean(base.sellerVerified),
     goodRate: base.sellerGoodRate || 0,
     onSale: base.sellerOnSale || sellerProducts.value.length,
     sold: base.sellerSold || 0,
   }
+})
+
+const canFollowSeller = computed(() => {
+  if (!Number.isFinite(sellerId.value) || sellerId.value <= 0) return false
+  const currentUserId = Number(userStore.userInfo?.id)
+  return !Number.isFinite(currentUserId) || currentUserId !== sellerId.value
+})
+
+const isFollowingSeller = computed(() => {
+  if (!canFollowSeller.value) return false
+  return userStore.isFollowing(sellerId.value)
 })
 
 const goToDetail = (id: number) => {
@@ -178,6 +205,28 @@ const goToChat = () => {
   })
 }
 
+const handleToggleFollow = async () => {
+  if (!canFollowSeller.value) return
+  if (followPending.value) return
+  if (!userStore.isLoggedIn) {
+    alert('请先登录后再关注')
+    await router.push('/user/login')
+    return
+  }
+  try {
+    followPending.value = true
+    await userStore.toggleFollow(sellerId.value)
+  } catch (error) {
+    if (error instanceof Error) {
+      alert(error.message || '操作失败，请稍后重试')
+      return
+    }
+    alert('操作失败，请稍后重试')
+  } finally {
+    followPending.value = false
+  }
+}
+
 const goBackToProduct = () => {
   const fromProductId = Number(route.query.fromProductId)
   if (Number.isFinite(fromProductId) && fromProductId > 0) {
@@ -193,6 +242,9 @@ const goBackToProduct = () => {
 
 onMounted(() => {
   productStore.initialize()
+  if (userStore.isLoggedIn) {
+    void userStore.loadFollowIds()
+  }
 })
 </script>
 
@@ -284,6 +336,39 @@ onMounted(() => {
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
+}
+
+.action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.follow-btn {
+  border: 1px solid #f97316;
+  background: #fff;
+  color: #f97316;
+  border-radius: 999px;
+  height: 40px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.follow-btn.following {
+  border-color: #9ca3af;
+  color: #4b5563;
+}
+
+.follow-btn:hover {
+  background: #fff7ed;
+}
+
+.follow-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .contact-btn {

@@ -1,29 +1,29 @@
 <template>
-  <div>
+  <div class="center-page">
     <!-- 我的交易 - 采用SellerProducts样式 -->
     <div>
       <!-- 统计卡片 -->
       <div class="statsBar">
-        <div class="statCard">
+        <div class="statCard user-page-card">
           <div class="statValue">{{ totalProducts }}</div>
           <div class="statLabel">全部商品</div>
         </div>
-        <div class="statCard">
+        <div class="statCard user-page-card">
           <div class="statValue">{{ onSaleCount }}</div>
           <div class="statLabel">在售中</div>
         </div>
-        <div class="statCard">
+        <div class="statCard user-page-card">
           <div class="statValue">{{ offSaleCount }}</div>
           <div class="statLabel">已下架</div>
         </div>
-        <div class="statCard">
+        <div class="statCard user-page-card">
           <div class="statValue">{{ totalViews }}</div>
           <div class="statLabel">总浏览</div>
         </div>
       </div>
 
       <!-- 筛选和操作栏 -->
-      <div class="filterBar">
+      <div class="filterBar user-page-card">
         <div class="filterTabs">
           <button
             class="filterTab"
@@ -59,7 +59,7 @@
 
       <!-- 商品列表 -->
       <div class="productGrid">
-        <div v-if="filteredProducts.length === 0" class="empty">
+        <div v-if="filteredProducts.length === 0" class="empty user-page-card">
           <i class="fa fa-cube"></i>
           <p>{{ filterStatus === 'all' ? '暂无发布的商品' : filterStatus === 'onSale' ? '暂无在售商品' : '暂无下架商品' }}</p>
           <button
@@ -74,7 +74,7 @@
           v-else
           v-for="product in filteredProducts"
           :key="product.id"
-          class="productCard"
+          class="productCard user-page-card"
           @click="goToSellerProductDetail(product.id)"
         >
           <div class="productImage">
@@ -275,6 +275,21 @@ const deleteProduct = (product: Product) => {
   overflow: hidden;
 }
 
+.center-page {
+  animation: page-enter 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* 统计卡片 */
 .statsBar {
   display: grid;
@@ -289,6 +304,22 @@ const deleteProduct = (product: Product) => {
   padding: 20px;
   text-align: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  animation: card-pop 260ms ease both;
+}
+
+.statCard:nth-child(2) { animation-delay: 35ms; }
+.statCard:nth-child(3) { animation-delay: 70ms; }
+.statCard:nth-child(4) { animation-delay: 105ms; }
+
+@keyframes card-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .statValue {
@@ -313,6 +344,11 @@ const deleteProduct = (product: Product) => {
   padding: 12px 16px;
   margin-bottom: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 220ms ease, transform 220ms ease;
+}
+
+.filterBar:hover {
+  box-shadow: 0 10px 20px rgba(17, 24, 39, 0.08);
 }
 
 .filterTabs {
@@ -377,11 +413,13 @@ const deleteProduct = (product: Product) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  transition: background 200ms;
+  transition: background 200ms, transform 200ms ease, box-shadow 200ms ease;
 }
 
 .publishBtn:hover {
   background: #ea580c;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(249, 115, 22, 0.28);
 }
 
 /* 商品列表 */
@@ -459,6 +497,22 @@ const deleteProduct = (product: Product) => {
   transition: transform 200ms, box-shadow 200ms;
   position: relative;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  animation: card-in 260ms ease both;
+}
+
+.productCard:nth-child(2n) {
+  animation-delay: 35ms;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .productCard:hover {
@@ -476,6 +530,11 @@ const deleteProduct = (product: Product) => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 360ms ease;
+}
+
+.productCard:hover .productImage img {
+  transform: scale(1.04);
 }
 
 .statusBadge {
@@ -587,10 +646,53 @@ const deleteProduct = (product: Product) => {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
+
+  .filterBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .filterTabs,
+  .filterActions {
+    width: 100%;
+  }
+  
+  .filterActions > button {
+    flex: 1;
+    justify-content: center;
+  }
   
   .productGrid {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .filterTabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .filterTab {
+    padding: 9px 8px;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .center-page,
+  .statCard,
+  .productCard {
+    animation: none;
+  }
+
+  .filterBar,
+  .publishBtn,
+  .productCard,
+  .productImage img {
+    transition: none;
   }
 }
 </style>

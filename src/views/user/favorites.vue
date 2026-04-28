@@ -72,24 +72,24 @@
       >
         <div class="productImage">
           <img :src="item.image" :alt="item.title" />
-          <span class="statusBadge" :class="item.isActive ? 'onSale' : 'offSale'">
-            {{ item.isActive ? '在售' : '已下架' }}
+          <span class="statusBadge onSale">
+            已收藏
           </span>
         </div>
         <div class="productInfo">
           <h3 class="productTitle">{{ item.title }}</h3>
-          <div class="productPrice">¥{{ item.price }}</div>
+          <div class="productPrice">{{ formatPrice(item.price) }}</div>
           <div class="productStats">
-            <span><i class="fa fa-eye"></i> {{ item.viewCount }}</span>
-            <span><i class="fa fa-star"></i> {{ item.rating }}</span>
+            <span><i class="fa fa-tag"></i> {{ detectCategoryLabel(item.title) }}</span>
+            <span><i class="fa fa-map-marker"></i> {{ item.location || '未知地点' }}</span>
           </div>
           <div class="productMeta">
-            <span class="productSeller">{{ item.sellerName }}</span>
-            <span class="productCategory">{{ item.category }}</span>
+            <span class="productSeller">{{ item.condition || '成色未知' }}</span>
+            <span class="productCategory">{{ item.addTime || '' }}</span>
           </div>
         </div>
         <div class="productActions" @click.stop>
-          <button class="actionBtn" @click="contactSeller(item.id)" title="联系卖家">
+          <button class="actionBtn" @click="contactSeller()" title="联系卖家">
             <i class="fa fa-comment"></i>
           </button>
           <button class="actionBtn delete" @click="toggleFavorite(item)" title="取消收藏">
@@ -102,125 +102,89 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore, type FavoriteItem } from '@/stores/userStore'
 
 defineOptions({ name: 'UserFavorites' })
 
 const router = useRouter()
+const userStore = useUserStore()
 const activeCategory = ref('all')
-
-interface FavoriteItem {
-  id: number
-  title: string
-  price: number
-  image: string
-  sellerName: string
-  category: string
-  isActive: boolean
-  viewCount: number
-  rating: number
-}
-
-const favorites = ref<FavoriteItem[]>([
-  {
-    id: 1,
-    title: 'iPhone 14 Pro Max 256G 远峰蓝 99新 无磕碰无划痕',
-    price: 5999,
-    image: 'https://picsum.photos/id/1/400/400',
-    sellerName: '数码小王子',
-    category: '数码电子',
-    isActive: true,
-    viewCount: 128,
-    rating: 4.8
-  },
-  {
-    id: 2,
-    title: 'MacBook Pro 14寸 M2 Pro 16+512G 银色 国行',
-    price: 12999,
-    image: 'https://picsum.photos/id/45/400/400',
-    sellerName: '苹果专家',
-    category: '数码电子',
-    isActive: true,
-    viewCount: 256,
-    rating: 4.9
-  },
-  {
-    id: 3,
-    title: 'AirPods Pro 2 全新未拆封 国行正品',
-    price: 1599,
-    image: 'https://picsum.photos/id/119/400/400',
-    sellerName: '耳机发烧友',
-    category: '数码电子',
-    isActive: true,
-    viewCount: 89,
-    rating: 4.7
-  },
-  {
-    id: 4,
-    title: 'Nike Air Jordan 1 经典款 白色 42码',
-    price: 899,
-    image: 'https://picsum.photos/id/24/400/400',
-    sellerName: '潮流达人',
-    category: '服装服饰',
-    isActive: false,
-    viewCount: 156,
-    rating: 4.6
-  },
-  {
-    id: 5,
-    title: '索尼 PS5 游戏机 光驱版 双手柄套餐',
-    price: 2800,
-    image: 'https://picsum.photos/id/42/400/400',
-    sellerName: '游戏达人',
-    category: '数码电子',
-    isActive: true,
-    viewCount: 67,
-    rating: 4.8
-  },
-  {
-    id: 6,
-    title: '高等数学 线性代数 考研全套教材',
-    price: 120,
-    image: 'https://picsum.photos/id/24/400/400',
-    sellerName: '考研学姐',
-    category: '图书教材',
-    isActive: true,
-    viewCount: 45,
-    rating: 4.5
-  }
-])
+const favorites = computed<FavoriteItem[]>(() => userStore.favorites)
 
 const favoriteStats = computed(() => ({
   total: favorites.value.length,
-  active: favorites.value.filter(f => f.isActive).length,
-  offSale: favorites.value.filter(f => !f.isActive).length
+  active: favorites.value.length,
+  offSale: 0,
 }))
 
 const filteredFavorites = computed(() => {
   if (activeCategory.value === 'all') return favorites.value
   const categoryMap: Record<string, string> = {
-    'digital': '数码电子',
-    'clothing': '服装服饰',
-    'book': '图书教材',
-    'daily': '日用百货'
+    digital: 'digital',
+    clothing: 'clothing',
+    book: 'book',
+    daily: 'daily',
   }
-  return favorites.value.filter(item => item.category === categoryMap[activeCategory.value])
+  const selected = categoryMap[activeCategory.value]
+  return favorites.value.filter((item) => detectCategory(item.title) === selected)
 })
 
 const viewDetail = (id: number) => {
-  router.push({ path: '/goods/detail', query: { id: id.toString() } })
+  router.push({ path: '/goods/' + id })
 }
 
-const contactSeller = (id: number) => {
-  router.push({ name: 'chat-room', params: { id: 'seller_' + id } })
+const contactSeller = () => {
+  router.push('/chat')
 }
 
-const toggleFavorite = (item: FavoriteItem) => {
-  if (confirm(`确定要取消收藏「${item.title}」吗？`)) {
-    favorites.value = favorites.value.filter(f => f.id !== item.id)
+const detectCategory = (title: string) => {
+  const normalized = title.toLowerCase()
+  if (/(iphone|macbook|ipad|耳机|ps5|switch|电脑|手机|数码|相机)/.test(normalized)) {
+    return 'digital'
+  }
+  if (/(衣|裤|鞋|外套|服|裙|帽|nike|adidas)/.test(normalized)) {
+    return 'clothing'
+  }
+  if (/(书|教材|考研|题|笔记)/.test(normalized)) {
+    return 'book'
+  }
+  return 'daily'
+}
+
+const detectCategoryLabel = (title: string) => {
+  const category = detectCategory(title)
+  if (category === 'digital') return '数码电子'
+  if (category === 'clothing') return '服装服饰'
+  if (category === 'book') return '图书教材'
+  return '日用百货'
+}
+
+const formatPrice = (price: string) => {
+  const value = Number(price)
+  if (Number.isFinite(value)) {
+    return `¥${value}`
+  }
+  return `¥${price}`
+}
+
+const toggleFavorite = async (item: FavoriteItem) => {
+  if (!confirm(`确定要取消收藏「${item.title}」吗？`)) return
+  try {
+    await userStore.toggleFavorite(item)
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '取消收藏失败')
   }
 }
+
+onMounted(() => {
+  if (userStore.isLoggedIn) {
+    void userStore.syncFavoritesFromServer()
+    return
+  }
+  void userStore.loadFavoriteIds()
+})
 </script>
 
 <style scoped>

@@ -504,7 +504,15 @@ const scrollToBottom = async () => {
 }
 
 const viewSellerProfile = () => {
-  router.push({ path: `/user/home/${seller.value.id}` })
+  if (!seller.value?.id) return
+  router.push({
+    path: `/user/home/${seller.value.id}`,
+    query: {
+      name: seller.value.name || '',
+      avatar: seller.value.avatar || '',
+      location: seller.value.location || '未知',
+    },
+  })
 }
 
 const viewProductDetail = () => {

@@ -1,8 +1,8 @@
 <template>
   <div class="lg:col-span-1 user-side-wrap">
-    <div class="bg-white rounded-xl shadow-sm p-6 sticky top-24 border border-gray-100">
+    <div class="user-side-card bg-white rounded-xl shadow-sm p-6 sticky top-24 border border-gray-100">
       <div class="flex items-center gap-4 pb-6 border-b border-gray-100 mb-6">
-        <div class="w-16 h-16 rounded-full bg-gray-200 overflow-hidden ring-2 ring-orange-100">
+        <div class="user-avatar w-16 h-16 rounded-full bg-gray-200 overflow-hidden ring-2 ring-orange-100">
           <img v-if="avatarUrl" :src="avatarUrl" alt="头像" class="w-full h-full object-cover" />
           <div v-else class="w-full h-full flex items-center justify-center bg-gray-300 text-white text-2xl">
             <i class="fa fa-user"></i>
@@ -17,7 +17,7 @@
         </div>
       </div>
 
-      <nav class="space-y-2">
+      <nav class="space-y-2 user-nav">
         <router-link
           to="/user/center" 
           :class="linkClass('/user/center')"
@@ -40,6 +40,14 @@
         >
           <i class="fa fa-heart w-5"></i>
           <span>我的收藏</span>
+        </router-link>
+
+        <router-link
+          to="/user/follows"
+          :class="linkClass('/user/follows')"
+        >
+          <i class="fa fa-users w-5"></i>
+          <span>我的关注/粉丝</span>
         </router-link>
 
         <router-link
@@ -69,7 +77,7 @@
 
       <button
         @click="$router.push('/publish')"
-        class="mt-6 w-full bg-xianyuText text-white py-3 rounded-lg font-medium hover:bg-xianyuText/90 transition-colors flex items-center justify-center gap-2 hover:-translate-y-[1px]"
+        class="user-primary-action mt-6 w-full bg-xianyuText text-white py-3 rounded-lg font-medium hover:bg-xianyuText/90 transition-colors flex items-center justify-center gap-2 hover:-translate-y-[1px]"
       >
         <i class="fa fa-plus"></i>
         <span>卖闲置</span>
@@ -78,13 +86,13 @@
       <button
         v-if="userStore.isLoggedIn"
         @click="handleLogout"
-        class="mt-3 w-full border border-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+        class="user-ghost-action mt-3 w-full border border-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
       >
         退出登录
       </button>
 
 
-    <div class="bg-white rounded-xl shadow-sm p-6 mt-6 border border-gray-100">
+    <div class="user-side-card info-card bg-white rounded-xl shadow-sm p-6 mt-6 border border-gray-100">
       <h3 class="font-semibold text-lg mb-4">信用及评价</h3>
       <div class="space-y-4">
         <div>
@@ -92,8 +100,8 @@
             <span class="text-sm text-gray-600">信用分</span>
             <span class="font-semibold text-xianyuText">{{ creditScore }}</span>
           </div>
-          <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div class="h-full bg-xianyuText rounded-full" :style="{ width: Math.min(creditScore / 10, 100) + '%' }"></div>
+          <div class="progress-track h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div class="progress-fill orange h-full bg-xianyuText rounded-full" :style="{ width: Math.min(creditScore / 10, 100) + '%' }"></div>
           </div>
         </div>
         <div>
@@ -101,8 +109,8 @@
             <span class="text-sm text-gray-600">好评率</span>
             <span class="font-semibold text-xianyuText">{{ positiveRate }}%</span>
           </div>
-          <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div class="h-full bg-green-500 rounded-full" :style="{ width: positiveRate + '%' }"></div>
+          <div class="progress-track h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div class="progress-fill green h-full bg-green-500 rounded-full" :style="{ width: positiveRate + '%' }"></div>
           </div>
         </div>
         <div class="text-sm text-gray-600">
@@ -114,26 +122,26 @@
       </button>
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm p-6 mt-6 border border-gray-100">
+    <div class="user-side-card info-card bg-white rounded-xl shadow-sm p-6 mt-6 border border-gray-100">
       <h3 class="font-semibold text-lg mb-4">用户统计</h3>
       <div class="grid grid-cols-2 gap-3 text-sm">
-        <div class="rounded-lg bg-gray-50 p-3">
+        <div class="metric-tile rounded-lg bg-gray-50 p-3">
           <div class="text-gray-500">商品数</div>
           <div class="text-lg font-semibold text-xianyuText">{{ userStats.productCount }}</div>
         </div>
-        <div class="rounded-lg bg-gray-50 p-3">
+        <div class="metric-tile rounded-lg bg-gray-50 p-3">
           <div class="text-gray-500">订单数</div>
           <div class="text-lg font-semibold text-xianyuText">{{ userStats.orderCount }}</div>
         </div>
-        <div class="rounded-lg bg-gray-50 p-3">
+        <div class="metric-tile rounded-lg bg-gray-50 p-3">
           <div class="text-gray-500">收藏数</div>
           <div class="text-lg font-semibold text-xianyuText">{{ userStats.favoriteCount }}</div>
         </div>
-        <div class="rounded-lg bg-gray-50 p-3">
+        <div class="metric-tile rounded-lg bg-gray-50 p-3">
           <div class="text-gray-500">关注数</div>
           <div class="text-lg font-semibold text-xianyuText">{{ userStats.followCount }}</div>
         </div>
-        <div class="rounded-lg bg-gray-50 p-3 col-span-2">
+        <div class="metric-tile rounded-lg bg-gray-50 p-3 col-span-2">
           <div class="text-gray-500">粉丝数</div>
           <div class="text-lg font-semibold text-xianyuText">{{ userStats.followerCount }}</div>
         </div>
@@ -235,7 +243,7 @@ watch(
 const linkClass = (path: string) => {
   const active = route.path === path || route.path.startsWith(`${path}/`)
   return [
-    'flex items-center gap-3 p-3 rounded-lg transition-all duration-200',
+    'user-nav-link flex items-center gap-3 p-3 rounded-lg transition-all duration-200',
     active ? 'bg-orange-50 text-xianyuText font-semibold shadow-sm' : 'hover:bg-gray-50 text-gray-700',
   ]
 }
@@ -258,6 +266,75 @@ const handleLogout = async () => {
   animation: slide-in 260ms ease both;
 }
 
+.user-side-card {
+  transition: transform 240ms ease, box-shadow 240ms ease, border-color 240ms ease;
+  animation: fade-up 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.user-side-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(249, 115, 22, 0.28);
+  box-shadow: 0 12px 26px rgba(17, 24, 39, 0.1);
+}
+
+.user-side-card:nth-of-type(2) {
+  animation-delay: 40ms;
+}
+
+.user-side-card:nth-of-type(3) {
+  animation-delay: 80ms;
+}
+
+.user-avatar {
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.user-avatar:hover {
+  transform: scale(1.04);
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.12);
+}
+
+.user-nav-link {
+  transform: translateX(0);
+}
+
+.user-nav-link:hover {
+  transform: translateX(2px);
+}
+
+.user-primary-action,
+.user-ghost-action {
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.user-primary-action:hover {
+  box-shadow: 0 10px 18px rgba(249, 115, 22, 0.28);
+}
+
+.progress-fill {
+  transition: width 360ms ease;
+}
+
+.metric-tile {
+  transition: transform 180ms ease, background-color 180ms ease;
+}
+
+.metric-tile:hover {
+  transform: translateY(-1px);
+  background: #f8fafc;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes slide-in {
   from {
     opacity: 0;
@@ -272,6 +349,33 @@ const handleLogout = async () => {
 @media (max-width: 1024px) {
   .user-side-wrap > div {
     position: static;
+  }
+
+  .user-side-card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .user-nav-link:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-side-wrap,
+  .user-side-card {
+    animation: none;
+  }
+
+  .user-side-card,
+  .user-avatar,
+  .user-nav-link,
+  .user-primary-action,
+  .user-ghost-action,
+  .progress-fill,
+  .metric-tile {
+    transition: none;
   }
 }
 </style>
