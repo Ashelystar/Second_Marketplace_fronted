@@ -30,7 +30,9 @@
             <p class="meta">
               <span><i class="fa fa-map-marker"></i> {{ seller.location }}</span>
               <span v-if="seller.rating"><i class="fa fa-star"></i> {{ seller.rating }}</span>
+              <span v-if="seller.creditScore > 0">信用分 {{ seller.creditScore }}</span>
               <span v-if="seller.goodRate">好评率 {{ seller.goodRate }}%</span>
+              <span v-if="seller.totalReviewCount > 0">评价 {{ seller.totalReviewCount }}</span>
             </p>
           </div>
 
@@ -54,7 +56,26 @@
 
         <div class="stats">
           <span>在售 <strong>{{ seller.onSale }}</strong></span>
-          <span>已售 <strong>{{ seller.sold }}</strong></span>
+          <span>已完成 <strong>{{ seller.sold }}</strong></span>
+          <span v-if="seller.totalOrders > 0">总订单 <strong>{{ seller.totalOrders }}</strong></span>
+        </div>
+      </section>
+
+      <section v-if="reputationHistory.length" class="trend-card">
+        <div class="trend-header">
+          <h2>近7天信誉趋势</h2>
+        </div>
+        <div class="trend-grid">
+          <article
+            v-for="item in reputationHistory"
+            :key="item.snapshotDate"
+            class="trend-item"
+          >
+            <p class="trend-date">{{ formatDate(item.snapshotDate) }}</p>
+            <p class="trend-metric">信用分 <strong>{{ item.creditScore }}</strong></p>
+            <p class="trend-metric">好评率 <strong>{{ item.positiveRate }}%</strong></p>
+            <p class="trend-metric">完成/总单 <strong>{{ item.completedOrders }}/{{ item.totalOrders }}</strong></p>
+          </article>
         </div>
       </section>
 
@@ -96,11 +117,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Topnav from '@/components/TopNav.vue'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
+import {
+  getSellerReputationSnapshotApi,
+  getSellerReputationHistoryApi,
+  type SellerReputationSnapshot,
+  type SellerReputationHistoryItem,
+} from '@/api/user'
 
 defineOptions({ name: 'PublicProfile' })
 
@@ -112,6 +139,8 @@ const userStore = useUserStore()
 const sellerId = computed(() => Number(route.params.id))
 const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
 const followPending = ref(false)
+const sellerReputation = ref<SellerReputationSnapshot | null>(null)
+const sellerReputationHistory = ref<SellerReputationHistoryItem[]>([])
 
 const sellerProducts = computed(() => {
   if (!Number.isFinite(sellerId.value)) return []
@@ -119,6 +148,13 @@ const sellerProducts = computed(() => {
     .filter((product) => product.sellerId === sellerId.value)
     .sort((a, b) => b.id - a.id)
 })
+
+const reputationHistory = computed(() =>
+  sellerReputationHistory.value
+    .slice()
+    .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))
+    .slice(0, 7)
+)
 
 const sellerFromQuery = computed(() => {
   const name = String(route.query.name || '').trim()
@@ -135,6 +171,9 @@ const sellerFromQuery = computed(() => {
     goodRate: 0,
     onSale: 0,
     sold: 0,
+    creditScore: 0,
+    totalOrders: 0,
+    totalReviewCount: 0,
   }
 })
 
@@ -150,11 +189,62 @@ const seller = computed(() => {
     location: querySeller?.location || base.location || '未知',
     rating: base.sellerRating || 0,
     verified: Boolean(base.sellerVerified),
-    goodRate: base.sellerGoodRate || 0,
+    goodRate: sellerReputation.value?.positiveRate ?? base.sellerGoodRate ?? 0,
     onSale: base.sellerOnSale || sellerProducts.value.length,
-    sold: base.sellerSold || 0,
+    sold: sellerReputation.value?.completedOrders ?? base.sellerSold ?? 0,
+    creditScore: sellerReputation.value?.creditScore ?? 0,
+    totalOrders: sellerReputation.value?.totalOrders ?? 0,
+    totalReviewCount: sellerReputation.value?.totalReviewCount ?? 0,
   }
 })
+
+const fetchSellerReputation = async () => {
+  if (!Number.isFinite(sellerId.value) || sellerId.value <= 0) {
+    sellerReputation.value = null
+    return
+  }
+  try {
+    const result = await getSellerReputationSnapshotApi(sellerId.value)
+    sellerReputation.value = {
+      creditScore: Math.max(0, Number(result.creditScore ?? 0)),
+      positiveRate: Math.max(0, Math.min(100, Number(result.positiveRate ?? 0))),
+      totalOrders: Math.max(0, Number(result.totalOrders ?? 0)),
+      completedOrders: Math.max(0, Number(result.completedOrders ?? 0)),
+      totalReviewCount: Math.max(0, Number(result.totalReviewCount ?? 0)),
+    }
+  } catch (error) {
+    console.error('获取卖家信誉快照失败:', error)
+    sellerReputation.value = null
+  }
+}
+
+const fetchSellerReputationHistory = async () => {
+  if (!Number.isFinite(sellerId.value) || sellerId.value <= 0) {
+    sellerReputationHistory.value = []
+    return
+  }
+  try {
+    const result = await getSellerReputationHistoryApi(sellerId.value, 7)
+    sellerReputationHistory.value = result.map((item) => ({
+      snapshotDate: item.snapshotDate || '',
+      creditScore: Math.max(0, Number(item.creditScore ?? 0)),
+      positiveRate: Math.max(0, Math.min(100, Number(item.positiveRate ?? 0))),
+      totalOrders: Math.max(0, Number(item.totalOrders ?? 0)),
+      completedOrders: Math.max(0, Number(item.completedOrders ?? 0)),
+    }))
+  } catch (error) {
+    console.error('获取信誉历史趋势失败:', error)
+    sellerReputationHistory.value = []
+  }
+}
+
+const formatDate = (dateValue: string) => {
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return dateValue
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${month}-${day}`
+}
 
 const canFollowSeller = computed(() => {
   if (!Number.isFinite(sellerId.value) || sellerId.value <= 0) return false
@@ -242,10 +332,20 @@ const goBackToProduct = () => {
 
 onMounted(() => {
   productStore.initialize()
+  void fetchSellerReputation()
+  void fetchSellerReputationHistory()
   if (userStore.isLoggedIn) {
     void userStore.loadFollowIds()
   }
 })
+
+watch(
+  () => sellerId.value,
+  () => {
+    void fetchSellerReputation()
+    void fetchSellerReputationHistory()
+  }
+)
 </script>
 
 <style scoped>
@@ -399,6 +499,56 @@ onMounted(() => {
 }
 
 .stats strong {
+  color: #111827;
+}
+
+.trend-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+  margin-bottom: 20px;
+}
+
+.trend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.trend-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.trend-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fafafa;
+}
+
+.trend-date {
+  margin: 0 0 8px;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.trend-metric {
+  margin: 0 0 4px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.trend-metric strong {
   color: #111827;
 }
 

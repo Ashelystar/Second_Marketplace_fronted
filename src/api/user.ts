@@ -91,6 +91,22 @@ export interface UserCreditScoreData {
   totalReviewCount: number
 }
 
+export interface SellerReputationSnapshot {
+  creditScore: number
+  positiveRate: number
+  totalOrders: number
+  completedOrders: number
+  totalReviewCount: number
+}
+
+export interface SellerReputationHistoryItem {
+  snapshotDate: string
+  creditScore: number
+  positiveRate: number
+  totalOrders: number
+  completedOrders: number
+}
+
 export interface UserStatsData {
   productCount: number
   orderCount: number
@@ -443,6 +459,48 @@ export async function getUserCreditScoreApi(): Promise<UserCreditScoreData> {
   return json.data
 }
 
+export async function getSellerReputationSnapshotApi(
+  sellerId: number | string
+): Promise<SellerReputationSnapshot> {
+  const response = await fetch(`/api/user/reputation/${sellerId}`, {
+    method: 'GET',
+    headers: getAuthHeader(),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<SellerReputationSnapshot>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '获取卖家信誉快照失败')
+  }
+  return json.data
+}
+
+export async function getSellerReputationHistoryApi(
+  sellerId: number | string,
+  days?: number | string
+): Promise<SellerReputationHistoryItem[]> {
+  const query = new URLSearchParams()
+  if (days !== undefined && days !== null && String(days).trim() !== '') {
+    query.set('days', String(days))
+  }
+  const queryPart = query.toString() ? `?${query.toString()}` : ''
+  const response = await fetch(`/api/user/reputation/${sellerId}/history${queryPart}`, {
+    method: 'GET',
+    headers: getAuthHeader(),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<SellerReputationHistoryItem[]>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '获取信誉历史趋势失败')
+  }
+  return json.data || []
+}
+
 export async function getUserStatsApi(): Promise<UserStatsData> {
   const response = await fetch('/api/user/stats', {
     method: 'GET',
@@ -630,8 +688,12 @@ export async function bindPhoneApi(body: BindPhoneRequest): Promise<void> {
     const text = await response.text()
     throw new Error(text || `网络错误：${response.status}`)
   }
-  const json = await parseResponse<ApiResponse<null>>(response)
-  if (json.code !== 200) {
+  const text = await response.text()
+  if (!text.trim()) {
+    return
+  }
+  const json = JSON.parse(text) as Partial<ApiResponse<null>>
+  if (typeof json.code === 'number' && json.code !== 200) {
     throw new Error(json.message || '绑定手机号失败')
   }
 }
@@ -645,8 +707,12 @@ export async function unbindPhoneApi(): Promise<void> {
     const text = await response.text()
     throw new Error(text || `网络错误：${response.status}`)
   }
-  const json = await parseResponse<ApiResponse<null>>(response)
-  if (json.code !== 200) {
+  const text = await response.text()
+  if (!text.trim()) {
+    return
+  }
+  const json = JSON.parse(text) as Partial<ApiResponse<null>>
+  if (typeof json.code === 'number' && json.code !== 200) {
     throw new Error(json.message || '解绑手机号失败')
   }
 }
@@ -664,8 +730,12 @@ export async function bindEmailApi(body: BindEmailRequest): Promise<void> {
     const text = await response.text()
     throw new Error(text || `网络错误：${response.status}`)
   }
-  const json = await parseResponse<ApiResponse<null>>(response)
-  if (json.code !== 200) {
+  const text = await response.text()
+  if (!text.trim()) {
+    return
+  }
+  const json = JSON.parse(text) as Partial<ApiResponse<null>>
+  if (typeof json.code === 'number' && json.code !== 200) {
     throw new Error(json.message || '绑定邮箱失败')
   }
 }
@@ -754,8 +824,12 @@ export async function unbindEmailApi(): Promise<void> {
     const text = await response.text()
     throw new Error(text || `网络错误：${response.status}`)
   }
-  const json = await parseResponse<ApiResponse<null>>(response)
-  if (json.code !== 200) {
+  const text = await response.text()
+  if (!text.trim()) {
+    return
+  }
+  const json = JSON.parse(text) as Partial<ApiResponse<null>>
+  if (typeof json.code === 'number' && json.code !== 200) {
     throw new Error(json.message || '解绑邮箱失败')
   }
 }

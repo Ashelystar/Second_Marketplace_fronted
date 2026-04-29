@@ -65,12 +65,21 @@
               <h3 class="text-lg font-semibold">手机绑定</h3>
               <p class="text-sm text-gray-500">已绑定手机：{{ accountInfo.phone }}</p>
             </div>
-            <button 
-              @click="showPhoneModal = true"
-              class="px-4 py-2 text-xianyuText border border-xianyuText rounded-lg hover:bg-xianyuText/5"
-            >
-              更换
-            </button>
+            <div class="flex items-center gap-2">
+              <button 
+                @click="showPhoneModal = true"
+                class="px-4 py-2 text-xianyuText border border-xianyuText rounded-lg hover:bg-xianyuText/5"
+              >
+                更换
+              </button>
+              <button
+                @click="submitPhoneUnbind"
+                class="px-4 py-2 text-red-500 border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-60"
+                :disabled="phoneUnbinding"
+              >
+                {{ phoneUnbinding ? '解绑中...' : '解绑' }}
+              </button>
+            </div>
           </div>
           <p class="text-sm text-gray-500">绑定手机可用于登录、找回密码和接收重要通知</p>
         </div>
@@ -82,12 +91,21 @@
               <h3 class="text-lg font-semibold">邮箱绑定</h3>
               <p class="text-sm text-gray-500">已绑定邮箱：{{ accountInfo.email }}</p>
             </div>
-            <button 
-              @click="showEmailModal = true"
-              class="px-4 py-2 text-xianyuText border border-xianyuText rounded-lg hover:bg-xianyuText/5"
-            >
-              更换
-            </button>
+            <div class="flex items-center gap-2">
+              <button 
+                @click="showEmailModal = true"
+                class="px-4 py-2 text-xianyuText border border-xianyuText rounded-lg hover:bg-xianyuText/5"
+              >
+                更换
+              </button>
+              <button
+                @click="submitEmailUnbind"
+                class="px-4 py-2 text-red-500 border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-60"
+                :disabled="emailUnbinding"
+              >
+                {{ emailUnbinding ? '解绑中...' : '解绑' }}
+              </button>
+            </div>
           </div>
           <p class="text-sm text-gray-500">绑定邮箱可用于登录、找回密码和接收重要通知</p>
         </div>
@@ -445,7 +463,9 @@ import { useUserStore } from '@/stores/userStore'
 import {
   changePasswordApi,
   bindPhoneApi,
+  unbindPhoneApi,
   bindEmailApi,
+  unbindEmailApi,
   submitRealNameVerificationApi,
   resubmitVerificationApi,
   getVerificationStatusApi,
@@ -461,6 +481,8 @@ const showEmailModal = ref(false)
 const showRealNameModal = ref(false)
 const showVerificationDetailModal = ref(false)
 const realNameSubmitting = ref(false)
+const phoneUnbinding = ref(false)
+const emailUnbinding = ref(false)
 const verificationStatusLoading = ref(false)
 const verificationDetailLoading = ref(false)
 const userStore = useUserStore()
@@ -753,7 +775,8 @@ const submitPasswordChange = async () => {
 }
 
 const submitPhoneChange = async () => {
-  const { newPhone, verifyCode } = phoneForm.value
+  const newPhone = phoneForm.value.newPhone.trim()
+  const verifyCode = phoneForm.value.verifyCode.trim()
   if (!/^1\d{10}$/.test(newPhone)) {
     alert('请输入正确的11位手机号')
     return
@@ -780,8 +803,32 @@ const submitPhoneChange = async () => {
   }
 }
 
+const submitPhoneUnbind = async () => {
+  if (phoneUnbinding.value) return
+  if (!confirm('确认解绑当前手机号吗？解绑后将无法通过手机号找回密码。')) return
+  try {
+    phoneUnbinding.value = true
+    await unbindPhoneApi()
+    accountInfo.value.phone = '未绑定'
+    operationLogs.value.unshift({
+      id: Date.now(),
+      time: new Date().toLocaleString('zh-CN'),
+      action: '解绑手机',
+      ip: '127.0.0.1',
+      device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
+      status: 'success'
+    })
+    alert('手机号解绑成功')
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '手机号解绑失败')
+  } finally {
+    phoneUnbinding.value = false
+  }
+}
+
 const submitEmailChange = async () => {
-  const { newEmail, verifyCode } = emailForm.value
+  const newEmail = emailForm.value.newEmail.trim()
+  const verifyCode = emailForm.value.verifyCode.trim()
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(newEmail)) {
     alert('请输入正确的邮箱地址')
@@ -806,6 +853,29 @@ const submitEmailChange = async () => {
     closeEmailModal()
   } catch (error) {
     alert(error instanceof Error ? error.message : '邮箱绑定更换失败')
+  }
+}
+
+const submitEmailUnbind = async () => {
+  if (emailUnbinding.value) return
+  if (!confirm('确认解绑当前邮箱吗？解绑后将无法通过邮箱找回密码。')) return
+  try {
+    emailUnbinding.value = true
+    await unbindEmailApi()
+    accountInfo.value.email = '未绑定'
+    operationLogs.value.unshift({
+      id: Date.now(),
+      time: new Date().toLocaleString('zh-CN'),
+      action: '解绑邮箱',
+      ip: '127.0.0.1',
+      device: navigator.userAgent.includes('Windows') ? 'Chrome/Windows' : 'Web',
+      status: 'success'
+    })
+    alert('邮箱解绑成功')
+  } catch (error) {
+    alert(error instanceof Error ? error.message : '邮箱解绑失败')
+  } finally {
+    emailUnbinding.value = false
   }
 }
 
