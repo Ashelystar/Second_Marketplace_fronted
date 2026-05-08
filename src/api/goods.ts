@@ -93,23 +93,39 @@ export async function incrementProductView(id: number): Promise<string> {
   return handleRequest<string>(`/api/product/${id}/view`, { method: 'PUT' }, '增加浏览量失败')
 }
 
-/** 商品修改参数 */
+/** 商品修改参数（与后端接口对齐，字段值为英文枚举） */
 export interface UpdateProductParams {
+  /** 商品分类 ID（必填）*/
   categoryId: number
+  /** 商品名称/标题（必填）*/
   title: string
+  /** 副标题（可选）*/
   subtitle?: string
+  /** 商品描述（必填）*/
   description: string
+  /** 品牌（可选）*/
   brand?: string
+  /** 型号（可选）*/
   model?: string
+  /** 成色级别（必填）：new/almost_new/good/fair/poor */
   conditionLevel: 'new' | 'almost_new' | 'good' | 'fair' | 'poor'
+  /** 购买年份（可选）*/
   purchaseYear?: number
+  /** 原价（元，必填）*/
   originalPrice: number
+  /** 售价（元，必填）*/
   sellingPrice: number
-  tradeMode: 'both' | 'pickup' | 'delivery'
+  /** 交易方式（必填）：pickup/shipping/both */
+  tradeMode: 'pickup' | 'shipping' | 'both'
+  /** 自提城市（可选）*/
   pickupCity?: string
+  /** 自提详细地址（可选）*/
   pickupAddress?: string
+  /** 纬度坐标（可选）*/
   locationLat?: number
+  /** 经度坐标（可选）*/
   locationLng?: number
+  /** 图片 URL 数组（可选）*/
   images?: string[]
 }
 
@@ -158,6 +174,70 @@ export async function saveToDraft(params: CreateProductParams): Promise<Product>
     method: 'POST',
     body: JSON.stringify(params),
   }, '保存草稿失败')
+}
+
+/** 获取当前用户的草稿列表 */
+export async function getDraftList(): Promise<PageProductResponse> {
+  return handleRequest<PageProductResponse>('/api/product/list', {
+    method: 'POST',
+    body: JSON.stringify({ publishStatus: 'draft', current: 1, size: 50 }),
+  }, '获取草稿列表失败')
+}
+
+/** 上传商品图片，返回图片 URL */
+export async function uploadImage(file: File): Promise<string> {
+  const token = localStorage.getItem('token')
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  console.log('[图片上传] 开始上传:', file.name, '大小:', (file.size / 1024).toFixed(1) + 'KB', '类型:', file.type)
+
+  const response = await fetch('/api/product/upload-image', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  })
+
+  const rawText = await response.text()
+  console.log('[图片上传] 响应状态:', response.status, '响应内容:', rawText.substring(0, 500))
+
+  if (!response.ok) {
+    // 非 2xx 状态码
+    let errMsg = rawText
+    try {
+      const errJson = JSON.parse(rawText)
+      errMsg = errJson.message || rawText
+    } catch { /* 不是 JSON，用原文 */ }
+    throw new Error(errMsg || `上传失败：${response.status}`)
+  }
+
+  // 解析成功响应
+  try {
+    const json = JSON.parse(rawText) as ApiResponse<unknown>
+    console.log('[图片上传] 解析结果:', json)
+
+    // 情况1：后端在 200 中返回了错误（data 为空）
+    if (json.data === null || json.data === undefined) {
+      throw new Error(json.message || '后端返回数据为空')
+    }
+
+    // 情况2：data 直接是字符串 URL
+    if (typeof json.data === 'string') return json.data
+
+    // 情况3：data 是对象 { url: "..." }
+    if (json.data && typeof json.data === 'object' && 'url' in json.data) {
+      return (json.data as { url: string }).url
+    }
+
+    // 兜底：整个 data 转字符串
+    throw new Error(`未知返回格式：${typeof json.data}`)
+  } catch (e) {
+    // JSON 解析失败的兜底
+    if (e instanceof Error) throw e
+    console.error('[图片上传] JSON解析失败, 原始响应:', rawText)
+    throw new Error('上传接口返回格式异常：' + rawText.substring(0, 200))
+  }
 }
 
 /** 分页查询商品参数 */
