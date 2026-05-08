@@ -66,7 +66,7 @@
               @click="goToDetail(p.id)"
             >
               <div class="productImg">
-                <img :src="p.image" :alt="p.title" />
+                <img :src="getImageUrl(p.image) || PLACEHOLDER_IMG" :alt="p.title" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
                 <span class="condition">{{ p.condition }}</span>
               </div>
               <div class="productInfo">
@@ -96,6 +96,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { getCategoryList } from '@/api/goods'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import Topnav from '@/components/TopNav.vue'
 import SiteFooter from '@/components/layout/SiteFooter.vue'
 defineOptions({ name: 'HomePage' })

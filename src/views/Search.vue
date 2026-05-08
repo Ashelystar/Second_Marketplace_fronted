@@ -42,7 +42,7 @@
         </div>
       </div>
 
-      <div v-if="isLoading" class="py-12 text-center">
+      <div v-if="store.isLoading" class="py-12 text-center">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-xianyuText mb-4"></div>
         <p class="text-gray-600">搜索商品中...</p>
       </div>
@@ -50,7 +50,7 @@
       <div v-else-if="store.filteredProducts.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
         <div v-for="p in displayedProducts" :key="p.id" class="product-card" @click="goToDetail(p.id)">
           <div class="aspect-square overflow-hidden relative">
-            <img :src="p.image" :alt="p.title" class="w-full h-full object-cover hover:scale-105 transition-transform">
+            <img :src="getImageUrl(p.image) || PLACEHOLDER_IMG" :alt="p.title" class="w-full h-full object-cover hover:scale-105 transition-transform" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
             <div class="absolute top-1.5 right-1.5"><span class="text-[10px] bg-white/90 text-gray-700 px-1.5 py-0.5 rounded-full">{{ p.condition }}</span></div>
           </div>
           <div class="p-2">
@@ -71,7 +71,7 @@
         <button class="btn-primary px-6 py-2" @click="router.push('/')">返回首页</button>
       </div>
 
-      <div v-if="store.filteredProducts.length > itemsPerPage && !allLoaded" class="text-center mt-6">
+      <div v-if="!allLoaded && store.totalProducts > 0" class="text-center mt-6">
         <button class="load-more-btn px-6 py-3" @click="loadMore"><i class="fa fa-refresh mr-2"></i>加载更多</button>
       </div>
     </main>
@@ -125,6 +125,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import type { FilterState, SortOption } from '@/types'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 const route = useRoute()
 const router = useRouter()
@@ -134,9 +135,6 @@ const searchInput = ref('')
 const activeTopTag = ref(1)
 const sortDropdownOpen = ref(false)
 const filterModalOpen = ref(false)
-const currentPage = ref(1)
-const itemsPerPage = 18
-const isLoading = ref(true)
 const filterState = ref<FilterState>({
   minPrice: '',
   maxPrice: '',
@@ -152,7 +150,7 @@ const sortOptions = [
   { value: 'price-high' as SortOption, label: '价格从高到低', icon: 'fa fa-long-arrow-down mr-2 text-gray-400' },
   { value: 'distance-near' as SortOption, label: '离我最近', icon: 'fa fa-location-arrow mr-2 text-gray-400' }
 ]
-const conditions = ['全新', '9成新', '8成新']
+const conditions = ['全新', '99新', '95新', '9成新', '8成新及以下']
 const locations = ['北京', '上海', '深圳', '广州', '杭州', '南京', '成都', '武汉', '西安', '重庆']
 const floatingTools = [
   { id: 1, icon: 'fa fa-plus text-gray-700', action: () => alert('正在跳转到发布页面...') },
@@ -162,33 +160,33 @@ const floatingTools = [
   { id: 5, icon: 'fa fa-headphones text-gray-700', action: () => alert('正在为您连接客服...') }
 ]
 
-const resultCount = computed(() => store.filteredProducts.length)
-const displayedProducts = computed(() => store.filteredProducts.slice(0, currentPage.value * itemsPerPage))
-const allLoaded = computed(() => displayedProducts.value.length >= store.filteredProducts.length)
+// 服务端分页后，filteredProducts 就是当前页的数据
+const resultCount = computed(() => store.totalProducts)
+const displayedProducts = computed(() => store.filteredProducts)
+const allLoaded = computed(() => store.currentPage * store.pageSize >= store.totalProducts)
 
 const getSortLabel = (v: SortOption) => sortOptions.find(o => o.value === v)?.label || '综合排序'
 const handleTopTagClick = (tag: { id: number; text: string }) => {
   activeTopTag.value = tag.id
-  tag.id === 1 ? store.resetFilter() : store.performSearch(tag.text)
+  if (tag.id === 1) { store.resetFilter() } else { store.performSearch(tag.text) }
 }
-const performSearch = () => { if (searchInput.value.trim()) store.performSearch(searchInput.value.trim()) }
+const performSearch = () => { if (searchInput.value.trim()) { store.performSearch(searchInput.value.trim()) } }
 const handleSort = (v: SortOption) => { store.sortProducts(v); sortDropdownOpen.value = false }
-const toggleCondition = (c: string) => { const i = filterState.value.conditions.indexOf(c); i === -1 ? filterState.value.conditions.push(c) : filterState.value.conditions.splice(i, 1) }
-const toggleLocation = (l: string) => { const i = filterState.value.locations.indexOf(l); i === -1 ? filterState.value.locations.push(l) : filterState.value.locations.splice(i, 1) }
+const toggleCondition = (c: string) => { const i = filterState.value.conditions.indexOf(c); if (i === -1) { filterState.value.conditions.push(c) } else { filterState.value.conditions.splice(i, 1) } }
+const toggleLocation = (l: string) => { const i = filterState.value.locations.indexOf(l); if (i === -1) { filterState.value.locations.push(l) } else { filterState.value.locations.splice(i, 1) } }
 const openFilterModal = () => { filterModalOpen.value = true; filterState.value = { ...store.filterState } }
 const applyFilter = () => { store.applyFilter(filterState.value); filterModalOpen.value = false }
-const resetFilter = () => { filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' } }
-const loadMore = () => currentPage.value++
+const resetFilter = () => { filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' }; store.resetFilter() }
+const loadMore = () => store.changePage(store.currentPage + 1)
 const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
 
 const handleClickOutside = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.sort-dropdown-container')) sortDropdownOpen.value = false }
 
 onMounted(() => {
-  if (store.products.length > 0) {
+  store.initialize().then(() => {
     if (route.query.q) { searchInput.value = route.query.q as string; store.performSearch(route.query.q as string) }
-    isLoading.value = false
-  }
+  })
   document.addEventListener('click', handleClickOutside)
 })
 onUnmounted(() => document.removeEventListener('click', handleClickOutside))

@@ -43,6 +43,9 @@ export interface Product {
   subtitle?: string
   purchaseYear?: number
   tradeMode?: string
+  model?: string              // 型号
+  stock?: number              // 库存数量
+  publishedAt?: string        // 发布时间
 }
 
 export interface FilterState {
