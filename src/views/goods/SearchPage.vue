@@ -30,7 +30,7 @@
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
           <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
-            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+            <UserDropdown />
           </template>
           <template v-else>
             <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
@@ -217,6 +217,7 @@ import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import type { SortOption } from '@/types'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
+import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'SearchPage' })
 
