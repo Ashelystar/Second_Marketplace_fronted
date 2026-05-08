@@ -15,7 +15,7 @@
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
           <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
-            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+            <UserDropdown />
           </template>
           <template v-else>
             <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
@@ -61,6 +61,19 @@
           maxlength="50"
         />
         <div class="charCount">{{ form.title.length }}/50</div>
+      </section>
+
+      <!-- 商品副标题（选填） -->
+      <section class="formSection">
+        <h3>副标题（选填）</h3>
+        <input
+          v-model="form.subtitle"
+          type="text"
+          class="input"
+          placeholder="如：iPhone 16 Pro Max，256GB，暗夜紫"
+          maxlength="30"
+        />
+        <div class="charCount">{{ form.subtitle.length }}/30</div>
       </section>
 
       <!-- 商品描述 -->
@@ -149,24 +162,69 @@
         />
       </section>
 
+      <!-- 型号 -->
+      <section class="formSection">
+        <h3>型号（选填）</h3>
+        <input
+          v-model="form.model"
+          type="text"
+          class="input"
+          placeholder="如：iPhone 16 Pro Max、Mate 60 Pro 等"
+        />
+      </section>
+
       <!-- 发货信息 -->
       <section class="formSection">
         <h3>发货信息</h3>
+        <div class="chipGroup" style="margin-bottom: 12px;">
+          <span style="font-size: 13px; color: #6b7280; margin-right: 8px;">交易方式：</span>
+          <button
+            v-for="opt in tradeModeOptions"
+            :key="opt.value"
+            class="chip"
+            :class="{ active: form.tradeMode === opt.value }"
+            @click="form.tradeMode = opt.value"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
         <div class="shipRow">
           <div class="field">
-            <label>发货地</label>
+            <label>自提城市</label>
             <input
               v-model="form.location"
               type="text"
               class="input"
-              placeholder="如：北京市朝阳区"
+              placeholder="如：深圳市南山区"
             />
           </div>
-          <div v-if="!form.freeFreight" class="field">
-            <label>运费</label>
+          <div class="field">
+            <label>详细地址（选填）</label>
+            <input
+              v-model="form.pickupAddress"
+              type="text"
+              class="input"
+              placeholder="具体地址，方便买家自提"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- 购买信息 -->
+      <section class="formSection">
+        <h3>购买信息（选填）</h3>
+        <div class="priceRow">
+          <div class="priceField">
+            <label>购买年份</label>
             <div class="priceInput">
-              <span>¥</span>
-              <input v-model="form.freight" type="number" placeholder="0" min="0" />
+              <input
+                v-model.number="form.purchaseYear"
+                type="number"
+                placeholder="如 2024"
+                min="1990"
+                :max="new Date().getFullYear()"
+                style="padding-left: 14px;"
+              />
             </div>
           </div>
         </div>
@@ -214,7 +272,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { getProductDetail, updateProduct, createProduct, saveToDraft, getCategoryList, type UpdateProductParams, type Category } from '@/api/goods'
+import { getProductDetail, updateProduct, createProduct, saveToDraft, getCategoryList, uploadImage, submitForReview, type UpdateProductParams, type Category } from '@/api/goods'
+import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'EditProduct' })
 
@@ -245,7 +304,7 @@ const loadCategories = async () => {
   }
 }
 
-// 成色名称到接口值的映射
+// 成色显示标签 → 后端英文枚举值
 const conditionMap: Record<string, UpdateProductParams['conditionLevel']> = {
   '全新': 'new',
   '99新': 'almost_new',
@@ -262,19 +321,31 @@ const newTag = ref('')
 const conditions = ['全新', '99新', '95新', '9成新', '8成新', '7成新及以下']
 const suggestedTags = ['包邮', '可议价', '全新未拆封', '正品', '保修期内', '送配件']
 
+// 交易方式选项（中文标签 + 后端英文值）
+const tradeModeOptions = [
+  { label: '自提', value: 'pickup' as const },
+  { label: '配送', value: 'shipping' as const },
+  { label: '两者均可', value: 'both' as const },
+]
+
 const form = reactive({
   images: [] as string[],
   title: '',
+  subtitle: '',           // 副标题
   description: '',
   price: '',
   originalPrice: '',
   canBargain: false,
   freeFreight: false,
   freight: 0,
-  categoryId: 1, // 默认选中第一个分类
+  categoryId: 1,          // 默认选中第一个分类
   condition: '9成新',
   brand: '',
+  model: '',              // 型号
+  purchaseYear: undefined as number | undefined, // 购买年份
   location: '',
+  pickupAddress: '',      // 自提详细地址
+  tradeMode: 'both' as UpdateProductParams['tradeMode'], // 交易方式（后端英文值）
   tags: [] as string[]
 })
 
@@ -282,6 +353,7 @@ type ProductFormSource = {
   images?: unknown[]
   image?: string
   title?: string
+  subtitle?: string
   description?: string
   sellingPrice?: string | number
   price?: string | number
@@ -291,8 +363,12 @@ type ProductFormSource = {
   conditionLevel?: string
   condition?: string
   brand?: string
+  model?: string
+  purchaseYear?: number | undefined
   pickupCity?: string
+  pickupAddress?: string
   location?: string
+  tradeMode?: string
   tags?: unknown[]
   canBargain?: boolean
   freight?: string | number
@@ -337,7 +413,24 @@ const applyProductToForm = (product: ProductFormSource) => {
   }
 
   form.brand = String(product.brand || '')
+  form.model = String(product.model || '')
+  form.subtitle = String(product.subtitle || '')
+
+  if (typeof product.purchaseYear === 'number' && product.purchaseYear > 1900) {
+    form.purchaseYear = product.purchaseYear
+  }
+
   form.location = String(product.pickupCity || product.location || '')
+  form.pickupAddress = String(product.pickupAddress || '')
+
+  // 交易方式：后端返回英文枚举值，直接使用
+  const tradeModeVal = product.tradeMode
+  if (tradeModeVal && ['pickup', 'shipping', 'both'].includes(tradeModeVal)) {
+    form.tradeMode = tradeModeVal as UpdateProductParams['tradeMode']
+  } else {
+    // 兼容旧数据或默认值
+    form.tradeMode = 'both'
+  }
 
   form.tags = Array.isArray(product.tags)
     ? product.tags
@@ -389,7 +482,7 @@ const loadProduct = async () => {
   }
 }
 
-// 将接口的 conditionLevel 转换为界面显示的标签
+// 将后端英文枚举值转换为界面显示的中文标签
 const conditionLevelMap: Record<string, string> = {
   'new': '全新',
   'almost_new': '99新',
@@ -403,19 +496,23 @@ const getConditionLabel = (level?: string): string => {
   return conditionLevelMap[level] || '9成新'
 }
 
-const handleImageUpload = (e: Event) => {
+const handleImageUpload = async (e: Event) => {
   const input = e.target as HTMLInputElement
-  if (input.files) {
-    Array.from(input.files).forEach(file => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        if (e.target?.result && form.images.length < 9) {
-          form.images.push(e.target.result as string)
-        }
-      }
-      reader.readAsDataURL(file)
-    })
+  if (!input.files) return
+  const files = Array.from(input.files)
+  for (const file of files) {
+    if (form.images.length >= 9) break
+    try {
+      const url = await uploadImage(file)
+      form.images.push(url)
+    } catch (err) {
+      console.error('图片上传失败:', err)
+      const msg = err instanceof Error ? err.message : '未知错误'
+      alert(`图片 "${file.name}" 上传失败：${msg}`)
+    }
   }
+  // 清空 input 以便重复选择同一文件
+  input.value = ''
 }
 
 const removeImage = (index: number) => {
@@ -444,13 +541,17 @@ const handleSaveDraft = async () => {
   const params: UpdateProductParams = {
     categoryId: form.categoryId,
     title: form.title,
+    subtitle: form.subtitle || undefined,
     description: form.description,
     originalPrice: Number(form.originalPrice) || 0,
     sellingPrice: Number(form.price) || 0,
     conditionLevel: conditionMap[form.condition] || 'fair',
-    brand: form.brand,
-    tradeMode: 'both',
-    pickupCity: form.location,
+    brand: form.brand || undefined,
+    model: form.model || undefined,
+    purchaseYear: form.purchaseYear,
+    tradeMode: form.tradeMode,
+    pickupCity: form.location || undefined,
+    pickupAddress: form.pickupAddress || undefined,
     images: form.images
   }
 
@@ -481,21 +582,26 @@ const handleSave = async () => {
     return
   }
 
-  // 构建接口参数
+  // 构建接口参数（与后端 POST /api/product/create 对齐）
   const params: UpdateProductParams = {
     categoryId: form.categoryId,
     title: form.title,
+    subtitle: form.subtitle || undefined,
     description: form.description,
     originalPrice: Number(form.originalPrice) || 0,
     sellingPrice: Number(form.price),
     conditionLevel: conditionMap[form.condition] || 'fair',
-    brand: form.brand,
-    tradeMode: 'both',
-    pickupCity: form.location,
+    brand: form.brand || undefined,
+    model: form.model || undefined,
+    purchaseYear: form.purchaseYear,
+    tradeMode: form.tradeMode,
+    pickupCity: form.location || undefined,
+    pickupAddress: form.pickupAddress || undefined,
     images: form.images
   }
 
   try {
+    let savedId: number
     if (isEditing.value && productId.value) {
       // 编辑商品
       console.log('【编辑商品】调用 updateProduct 接口')
@@ -503,15 +609,25 @@ const handleSave = async () => {
       console.log('请求参数:', params)
       const result = await updateProduct(productId.value, params)
       console.log('【编辑商品】接口返回:', result)
-      alert('商品信息已保存！')
+      savedId = productId.value
     } else {
       // 发布新商品
       console.log('【发布商品】调用 createProduct 接口')
       console.log('请求参数:', params)
       const result = await createProduct(params)
       console.log('【发布商品】接口返回:', result)
-      alert('商品发布成功！')
+      savedId = result.id
     }
+
+    // 提交审核（将状态从 draft/rejected 变为 pending_review）
+    try {
+      await submitForReview(savedId)
+      alert('已提交审核，请等待管理员审核')
+    } catch (reviewErr) {
+      console.error('提交审核失败:', reviewErr)
+      alert('商品已保存，但提交审核失败：' + (reviewErr instanceof Error ? reviewErr.message : '请稍后重试'))
+    }
+
     router.back()
   } catch (err) {
     console.error('操作失败:', err)

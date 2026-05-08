@@ -27,7 +27,7 @@
         <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
         <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
         <template v-if="userStore.isLoggedIn">
-          <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+          <UserDropdown />
         </template>
         <template v-else>
           <a href="#" @click.prevent="router.push('/user/login')"><i class="fa fa-user"></i> 登录/注册</a>
@@ -41,6 +41,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import UserDropdown from '@/components/UserDropdown.vue'
 
 const router = useRouter()
 const userStore = useUserStore()

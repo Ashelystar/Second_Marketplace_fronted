@@ -31,7 +31,7 @@
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
           <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
-            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+            <UserDropdown />
           </template>
           <template v-else>
             <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
@@ -69,7 +69,7 @@
       <div class="sellerCard card">
         <div class="sellerMain">
           <div class="sellerInfo">
-            <img v-if="product.sellerAvatar" :src="product.sellerAvatar" :alt="product.sellerName" class="avatar clickableAvatar" @click="goToSellerProfile" />
+            <img v-if="product.sellerAvatar" :src="getImageUrl(product.sellerAvatar)" :alt="product.sellerName" class="avatar clickableAvatar" @click="goToSellerProfile" />
             <div v-else class="avatar avatarDefault clickableAvatar" @click="goToSellerProfile">{{ product.sellerName?.charAt(0) }}</div>
             <div class="sellerText">
               <div class="sellerName">
@@ -116,13 +116,13 @@
             :class="{ active: i === currentIndex }"
             @click="currentIndex = i"
           >
-            <img :src="img.url" :alt="img.alt" />
+            <img :src="getImageUrl(img.url) || PLACEHOLDER_IMG" :alt="img.alt" @error="(e: Event) => { const el = e.target as HTMLImageElement; if (!el.dataset.fallback) { el.dataset.fallback = '1'; el.src = PLACEHOLDER_IMG } }" />
           </button>
         </div>
 
         <!-- 中间：主图 -->
         <div class="mainImage">
-          <img :src="currentImage.url" :alt="currentImage.alt" />
+          <img :src="getImageUrl(currentImage.url) || PLACEHOLDER_IMG" :alt="currentImage.alt" @error="(e: Event) => { const el = e.target as HTMLImageElement; if (!el.dataset.fallback) { el.dataset.fallback = '1'; el.src = PLACEHOLDER_IMG } }" />
           <button class="navBtn prev" @click="prevImage" :disabled="currentIndex === 0">
             <i class="fa fa-chevron-left"></i>
           </button>
@@ -162,6 +162,18 @@
             <span class="label">成色</span>
             <span class="conditionTag">{{ product.condition }}</span>
             <span v-if="product.isNew" class="conditionTag new">全新</span>
+          </div>
+
+          <!-- 型号 -->
+          <div v-if="product.model" class="conditionRow">
+            <span class="label">型号</span>
+            <span class="modelValue">{{ product.model }}</span>
+          </div>
+
+          <!-- 库存 -->
+          <div v-if="product.stock != null" class="conditionRow">
+            <span class="label">库存</span>
+            <span class="stockValue" :class="{ lowStock: product.stock <= 3 }">{{ product.stock > 0 ? `剩余 ${product.stock} 件` : '已售罄' }}</span>
           </div>
 
           <!-- 安全保障 -->
@@ -320,7 +332,7 @@
             @click="goToDetail(r.id)"
           >
             <div class="recImg">
-              <img :src="r.image" :alt="r.title" />
+              <img :src="getImageUrl(r.image) || PLACEHOLDER_IMG" :alt="r.title" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
               <span class="recCondition">{{ r.condition }}</span>
             </div>
             <div class="recInfo">
@@ -357,7 +369,9 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
-import { getProductDetail, incrementProductView, getProductStats, getProductStatus } from '@/api/goods'
+import { getProductDetail, incrementProductView, getProductStats, getProductStatus, getProductPage } from '@/api/goods'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
+import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'ProductDetail' })
 
@@ -370,6 +384,32 @@ const ensureLoggedIn = (actionHint: string) => {
   alert(`请先登录后再${actionHint}`)
   router.push('/user/login')
   return false
+}
+
+/**
+ * 将后端返回的各种图片格式统一归一化为 ProductImage[] { id, url, alt }
+ * 兼容格式：
+ *   - string[]          → ["/a.jpg", "/b.jpg"]
+ *   - { url }[]         → [{ url: "/a.jpg" }, ...]
+ *   - { imageUrl }[]    → [{ imageUrl: "/a.jpg" }, ...]
+ *   - { image }[]       → [{ image: "/a.jpg" }, ...]
+ *   - { path }[]        → [{ path: "/a.jpg" }, ...]
+ *   - ProductImage[]    → [{ id, url, alt }, ...]（标准格式）
+ */
+function normalizeImages(raw: unknown, title: string): ProductImage[] {
+  if (!raw || !Array.isArray(raw)) return []
+  return raw.map((item, index): ProductImage => {
+    if (typeof item === 'string') {
+      return { id: index + 1, url: item, alt: title }
+    }
+    const obj = item as Record<string, unknown>
+    const url = (obj.url || obj.imageUrl || obj.image || obj.path || '') as string
+    return {
+      id: (obj.id as number) || index + 1,
+      url,
+      alt: (obj.alt as string) || title,
+    }
+  }).filter(img => !!img.url)
 }
 
 const searchInput = ref('')
@@ -705,10 +745,28 @@ const handleLogin = () => {
 
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })
 
-const getPublishTime = (id: number) => {
-  if (id >= 21 && id <= 24) return '今天发布'
-  if (id >= 18 && id <= 20) return '3天内发布'
-  if (id >= 12 && id <= 17) return '1周内发布'
+const getPublishTime = (_id: number) => {
+  // 优先使用接口返回的真实发布时间
+  if (product.value?.publishedAt) {
+    const published = new Date(product.value.publishedAt).getTime()
+    if (!Number.isNaN(published)) {
+      const now = Date.now()
+      const diffMs = now - published
+      const diffMin = Math.floor(diffMs / 60000)
+      if (diffMin < 1) return '刚刚发布'
+      const diffHour = Math.floor(diffMin / 60)
+      if (diffHour < 1) return `${diffMin}分钟前发布`
+      const diffDay = Math.floor(diffHour / 24)
+      if (diffDay < 1) return `${diffHour}小时前发布`
+      if (diffDay <= 3) return `${diffDay}天内发布`
+      if (diffDay <= 7) return '1周内发布'
+      return '1周前发布'
+    }
+  }
+  // 回退：根据 ID 模拟（兼容旧数据）
+  if (_id >= 21 && _id <= 24) return '今天发布'
+  if (_id >= 18 && _id <= 20) return '3天内发布'
+  if (_id >= 12 && _id <= 17) return '1周内发布'
   return '1周前发布'
 }
 
@@ -764,7 +822,18 @@ const loadDetails = async () => {
 
     const data = await getProductDetail(id)
     console.log('接口返回数据:', data)
-    product.value = data
+    // API 字段映射：后端字段 → 前端 Product 接口
+    product.value = {
+      ...data,
+      // 售价：API 返回 sellingPrice(number) → 前端 price(string)
+      price: String(data.sellingPrice ?? data.price ?? 0),
+      // 原价：确保是字符串
+      originalPrice: data.originalPrice ? String(data.originalPrice) : '',
+      // 图片兜底
+      image: data.image || (Array.isArray(data.images) && data.images.length > 0
+        ? (typeof data.images[0] === 'string' ? data.images[0] : (data.images[0]?.url || ''))
+        : ''),
+    }
     // 增加浏览量（不阻塞主流程）
     incrementProductView(id).catch(err => console.error('增加浏览量失败:', err))
     // 获取商品统计（浏览量、收藏量等）
@@ -774,14 +843,19 @@ const loadDetails = async () => {
     } catch (err) {
       console.error('获取商品统计失败:', err)
     }
-    if (data.images && data.images.length > 0) {
-      images.value = data.images
-    } else {
+    // 图片归一化：兼容后端各种返回格式（string[] / {url}[] / {imageUrl}[] 等）
+    const normalized = normalizeImages(data.images, data.title || '')
+    if (normalized.length > 0) {
+      images.value = normalized
+    } else if (data.image) {
       images.value = [
-        { id: 1, url: data.image, alt: data.title },
-        { id: 2, url: `https://picsum.photos/id/${id * 10}/800/800`, alt: data.title + ' 细节图' },
-        { id: 3, url: `https://picsum.photos/id/${id * 20}/800/800`, alt: data.title + ' 包装图' }
+        { id: 1, url: data.image, alt: data.title || '' },
+        { id: 2, url: PLACEHOLDER_IMG, alt: (data.title || '') + ' 细节图' },
+        { id: 3, url: PLACEHOLDER_IMG, alt: (data.title || '') + ' 包装图' },
       ]
+    } else {
+      // 无任何图片数据时使用占位图
+      images.value = [{ id: 1, url: PLACEHOLDER_IMG, alt: '' }]
     }
     currentIndex.value = 0
     isLoading.value = false
@@ -793,9 +867,24 @@ const loadDetails = async () => {
   }
 }
 
-const loadRecs = () => {
-  // 推荐商品暂时使用空数组，后续可接入推荐接口
-  recommendations.value = []
+const loadRecs = async () => {
+  try {
+    // 使用同分类或随机推荐，排除当前商品
+    const params: { current: number; size: number; categoryId?: number } = {
+      current: 1,
+      size: 6,
+    }
+    if (product.value?.category) {
+      // 尝试通过分类名匹配，如果后端支持 categoryId 则传入
+      // 这里暂时用 keyword 做模糊推荐，或直接取最新上架
+    }
+    const res = await getProductPage(params)
+    // 过滤掉当前商品
+    recommendations.value = res.records.filter(r => r.id !== product.value?.id).slice(0, 6)
+  } catch (err) {
+    console.error('获取推荐商品失败:', err)
+    recommendations.value = []
+  }
 }
 
 const prevImage = () => { if (currentIndex.value > 0) currentIndex.value-- }
@@ -1363,6 +1452,20 @@ onMounted(() => {
 
 .conditionTag.new {
   background: #22c55e;
+}
+
+.modelValue {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.stockValue {
+  font-size: 14px;
+  color: #16a34a;
+}
+
+.stockValue.lowStock {
+  color: #dc2626;
 }
 
 .securityBox {

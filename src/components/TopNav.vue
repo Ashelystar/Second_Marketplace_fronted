@@ -47,10 +47,7 @@
           消息
         </a>
         <template v-if="userStore.isLoggedIn">
-          <a href="#" @click.prevent="goToUserCenter">
-            <i class="fa fa-user"></i>
-            我的
-          </a>
+          <UserDropdown />
         </template>
         <template v-else>
           <a href="#" @click.prevent="goToLogin">
@@ -72,9 +69,10 @@
 
 <script setup lang="ts">
 // 导入Vue组合式API和状态管理
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/userStore' // 请根据您的实际路径调整
+import { useUserStore } from '@/stores/userStore'
+import UserDropdown from '@/components/UserDropdown.vue'
 
 const floatingTools = [
   { id: 1, icon: 'fa fa-plus', label: '发闲置', action: 'publish' },
@@ -317,7 +315,6 @@ const goToLogin = () => {
   color: #f97316;
 }
 
-/* 响应式设计 */
 @media (max-width: 900px) {
   .site-topnav-row {
     flex-wrap: wrap;

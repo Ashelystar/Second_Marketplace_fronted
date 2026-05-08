@@ -29,7 +29,7 @@
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
           <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
-            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+            <UserDropdown />
           </template>
           <template v-else>
             <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
@@ -164,10 +164,17 @@
               </button>
             </div>
             <div class="actionRow">
-              <button class="actionBtn secondary" @click="toggleStatus">
-                <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
-                {{ product.status === '在售' ? '下架商品' : '重新上架' }}
-              </button>
+              <template v-if="product.status === '待审核'">
+                <button class="actionBtn warning" @click="handleRevokeReview">
+                  <i class="fa fa-undo"></i> 撤销审核
+                </button>
+              </template>
+              <template v-else>
+                <button class="actionBtn secondary" @click="toggleStatus">
+                  <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
+                  {{ product.status === '在售' ? '下架商品' : '重新上架' }}
+                </button>
+              </template>
               <button class="actionBtn primary" @click="editProduct">
                 <i class="fa fa-edit"></i> 编辑商品
               </button>
@@ -325,7 +332,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { offShelfProduct } from '@/api/goods'
+import { offShelfProduct, relistProduct, revokeReview } from '@/api/goods'
+import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'SellerProductDetail' })
 
@@ -600,11 +608,9 @@ const goBack = () => window.history.length > 1 ? router.back() : router.push('/'
 
 const toggleStatus = async () => {
   if (!product.value) return
-  if (product.value.status !== '在售') {
-    alert('重新上架功能待后端接口支持')
-    return
-  }
-  if (confirm('确定要下架该商品吗？')) {
+  if (product.value.status === '在售') {
+    // 在售 -> 下架
+    if (!confirm('确定要下架该商品吗？')) return
     try {
       await offShelfProduct(product.value.id)
       product.value.status = '已下架'
@@ -612,6 +618,28 @@ const toggleStatus = async () => {
     } catch (err) {
       alert(err instanceof Error ? err.message : '下架失败')
     }
+  } else {
+    // 已下架 -> 重新上架
+    if (!confirm('确定要重新上架该商品吗？')) return
+    try {
+      await relistProduct(product.value.id)
+      product.value.status = '在售'
+      alert('商品已重新上架')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '重新上架失败')
+    }
+  }
+}
+
+const handleRevokeReview = async () => {
+  if (!product.value) return
+  if (!confirm('确定要撤销该商品的审核吗？撤回后将变为草稿状态。')) return
+  try {
+    await revokeReview(product.value.id)
+    product.value.status = '已下架'
+    alert('已撤销审核，商品已回到草稿箱')
+  } catch (err) {
+    alert(err instanceof Error ? err.message : '撤销审核失败')
   }
 }
 
@@ -1292,6 +1320,20 @@ onMounted(() => {
 
 .actionBtn.primary i {
   color: #fff;
+}
+
+.actionBtn.warning {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #c2410c;
+}
+
+.actionBtn.warning i {
+  color: #c2410c;
+}
+
+.actionBtn.warning:hover {
+  background: #ffedd5;
 }
 
 .actionBtn.primary:hover {

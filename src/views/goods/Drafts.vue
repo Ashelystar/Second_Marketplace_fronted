@@ -18,7 +18,7 @@
           <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
           <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
-            <a href="#" @click.prevent="router.push('/user/center')"><i class="fa fa-user"></i> 我的</a>
+            <UserDropdown />
           </template>
           <template v-else>
             <a href="#" @click="handleLogin"><i class="fa fa-user"></i> 登录/注册</a>
@@ -45,7 +45,11 @@
           class="draftCard card"
         >
           <div class="draftImage" @click="editDraft(draft)">
-            <img :src="draft.images?.[0] || 'https://picsum.photos/200'" :alt="draft.title" />
+            <img v-if="draft.images?.length" :src="draft.images[0]" :alt="draft.title" />
+            <div v-else class="noImage">
+              <i class="fa fa-image"></i>
+              <span>暂无图片</span>
+            </div>
           </div>
           <div class="draftInfo">
             <h3 class="draftTitle" @click="editDraft(draft)">{{ draft.title || '未填写标题' }}</h3>
@@ -86,8 +90,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { getCategoryList } from '@/api/goods'
+import { getCategoryList, getDraftList, submitForReview } from '@/api/goods'
 import type { Category } from '@/api/goods'
+import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'Drafts' })
 
@@ -149,9 +154,17 @@ const editDraft = (draft: Draft) => {
   router.push({ path: '/edit', query: { id: draft.id.toString() } })
 }
 
-const publishDraft = (draft: Draft) => {
-  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(draft))
-  router.push({ path: '/edit', query: { id: draft.id.toString(), publish: 'true' } })
+const publishDraft = async (draft: Draft) => {
+  if (!confirm(`确定要提交「${draft.title || '未命名'}」审核吗？`)) return
+  try {
+    await submitForReview(draft.id)
+    alert('已提交审核，请等待管理员审核')
+    // 从列表中移除该草稿
+    drafts.value = drafts.value.filter(d => d.id !== draft.id)
+  } catch (err) {
+    console.error('提交审核失败:', err)
+    alert(err instanceof Error ? err.message : '提交审核失败，请稍后重试')
+  }
 }
 
 const deleteDraft = (draft: Draft) => {
@@ -171,8 +184,21 @@ const loadCategories = async () => {
 
 onMounted(async () => {
   await loadCategories()
-  // TODO: 后端提供草稿列表接口后替换为 API 调用
-  // 临时使用空列表演示
+  try {
+    const res = await getDraftList()
+    // 将后端返回的 Product[] 映射为 Draft 格式
+    drafts.value = res.records.map(item => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      categoryId: undefined as number | undefined, // Product 返回 category(名称)，需从分类列表反查 ID
+      sellingPrice: item.sellingPrice || parseFloat(item.price) || undefined,
+      images: item.images?.map(img => img.url).filter(Boolean) || [],
+      updatedAt: item.publishedAt || undefined,
+    }))
+  } catch (err) {
+    console.error('加载草稿列表失败:', err)
+  }
 })
 </script>
 
@@ -328,6 +354,19 @@ onMounted(async () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.noImage {
+  width: 120px;
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  color: #9ca3af;
+  font-size: 12px;
+  gap: 4px;
 }
 
 .draftInfo {
