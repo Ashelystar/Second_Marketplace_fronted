@@ -85,6 +85,13 @@
           >
             已下架
           </button>
+          <button
+            class="filterTab"
+            :class="{ active: filterStatus === 'pendingReview' }"
+            @click="filterStatus = 'pendingReview'"
+          >
+            待审核
+          </button>
         </div>
         <div class="filterActions">
           <button class="publishBtn" @click="goToPublish">
@@ -111,7 +118,7 @@
         >
           <div class="productImage">
             <img :src="product.image" :alt="product.title" />
-            <span class="statusBadge" :class="product.status === '在售' ? 'onSale' : 'offSale'">
+            <span class="statusBadge" :class="statusBadgeClass(product.status)">
               {{ product.status }}
             </span>
           </div>
@@ -129,9 +136,16 @@
             </div>
           </div>
           <div class="productActions" @click.stop>
-            <button class="actionBtn" @click="toggleStatus(product)">
-              <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
-            </button>
+            <template v-if="product.status === '待审核'">
+              <button class="actionBtn warning" @click="handleRevokeReview(product)" title="撤销审核">
+                <i class="fa fa-undo"></i>
+              </button>
+            </template>
+            <template v-else>
+              <button class="actionBtn" @click="toggleStatus(product)">
+                <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
+              </button>
+            </template>
             <button class="actionBtn" @click="editProduct(product)">
               <i class="fa fa-edit"></i>
             </button>
@@ -157,7 +171,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { offShelfProduct } from '@/api/goods'
+import { offShelfProduct, relistProduct, revokeReview } from '@/api/goods'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'SellerProducts' })
@@ -268,6 +282,7 @@ const filteredProducts = computed(() => {
   if (filterStatus.value === 'all') return products.value
   if (filterStatus.value === 'onSale') return products.value.filter(p => p.status === '在售')
   if (filterStatus.value === 'offSale') return products.value.filter(p => p.status === '已下架')
+  if (filterStatus.value === 'pendingReview') return products.value.filter(p => p.status === '待审核')
   return products.value
 })
 
@@ -307,11 +322,9 @@ const editProduct = (product: Product) => {
 }
 
 const toggleStatus = async (product: Product) => {
-  if (product.status !== '在售') {
-    alert('重新上架功能待后端接口支持')
-    return
-  }
-  if (confirm('确定要下架该商品吗？')) {
+  if (product.status === '在售') {
+    // 在售 -> 下架
+    if (!confirm('确定要下架该商品吗？')) return
     try {
       await offShelfProduct(product.id)
       product.status = '已下架'
@@ -319,6 +332,33 @@ const toggleStatus = async (product: Product) => {
     } catch (err) {
       alert(err instanceof Error ? err.message : '下架失败')
     }
+  } else {
+    // 已下架 -> 重新上架
+    if (!confirm('确定要重新上架该商品吗？')) return
+    try {
+      await relistProduct(product.id)
+      product.status = '在售'
+      alert('商品已重新上架')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '重新上架失败')
+    }
+  }
+}
+
+const statusBadgeClass = (status: string) => {
+  if (status === '在售') return 'onSale'
+  if (status === '待审核') return 'pendingReview'
+  return 'offSale'
+}
+
+const handleRevokeReview = async (product: Product) => {
+  if (!confirm('确定要撤销该商品的审核吗？撤回后将变为草稿状态。')) return
+  try {
+    await revokeReview(product.id)
+    product.status = '已下架' // 撤回后变为草稿，前端显示为已下架
+    alert('已撤销审核，商品已回到草稿箱')
+  } catch (err) {
+    alert(err instanceof Error ? err.message : '撤销审核失败')
   }
 }
 
@@ -664,6 +704,11 @@ onMounted(() => {
   color: #9ca3af;
 }
 
+.statusBadge.pendingReview {
+  background: #fef3c7;
+  color: #d97706;
+}
+
 .productInfo {
   padding: 12px;
 }
@@ -745,6 +790,14 @@ onMounted(() => {
 
 .actionBtn.delete:hover {
   background: #dc2626;
+}
+
+.actionBtn.warning {
+  color: #d97706;
+}
+
+.actionBtn.warning:hover {
+  background: #fef3c7;
 }
 
 /* 悬浮工具栏 */

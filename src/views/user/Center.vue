@@ -116,7 +116,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { offShelfProduct } from '@/api/goods'
+import { offShelfProduct, relistProduct } from '@/api/goods'
 
 const router = useRouter()
 const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
@@ -242,20 +242,27 @@ const editProduct = (product: Product) => {
 
 const toggleStatus = async (product: Product) => {
   if (product.status === '在售') {
-    // 点击暂停：在售 -> 已下架
-    product.status = '已下架'
+    // 在售 -> 下架
     try {
       await offShelfProduct(product.id)
+      product.status = '已下架'
+      alert('商品已下架')
     } catch (err) {
       console.error('下架接口调用失败:', err)
-      alert('商品已在本地切换为已下架，后端同步失败，请稍后重试')
+      alert(err instanceof Error ? err.message : '下架失败，请稍后重试')
     }
     return
   }
 
-  // 点击继续：已下架 -> 在售（当前先做前端恢复）
-  product.status = '在售'
-  alert('商品已恢复为在售状态')
+  // 已下架 -> 重新上架
+  try {
+    await relistProduct(product.id)
+    product.status = '在售'
+    alert('商品已重新上架')
+  } catch (err) {
+    console.error('重新上架接口调用失败:', err)
+    alert(err instanceof Error ? err.message : '重新上架失败，请稍后重试')
+  }
 }
 
 const deleteProduct = (product: Product) => {
