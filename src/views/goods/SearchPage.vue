@@ -83,7 +83,7 @@
       </div>
 
       <!-- 加载中 -->
-      <div v-if="isLoading" class="loading">
+      <div v-if="store.isLoading" class="loading">
         <div class="spinner"></div>
         <p>搜索商品中...</p>
       </div>
@@ -97,7 +97,7 @@
           @click="goToDetail(p.id)"
         >
           <div class="productImg">
-            <img :src="p.image" :alt="p.title" />
+            <img :src="getImageUrl(p.image) || PLACEHOLDER_IMG" :alt="p.title" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
             <span class="condition">{{ p.condition }}</span>
           </div>
           <div class="productInfo">
@@ -125,7 +125,7 @@
       </div>
 
       <!-- 加载更多 -->
-      <div v-if="store.filteredProducts.length > itemsPerPage && !allLoaded" class="loadMore">
+      <div v-if="!allLoaded && store.totalProducts > 0" class="loadMore">
         <button class="loadMoreBtn" @click="loadMore">
           <i class="fa fa-refresh"></i> 加载更多
         </button>
@@ -216,6 +216,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import type { SortOption } from '@/types'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'SearchPage' })
 
@@ -228,9 +229,6 @@ const searchInput = ref('')
 const activeTopTag = ref(1)
 const sortDropdownOpen = ref(false)
 const filterModalOpen = ref(false)
-const currentPage = ref(1)
-const itemsPerPage = 18
-const isLoading = ref(true)
 const filterState = ref({
   minPrice: '',
   maxPrice: '',
@@ -265,7 +263,7 @@ const timeRanges = [
   { value: 'month', label: '一个月内' }
 ]
 
-const conditions = ['全新', '9成新', '8成新']
+const conditions = ['全新', '99新', '95新', '9成新', '8成新及以下']
 const locations = ['北京', '上海', '深圳', '广州', '杭州', '南京', '成都', '武汉', '西安', '重庆']
 
 const floatingTools = [
@@ -276,9 +274,10 @@ const floatingTools = [
   { id: 5, icon: 'fa fa-headphones', label: '客服', action: () => alert('正在为您连接客服...') }
 ]
 
-const resultCount = computed(() => store.filteredProducts.length)
-const displayedProducts = computed(() => store.filteredProducts.slice(0, currentPage.value * itemsPerPage))
-const allLoaded = computed(() => displayedProducts.value.length >= store.filteredProducts.length)
+// 服务端分页后，filteredProducts 就是当前页的数据
+const resultCount = computed(() => store.totalProducts)
+const displayedProducts = computed(() => store.filteredProducts)
+const allLoaded = computed(() => store.currentPage * store.pageSize >= store.totalProducts)
 
 const getSortLabel = (v: SortOption) => sortOptions.find(o => o.value === v)?.label || '综合排序'
 
@@ -324,9 +323,10 @@ const applyFilter = () => {
 
 const resetFilter = () => {
   filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' }
+  store.resetFilter()
 }
 
-const loadMore = () => currentPage.value++
+const loadMore = () => store.changePage(store.currentPage + 1)
 
 const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
 
@@ -341,14 +341,12 @@ const handleLogin = () => {
 }
 
 onMounted(() => {
-  store.initialize()
-  if (store.products.length > 0) {
+  store.initialize().then(() => {
     if (route.query.q) {
       searchInput.value = route.query.q as string
       store.performSearch(route.query.q as string)
     }
-    isLoading.value = false
-  }
+  })
   document.addEventListener('click', handleClickOutside)
 })
 

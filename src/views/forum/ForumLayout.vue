@@ -49,10 +49,7 @@
             消息
           </a>
           <template v-if="userStore.isLoggedIn">
-            <a href="#" @click.prevent="router.push('/user/center')">
-              <i class="fa fa-user"></i>
-              我的
-            </a>
+            <UserDropdown />
           </template>
           <template v-else>
             <a href="#" @click.prevent="handleLogin">
@@ -76,6 +73,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useForumStore } from '@/stores/forum'
 import SiteFooter from '@/components/layout/SiteFooter.vue'
+import UserDropdown from '@/components/UserDropdown.vue'
 
 const router = useRouter()
 const route = useRoute()

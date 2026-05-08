@@ -162,11 +162,48 @@ export async function saveToDraft(params: CreateProductParams): Promise<Product>
 
 /** 分页查询商品参数 */
 export interface PageProductParams {
+  /** 页码 */
   current?: number
+  /** 每页条数 */
   size?: number
-  categoryId?: number
-  publishStatus?: string
+  /** 商品 ID（精确查询时使用） */
+  id?: number
+  /** 搜索关键词 */
   keyword?: string
+  /** 分类 ID */
+  categoryId?: number
+  /** 发布状态：on_sale/offline/draft 等 */
+  publishStatus?: string
+  /** 成色级别：new/almost_new/good/fair/poor */
+  conditionLevel?: string
+  /** 品牌 */
+  brand?: string
+  /** 型号 */
+  model?: string
+  /** 原价筛选（元） */
+  originalPrice?: number
+  /** 售价筛选（元） */
+  sellingPrice?: number
+  /** 价格区间-最低价 */
+  priceMin?: number
+  /** 价格区间-最高价 */
+  priceMax?: number
+  /** 是否全新 */
+  isNew?: boolean
+  /** 交易方式：pickup/delivery 等 */
+  tradeMode?: string
+  /** 自提城市 */
+  pickupCity?: string
+  /** 自提地址（模糊匹配） */
+  pickupAddress?: string
+  /** 库存数量 */
+  stock?: number
+  /** 排序字段：price/sellingPrice/viewCount/publishedAt 等 */
+  sortField?: string
+  /** 排序方向：asc/desc */
+  sortOrder?: 'asc' | 'desc'
+  /** 卖家 ID（用于查询指定卖家的商品） */
+  sellerId?: number
 }
 
 /** 分页查询商品响应 */
@@ -183,9 +220,25 @@ export async function getProductPage(params: PageProductParams): Promise<PagePro
   const body: Record<string, unknown> = {}
   if (params.current !== undefined) body.current = params.current
   if (params.size !== undefined) body.size = params.size
+  if (params.id !== undefined) body.id = params.id
+  if (params.keyword !== undefined && params.keyword !== '') body.keyword = params.keyword
   if (params.categoryId !== undefined) body.categoryId = params.categoryId
-  if (params.publishStatus) body.publishStatus = params.publishStatus
-  if (params.keyword) body.keyword = params.keyword
+  if (params.publishStatus !== undefined && params.publishStatus !== '') body.publishStatus = params.publishStatus
+  if (params.conditionLevel !== undefined && params.conditionLevel !== '') body.conditionLevel = params.conditionLevel
+  if (params.brand !== undefined && params.brand !== '') body.brand = params.brand
+  if (params.model !== undefined && params.model !== '') body.model = params.model
+  if (params.originalPrice !== undefined) body.originalPrice = params.originalPrice
+  if (params.sellingPrice !== undefined) body.sellingPrice = params.sellingPrice
+  if (params.priceMin !== undefined) body.priceMin = params.priceMin
+  if (params.priceMax !== undefined) body.priceMax = params.priceMax
+  if (params.isNew !== undefined) body.isNew = params.isNew
+  if (params.tradeMode !== undefined && params.tradeMode !== '') body.tradeMode = params.tradeMode
+  if (params.pickupCity !== undefined && params.pickupCity !== '') body.pickupCity = params.pickupCity
+  if (params.pickupAddress !== undefined && params.pickupAddress !== '') body.pickupAddress = params.pickupAddress
+  if (params.stock !== undefined) body.stock = params.stock
+  if (params.sortField !== undefined && params.sortField !== '') body.sortField = params.sortField
+  if (params.sortOrder !== undefined) body.sortOrder = params.sortOrder
+  if (params.sellerId !== undefined) body.sellerId = params.sellerId
 
   return handleRequest<PageProductResponse>('/api/product/list', {
     method: 'POST',
