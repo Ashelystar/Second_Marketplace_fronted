@@ -76,6 +76,34 @@ export async function offShelfProduct(id: number): Promise<string> {
   return handleRequest<string>(`/api/product/${id}`, { method: 'DELETE' }, '下架商品失败')
 }
 
+/** 重新上架商品 */
+export async function relistProduct(id: number): Promise<string> {
+  return handleRequest<string>(`/api/product/${id}/relist`, { method: 'PUT' }, '重新上架失败')
+}
+
+/** 提交商品审核（草稿/驳回 → 待审核 pending_review） */
+export async function submitForReview(id: number): Promise<string> {
+  return handleRequest<string>(`/api/product/${id}/submit-review`, { method: 'PUT' }, '提交审核失败')
+}
+
+/** 撤销商品审核（待审核 pending_review → 撤回至草稿 draft） */
+export async function revokeReview(id: number): Promise<string> {
+  return handleRequest<string>(`/api/product/${id}/revoke-review`, { method: 'PUT' }, '撤销审核失败')
+}
+
+/** 管理员审核商品（通过/驳回） */
+export interface AdminAuditParams {
+  approved: boolean
+  rejectReason?: string
+}
+
+export async function adminAuditProduct(id: number, params: AdminAuditParams): Promise<string> {
+  return handleRequest<string>(`/api/product/admin/audit/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(params),
+  }, '审核操作失败')
+}
+
 /** 商品简要统计 */
 export interface ProductStats {
   viewCount: number

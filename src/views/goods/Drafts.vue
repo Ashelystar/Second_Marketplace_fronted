@@ -90,7 +90,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { getCategoryList, getDraftList } from '@/api/goods'
+import { getCategoryList, getDraftList, submitForReview } from '@/api/goods'
 import type { Category } from '@/api/goods'
 import UserDropdown from '@/components/UserDropdown.vue'
 
@@ -154,9 +154,17 @@ const editDraft = (draft: Draft) => {
   router.push({ path: '/edit', query: { id: draft.id.toString() } })
 }
 
-const publishDraft = (draft: Draft) => {
-  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(draft))
-  router.push({ path: '/edit', query: { id: draft.id.toString(), publish: 'true' } })
+const publishDraft = async (draft: Draft) => {
+  if (!confirm(`确定要提交「${draft.title || '未命名'}」审核吗？`)) return
+  try {
+    await submitForReview(draft.id)
+    alert('已提交审核，请等待管理员审核')
+    // 从列表中移除该草稿
+    drafts.value = drafts.value.filter(d => d.id !== draft.id)
+  } catch (err) {
+    console.error('提交审核失败:', err)
+    alert(err instanceof Error ? err.message : '提交审核失败，请稍后重试')
+  }
 }
 
 const deleteDraft = (draft: Draft) => {
