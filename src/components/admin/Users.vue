@@ -72,7 +72,16 @@
             </ElTag>
           </template>
         </ElTableColumn>
-        <ElTableColumn prop="lastLoginAt" label="最后登录" width="150" />
+        <ElTableColumn label="最后登录" width="150">
+          <template #default="scope">
+            {{ formatTime(scope.row.lastLoginAt) }}
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="注册时间" width="150">
+          <template #default="scope">
+            {{ formatTime(scope.row.registeredAt) }}
+          </template>
+        </ElTableColumn>
         <ElTableColumn label="操作" width="200">
           <template #default="scope">
             <ElButton type="info" size="small" @click="notifyUser(scope.row.id)">
@@ -97,7 +106,7 @@
         v-model:page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        :total="adminStore.users.length"
+        :total="adminStore.totalUsers"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
@@ -138,41 +147,7 @@
       </template>
     </ElDialog>
     
-    <!-- 通知模态框 -->
-    <ElDialog
-      v-model="notifyDialogVisible"
-      title="发送通知"
-      width="500px"
-    >
-      <ElForm :model="notifyForm" label-width="100px">
-        <ElFormItem label="通知等级">
-          <ElRadioGroup v-model="notifyForm.level">
-            <ElRadio label="info">信息</ElRadio>
-            <ElRadio label="warning">警告</ElRadio>
-            <ElRadio label="error">错误</ElRadio>
-            <ElRadio label="success">成功</ElRadio>
-          </ElRadioGroup>
-        </ElFormItem>
-        <ElFormItem label="通知内容">
-          <ElInput
-            v-model="notifyForm.content"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入通知内容"
-            required
-          />
-        </ElFormItem>
-        <ElFormItem label="消息推送">
-          <ElSwitch v-model="notifyForm.notify" />
-        </ElFormItem>
-      </ElForm>
-      <template #footer>
-        <span class="dialog-footer">
-          <ElButton @click="notifyDialogVisible = false">取消</ElButton>
-          <ElButton type="primary" @click="confirmNotify">确定</ElButton>
-        </span>
-      </template>
-    </ElDialog>
+
   </div>
 </template>
 
@@ -196,97 +171,56 @@ const banForm = ref({
 })
 const currentUser = ref<any>(null)
 
-// 通知对话框
-const notifyDialogVisible = ref(false)
-const notifyForm = ref({
-  level: 'info',
-  content: '',
-  notify: true
-})
-const currentNotifyUserId = ref(0)
+
 
 // 过滤选项
 const statusFilter = ref('')
 const roleFilter = ref('')
 const searchFields = ref(['id', 'username', 'nickname', 'email', 'phone'])
 
-// 过滤用户
+// 过滤用户 - 直接使用adminStore.users，因为后端已经处理了过滤和分页
 const filteredUsers = computed(() => {
-  let users = adminStore.users
-  
-  // 按状态过滤
-  if (statusFilter.value) {
-    users = users.filter(user => {
-      switch (statusFilter.value) {
-        case 'active':
-          return user.userStatus === 'active' && user.canBuy && user.canSell
-        case 'banned':
-          return user.userStatus !== 'active'
-        case 'no-buy':
-          return user.userStatus === 'active' && !user.canBuy && user.canSell
-        case 'no-sell':
-          return user.userStatus === 'active' && user.canBuy && !user.canSell
-        default:
-          return true
-      }
-    })
-  }
-  
-  // 按角色过滤
-  if (roleFilter.value) {
-    users = users.filter(user => {
-      if (roleFilter.value === 'admin') {
-        return user.isAdmin
-      } else if (roleFilter.value === 'user') {
-        return !user.isAdmin
-      }
-      return true
-    })
-  }
-  
-  // 按搜索字段过滤
-  if (searchKeyword.value && searchFields.value.length > 0) {
-    const keyword = searchKeyword.value.toLowerCase()
-    users = users.filter(user => {
-      return searchFields.value.some(field => {
-        switch (field) {
-          case 'id':
-            return user.id.toString().includes(keyword)
-          case 'username':
-            return user.username.toLowerCase().includes(keyword)
-          case 'nickname':
-            return user.nickname.toLowerCase().includes(keyword)
-          case 'email':
-            return user.email && user.email.toLowerCase().includes(keyword)
-          case 'phone':
-            return user.phone && user.phone.includes(keyword)
-          default:
-            return false
-        }
-      })
-    })
-  }
-  
-  // 分页
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return users.slice(start, end)
+  return adminStore.users
 })
 
 // 搜索用户
-function handleSearch() {
+async function handleSearch() {
   currentPage.value = 1
+  await adminStore.loadUsers({
+    status: statusFilter.value,
+    isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
+    keyword: searchKeyword.value,
+    searchFields: searchFields.value,
+    page: currentPage.value,
+    pageSize: pageSize.value
+  })
 }
 
 // 页面大小变化
-function handleSizeChange(size: number) {
+async function handleSizeChange(size: number) {
   pageSize.value = size
   currentPage.value = 1
+  await adminStore.loadUsers({
+    status: statusFilter.value,
+    isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
+    keyword: searchKeyword.value,
+    searchFields: searchFields.value,
+    page: currentPage.value,
+    pageSize: pageSize.value
+  })
 }
 
 // 当前页面变化
-function handleCurrentChange(current: number) {
+async function handleCurrentChange(current: number) {
   currentPage.value = current
+  await adminStore.loadUsers({
+    status: statusFilter.value,
+    isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
+    keyword: searchKeyword.value,
+    searchFields: searchFields.value,
+    page: currentPage.value,
+    pageSize: pageSize.value
+  })
 }
 
 // 获取标签类型
@@ -561,36 +495,103 @@ async function confirmBan() {
 
 // 显示通知模态框
 function notifyUser(userId: number) {
-  currentNotifyUserId.value = userId
-  notifyForm.value.level = 'info'
-  notifyForm.value.content = ''
-  notifyForm.value.notify = true
-  notifyDialogVisible.value = true
+  // 显示功能正在开发的提示
+  ElMessage.info('通知功能正在开发中')
+  // 记录管理员操作日志
+  console.log('管理员尝试发送通知给用户:', userId)
 }
 
-// 确认发送通知
-async function confirmNotify() {
-  if (!notifyForm.value.content.trim()) {
-    ElMessage.error('请输入通知内容')
-    return
-  }
+// 格式化时间
+function formatTime(time: string | number[]): string {
+  if (!time || (Array.isArray(time) && time.length === 0)) return '无'
   
   try {
-    const token = localStorage.getItem('token')
-    // 实际项目中这里应该调用API发送通知
-    // 模拟API调用
-    setTimeout(() => {
-      ElMessage.success('通知发送成功')
-      notifyDialogVisible.value = false
-    }, 500)
+    let date: Date
+    
+    // 处理数组类型的时间数据
+    if (Array.isArray(time)) {
+      if (time.length >= 6) {
+        const [year, month, day, hour, minute, second] = time
+        date = new Date(year, month - 1, day, hour, minute, second)
+      } else if (time.length === 5) {
+        // 处理只有5个元素的情况，默认秒为0
+        const [year, month, day, hour, minute] = time
+        date = new Date(year, month - 1, day, hour, minute, 0)
+      } else {
+        return Array.isArray(time) ? time.toString() : time
+      }
+    } else if (typeof time === 'string') {
+      // 处理包含方括号的数组格式，如"[2026,4,15,14,43,3]"
+      if (time.startsWith('[') && time.endsWith(']')) {
+        const timeStr = time.substring(1, time.length - 1)
+        const parts = timeStr.split(',').map(part => parseInt(part.trim()))
+        if (parts.length >= 6) {
+          const [year, month, day, hour, minute, second] = parts
+          date = new Date(year, month - 1, day, hour, minute, second)
+        } else if (parts.length === 5) {
+          // 处理只有5个元素的情况，默认秒为0
+          const [year, month, day, hour, minute] = parts
+          date = new Date(year, month - 1, day, hour, minute, 0)
+        } else {
+          return time
+        }
+      } else if (time.includes(',')) {
+        // 处理"2026,4,24,15,51,38"格式的时间数组
+        const parts = time.split(',').map(part => parseInt(part.trim()))
+        if (parts.length >= 6) {
+          const [year, month, day, hour, minute, second] = parts
+          date = new Date(year, month - 1, day, hour, minute, second)
+        } else if (parts.length === 5) {
+          // 处理只有5个元素的情况，默认秒为0
+          const [year, month, day, hour, minute] = parts
+          date = new Date(year, month - 1, day, hour, minute, 0)
+        } else {
+          return time
+        }
+      } else {
+        // 处理其他格式的时间，包括ISO格式
+        date = new Date(time)
+      }
+    } else {
+      return '无'
+    }
+    
+    if (!isNaN(date.getTime())) {
+      // 统一格式化为"年月日时分"格式
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hour = String(date.getHours()).padStart(2, '0')
+      const minute = String(date.getMinutes()).padStart(2, '0')
+      
+      return `${year}-${month}-${day} ${hour}:${minute}`
+    }
   } catch (error) {
-    console.error('发送通知失败:', error)
-    ElMessage.error('发送通知失败')
+    console.error('时间格式化失败:', error)
   }
+  
+  return Array.isArray(time) ? time.toString() : time
 }
 
-onMounted(() => {
-  adminStore.loadUsers()
+// 监听状态和角色过滤变化
+import { watch } from 'vue'
+
+watch([statusFilter, roleFilter], async () => {
+  await adminStore.loadUsers({
+    status: statusFilter.value,
+    isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
+    keyword: searchKeyword.value,
+    searchFields: searchFields.value,
+    page: currentPage.value,
+    pageSize: pageSize.value
+  })
+})
+
+onMounted(async () => {
+  await adminStore.loadUsers({
+    page: currentPage.value,
+    pageSize: pageSize.value
+  })
 })
 </script>
 

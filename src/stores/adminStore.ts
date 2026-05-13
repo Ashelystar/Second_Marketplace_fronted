@@ -12,6 +12,9 @@ export interface AdminUser {
   lastLoginAt: string
   registeredAt: string
   avatar: string | null
+  isAdmin: boolean
+  canBuy: boolean
+  canSell: boolean
 }
 
 // 商品审核相关类型
@@ -455,8 +458,181 @@ export const useAdminStore = defineStore('admin', () => {
 
   // 方法
   loadMockData,
-  loadStats: loadMockData,
-  loadUsers: loadMockData,
+  loadStats: async () => {
+    try {
+      statsLoading.value = true;
+      const token = localStorage.getItem('token');
+      
+      // 获取概览数据
+      const overviewResponse = await fetch('/api/admin/dashboard/overview', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!overviewResponse.ok) {
+        throw new Error(`加载仪表盘概览数据失败: ${overviewResponse.status}`);
+      }
+      
+      const overviewData = await overviewResponse.json();
+      
+      // 获取趋势数据
+      const trendsResponse = await fetch('/api/admin/dashboard/trends', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!trendsResponse.ok) {
+        throw new Error(`加载趋势数据失败: ${trendsResponse.status}`);
+      }
+      
+      const trendsData = await trendsResponse.json();
+      
+      // 更新状态
+      if (overviewData.data) {
+        stats.value = {
+          // 用户相关
+          totalUsers: overviewData.data.userStats?.totalUsers || 0,
+          activeUsers: overviewData.data.userStats?.activeUsers || 0,
+          bannedUsers: overviewData.data.userStats?.bannedUsers || 0,
+          newUsersToday: overviewData.data.userStats?.newUsersToday || 0,
+          
+          // 商品相关
+          totalProducts: overviewData.data.productStats?.totalProducts || 0,
+          onSaleProducts: overviewData.data.productStats?.onSaleProducts || 0,
+          pendingReviewProducts: overviewData.data.productStats?.pendingReviewProducts || 0,
+          soldProducts: overviewData.data.productStats?.soldProducts || 0,
+          productViews: overviewData.data.productStats?.productViews || 0,
+          
+          // 订单相关
+          totalOrders: overviewData.data.orderStats?.totalOrders || 0,
+          pendingPaymentOrders: overviewData.data.orderStats?.pendingPaymentOrders || 0,
+          completedOrders: overviewData.data.orderStats?.completedOrders || 0,
+          cancelledOrders: overviewData.data.orderStats?.cancelledOrders || 0,
+          totalSales: overviewData.data.orderStats?.totalSales || 0,
+          averageOrderAmount: overviewData.data.orderStats?.averageOrderAmount || 0,
+          
+          // 交易相关
+          totalTransactions: overviewData.data.transactionStats?.totalTransactions || 0,
+          transactionAmount: overviewData.data.transactionStats?.transactionAmount || 0,
+          transactionSuccessRate: overviewData.data.transactionStats?.transactionSuccessRate || 0,
+          disputeRate: overviewData.data.transactionStats?.disputeRate || 0,
+          
+          // 社区相关
+          totalForumPosts: overviewData.data.communityStats?.totalForumPosts || 0,
+          approvedForumPosts: overviewData.data.communityStats?.approvedForumPosts || 0,
+          pendingForumPosts: overviewData.data.communityStats?.pendingForumPosts || 0,
+          forumPostViews: overviewData.data.communityStats?.forumPostViews || 0,
+          totalComments: overviewData.data.communityStats?.totalComments || 0,
+          totalLikes: overviewData.data.communityStats?.totalLikes || 0,
+          
+          // 售后相关
+          totalAfterSales: overviewData.data.afterSalesStats?.totalAfterSales || 0,
+          pendingAfterSales: overviewData.data.afterSalesStats?.pendingAfterSales || 0,
+          
+          // 趋势数据
+          dailySales: overviewData.data.dailyStats?.dailySales || 0,
+          weeklySales: trendsData.data?.weeklySales || [0, 0, 0, 0, 0, 0, 0],
+          monthlySales: trendsData.data?.monthlySales || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          dailyOrders: overviewData.data.dailyStats?.dailyOrders || 0,
+          weeklyOrders: trendsData.data?.weeklyOrders || [0, 0, 0, 0, 0, 0, 0]
+        };
+      }
+    } catch (error) {
+      console.error('加载仪表盘数据失败:', error);
+      // 加载失败时使用模拟数据
+      loadMockData();
+    } finally {
+      statsLoading.value = false;
+    }
+  },
+  loadUsers: async (params?: {
+    isAdmin?: boolean;
+    canBuy?: boolean;
+    canSell?: boolean;
+    status?: string;
+    keyword?: string;
+    searchFields?: string[];
+    page?: number;
+    pageSize?: number;
+  }) => {
+    try {
+      userLoading.value = true;
+      const token = localStorage.getItem('token');
+      
+      // 构建查询参数
+      const queryParams = new URLSearchParams();
+      if (params) {
+        if (params.isAdmin !== undefined) queryParams.append('isAdmin', params.isAdmin.toString());
+        if (params.canBuy !== undefined) queryParams.append('canBuy', params.canBuy.toString());
+        if (params.canSell !== undefined) queryParams.append('canSell', params.canSell.toString());
+        if (params.status) queryParams.append('status', params.status);
+        if (params.keyword) queryParams.append('keyword', params.keyword);
+        if (params.searchFields && params.searchFields.length > 0) {
+          params.searchFields.forEach(field => queryParams.append('searchFields', field));
+        }
+        if (params.page) queryParams.append('page', params.page.toString());
+        if (params.pageSize) queryParams.append('pageSize', params.pageSize.toString());
+      }
+      
+      const response = await fetch(`/api/admin/user/page${queryParams.toString() ? `?${queryParams.toString()}` : ''}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`加载用户数据失败: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('后端返回的数据:', data);
+      
+      // 尝试不同的数据结构
+      if (data.data && data.data.list) {
+        // 后端实际返回的结构
+        users.value = data.data.list || [];
+        totalUsers.value = data.data.total || 0;
+        currentUserPage.value = data.data.page || 1;
+        userPageSize.value = data.data.pageSize || 10;
+      } else if (data.data && data.data.records) {
+        // 标准分页结构
+        users.value = data.data.records || [];
+        totalUsers.value = data.data.total || 0;
+        currentUserPage.value = data.data.current || 1;
+        userPageSize.value = data.data.size || 10;
+      } else if (Array.isArray(data)) {
+        // 直接返回数组
+        users.value = data;
+        totalUsers.value = data.length;
+        currentUserPage.value = 1;
+        userPageSize.value = 10;
+      } else if (data.data && Array.isArray(data.data)) {
+        // 数据在data字段中
+        users.value = data.data;
+        totalUsers.value = data.data.length;
+        currentUserPage.value = 1;
+        userPageSize.value = 10;
+      } else {
+        // 无法识别的数据结构
+        console.error('无法识别的数据结构:', data);
+        users.value = [];
+        totalUsers.value = 0;
+      }
+      
+      console.log('处理后的数据:', {
+        users: users.value,
+        totalUsers: totalUsers.value
+      });
+    } catch (error) {
+      console.error('加载用户数据失败:', error);
+      // 加载失败时使用模拟数据
+      loadMockData();
+    } finally {
+      userLoading.value = false;
+    }
+  },
   loadProducts: loadMockData,
   loadDisputes: loadMockData,
   loadForumSections: loadMockData,

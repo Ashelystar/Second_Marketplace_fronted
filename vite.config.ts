@@ -14,7 +14,6 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       vueJsx(),
-      vueDevTools(),
     ],
     resolve: {
       alias: {
@@ -26,7 +25,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,       // 开发服务器端口
       strictPort: true, // 端口被占用时报错
       open: false,      // 是否自动打开浏览器
-      cors: true,       // 启用CORS
+      cors: true,        // 启用CORS
       proxy: {
         // 前端请求 /api/* 时，转发到 .env 中配置的后端地址
         '/api': {
