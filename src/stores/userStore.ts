@@ -19,6 +19,7 @@ export interface FavoriteItem {
   id: number
   title: string
   price: string
+  originalPrice?: string
   image: string
   condition: string
   location: string
@@ -250,14 +251,30 @@ export const useUserStore = defineStore('user', () => {
     let img = product.image || ''
     if (!img && product.images && product.images.length > 0) {
       const first = product.images[0]
-      img = first.url || first.imageUrl || ''
+      if (first) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        img = (first as any).url || (first as any).imageUrl || ''
+      }
+    }
+    // 提取价格：优先用 sellingPrice（number），否则用 price（string）
+    let priceVal = ''
+    if (product.sellingPrice !== undefined && product.sellingPrice !== null) {
+      priceVal = String(product.sellingPrice)
+    } else if (product.price) {
+      priceVal = String(product.price)
+    }
+    // 提取原价
+    let originalPriceVal = ''
+    if (product.originalPrice !== undefined && product.originalPrice !== null) {
+      originalPriceVal = String(product.originalPrice)
     }
     return {
       id: product.id,
       title: product.title || `商品${product.id}`,
-      price: String(product.price ?? ''),
+      price: priceVal,
+      originalPrice: originalPriceVal,
       image: img,
-      condition: product.condition || '成色未知',
+      condition: product.conditionLevel || product.condition || '成色未知',
       location: product.location || '',
       addTime: new Date().toLocaleString(),
     }

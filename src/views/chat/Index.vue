@@ -74,7 +74,7 @@
       <!-- 商品信息卡片 -->
       <div class="product-card" v-if="product" @click="viewProductDetail">
         <div class="product-image">
-          <img :src="product.image" :alt="product.title">
+          <img :src="product.image" :alt="product.title" @error="(e: Event) => { const t = e.target as HTMLImageElement; if (t) t.src = PLACEHOLDER_IMG }">
         </div>
         <div class="product-info">
           <h4 class="product-title">{{ product.title }}</h4>
@@ -219,6 +219,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getProductDetail } from '@/api/goods'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'ChatPage' })
 
@@ -259,6 +261,55 @@ interface Product {
 const messagesContainer = ref<HTMLElement>()
 const textareaRef = ref<HTMLTextAreaElement>()
 const imageInput = ref<HTMLInputElement>()
+const productLoading = ref(false)
+
+// 从路由参数初始化商品信息
+const initProduct = () => {
+  const productId = route.query.productId
+  const sellerId = route.query.sellerId
+  const sellerName = route.query.sellerName
+  const sellerAvatar = route.query.sellerAvatar
+  if (productId) {
+    productLoading.value = true
+    getProductDetail(Number(productId))
+      .then(data => {
+        let imageUrl = ''
+        if (data.image) {
+          imageUrl = getImageUrl(data.image)
+        } else if (Array.isArray(data.images) && data.images.length > 0) {
+          const firstImg = data.images[0]
+          if (firstImg) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            imageUrl = getImageUrl((firstImg as any).url || (firstImg as any).imageUrl || '')
+          }
+        }
+        product.value = {
+          id: data.id,
+          title: data.title || '',
+          price: Number(data.sellingPrice ?? data.price ?? 0),
+          image: imageUrl || PLACEHOLDER_IMG,
+        }
+      })
+      .catch(err => {
+        console.error('获取商品详情失败:', err)
+      })
+      .finally(() => {
+        productLoading.value = false
+      })
+  }
+  // 如果没有卖家信息但有 sellerId，也设置一下
+  if (sellerId && sellerName && !seller.value.id) {
+    seller.value = {
+      id: Number(sellerId),
+      name: String(sellerName),
+      avatar: String(sellerAvatar || ''),
+      lastMessage: '',
+      lastTime: '',
+      rating: 0,
+      location: '',
+    }
+  }
+}
 
 const friends = ref<Friend[]>([
   {
@@ -542,6 +593,8 @@ const blockUser = () => {
 
 onMounted(() => {
   mergeStoredFriends()
+  // 初始化商品信息（从商品详情页跳转过来时）
+  initProduct()
   const selectedFriendId = Number(route.query.friendId)
   if (Number.isFinite(selectedFriendId) && selectedFriendId > 0) {
     const target = friends.value.find(friend => friend.id === selectedFriendId)
