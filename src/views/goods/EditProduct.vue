@@ -35,7 +35,7 @@
             :key="index"
             class="imageItem"
           >
-            <img :src="getImageUrl(img)" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
+            <img :src="getImageUrl(img.imageUrl)" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
             <button class="deleteBtn" @click="removeImage(index)">
               <i class="fa fa-times"></i>
             </button>
@@ -330,7 +330,7 @@ const tradeModeOptions = [
 ]
 
 const form = reactive({
-  images: [] as string[],
+  images: [] as { imageUrl: string; isCover?: boolean; sortNum?: number }[],
   title: '',
   subtitle: '',           // 副标题
   description: '',
@@ -377,17 +377,16 @@ type ProductFormSource = {
 }
 
 const applyProductToForm = (product: ProductFormSource) => {
-  const imageList = Array.isArray(product.images)
+  const imageList: { imageUrl: string; isCover: boolean; sortNum: number; id?: number }[] = Array.isArray(product.images)
     ? product.images
-      .map((img) => {
-        if (typeof img === 'string') return img
-        if (img && typeof img === 'object' && 'url' in img) return String((img as { url: unknown }).url || '')
-        return ''
-      })
-      .filter(Boolean)
+        .map((img, index: number) => {
+          if (typeof img === 'string') return { imageUrl: img, isCover: index === 0, sortNum: index }
+          const obj = img as { imageUrl?: string; url?: string; id?: number; isCover?: boolean; sortNum?: number }
+          return { imageUrl: String(obj.imageUrl || obj.url || ''), isCover: Boolean(obj.isCover || index === 0), sortNum: Number(obj.sortNum ?? index), id: obj.id }
+        })
     : []
   const cover = typeof product.image === 'string' ? product.image : ''
-  form.images = imageList.length ? imageList : (cover ? [cover] : [])
+  form.images = imageList.length ? imageList : (cover ? [{ imageUrl: cover, isCover: true, sortNum: 0 }] : [])
 
   form.title = String(product.title || '')
   form.description = String(product.description || '')
@@ -505,7 +504,11 @@ const handleImageUpload = async (e: Event) => {
     if (form.images.length >= 9) break
     try {
       const url = await uploadImage(file)
-      form.images.push(url)
+      form.images.push({
+        imageUrl: url,
+        isCover: form.images.length === 0,  // 第一张作为封面
+        sortNum: form.images.length,
+      })
     } catch (err) {
       console.error('图片上传失败:', err)
       const msg = err instanceof Error ? err.message : '未知错误'

@@ -153,8 +153,8 @@ export interface UpdateProductParams {
   locationLat?: number
   /** 经度坐标（可选）*/
   locationLng?: number
-  /** 图片 URL 数组（可选）*/
-  images?: string[]
+  /** 图片数组（可选，对象格式匹配后端接口）*/
+  images?: { imageUrl?: string; url?: string; id?: number; isCover?: boolean; sortNum?: number }[]
 }
 
 /** 修改商品信息 */

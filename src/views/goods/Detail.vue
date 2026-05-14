@@ -887,8 +887,17 @@ const loadRecs = async () => {
       // 这里暂时用 keyword 做模糊推荐，或直接取最新上架
     }
     const res = await getProductPage(params)
-    // 过滤掉当前商品
-    recommendations.value = res.records.filter(r => r.id !== product.value?.id).slice(0, 6)
+    // 过滤掉当前商品并处理图片字段
+    recommendations.value = res.records
+      .filter(r => r.id !== product.value?.id)
+      .slice(0, 6)
+      .map(r => ({
+        ...r,
+        // 确保 image 字段存在：优先使用已有的 image，否则从 images 数组中提取第一张
+        image: r.image || (Array.isArray(r.images) && r.images.length > 0
+          ? extractFirstImageUrl(r.images[0])
+          : ''),
+      }))
   } catch (err) {
     console.error('获取推荐商品失败:', err)
     recommendations.value = []
