@@ -78,13 +78,16 @@
         </div>
         <div class="productInfo">
           <h3 class="productTitle">{{ item.title }}</h3>
-          <div class="productPrice">{{ formatPrice(item.price) }}</div>
+          <div class="price">
+            <span class="currentPrice">¥{{ item.price }}</span>
+            <span v-if="item.originalPrice" class="originalPrice">¥{{ item.originalPrice }}</span>
+          </div>
           <div class="productStats">
             <span><i class="fa fa-tag"></i> {{ detectCategoryLabel(item.title) }}</span>
             <span><i class="fa fa-map-marker"></i> {{ item.location || '未知地点' }}</span>
           </div>
           <div class="productMeta">
-            <span class="productSeller">{{ item.condition || '成色未知' }}</span>
+            <span class="productSeller">{{ formatCondition(item.condition) }}</span>
             <span class="productCategory">{{ item.addTime || '' }}</span>
           </div>
         </div>
@@ -106,6 +109,16 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore, type FavoriteItem } from '@/stores/userStore'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
+
+// 成色映射（与首页、详情页保持一致）
+const conditionMap: Record<string, string> = {
+  new: '全新',
+  almost_new: '99新',
+  good: '9成新',
+  fair: '8成新',
+  poor: '7成新及以下',
+}
+const formatCondition = (level?: string) => conditionMap[level || ''] || level || '成色未知'
 
 defineOptions({ name: 'UserFavorites' })
 
@@ -160,14 +173,6 @@ const detectCategoryLabel = (title: string) => {
   if (category === 'clothing') return '服装服饰'
   if (category === 'book') return '图书教材'
   return '日用百货'
-}
-
-const formatPrice = (price: string) => {
-  const value = Number(price)
-  if (Number.isFinite(value)) {
-    return `¥${value}`
-  }
-  return `¥${price}`
 }
 
 const toggleFavorite = async (item: FavoriteItem) => {
@@ -346,11 +351,19 @@ onMounted(() => {
   line-height: 1.4;
 }
 
-.productPrice {
+.price {
   font-size: 16px;
   font-weight: bold;
   color: #f97316;
   margin-bottom: 6px;
+}
+
+.price .originalPrice {
+  font-size: 12px;
+  color: #9ca3af;
+  text-decoration: line-through;
+  font-weight: normal;
+  margin-left: 6px;
 }
 
 .productStats {

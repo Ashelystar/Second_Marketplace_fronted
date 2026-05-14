@@ -79,13 +79,19 @@
                 </span>
               </div>
               <div class="sellerMeta">
+                <span><i class="fa fa-map-marker"></i> {{ product.location }}</span>
                 <span v-if="product.sellerRating" class="rating">
                   <i class="fa fa-star"></i> {{ product.sellerRating }}
                 </span>
-                <span v-if="product.sellerGoodRate" class="goodRate">
-                  好评率 {{ product.sellerGoodRate }}%
+                <span v-if="sellerReputation?.creditScore" class="creditScore">
+                  信用分 {{ sellerReputation.creditScore }}
                 </span>
-                <span><i class="fa fa-map-marker"></i> {{ product.location }}</span>
+                <span v-if="sellerReputation?.positiveRate" class="goodRate">
+                  好评率 {{ sellerReputation.positiveRate }}%
+                </span>
+                <span v-if="sellerReputation?.totalReviewCount" class="reviewCount">
+                  评价 {{ sellerReputation.totalReviewCount }}
+                </span>
               </div>
             </div>
           </div>
@@ -94,14 +100,9 @@
           </button>
         </div>
         <div class="sellerStats">
-          <div>在售 <strong>{{ product.sellerOnSale || 0 }}</strong></div>
-          <div>已售 <strong>{{ product.sellerSold || 0 }}</strong></div>
-          <div v-if="product.sellerDeliverySpeed">
-            发货速度 <strong>{{ product.sellerDeliverySpeed }}</strong>
-          </div>
-          <div v-if="product.sellerServiceAttitude">
-            服务态度 <strong>{{ product.sellerServiceAttitude }}</strong>
-          </div>
+          <div>在售 <strong>{{ sellerOnSaleCount || product.sellerOnSale || 0 }}</strong></div>
+          <div>已完成 <strong>{{ sellerReputation?.completedOrders || product.sellerSold || 0 }}</strong></div>
+          <div>总订单 <strong>{{ sellerReputation?.totalOrders || 0 }}</strong></div>
         </div>
       </div>
 
@@ -142,8 +143,9 @@
             </div>
             <div class="priceTags">
               <span v-if="product.canBargain" class="tag tagRed">可议价</span>
+              <span v-if="!product.canBargain" class="tag tagGray">不议价</span>
               <span v-if="product.freight === 0" class="tag tagGreen">包邮</span>
-              <span class="muted">快递: ¥{{ product.freight || 0 }}</span>
+              <span class="muted">交易方式: {{ product.tradeMode === 'pickup' ? '自提' : product.tradeMode === 'express' || product.tradeMode === 'shipping' ? '快递' : product.tradeMode === 'both' ? '自提/快递' : product.tradeMode || '未知' }}</span>
             </div>
           </div>
 
@@ -160,8 +162,14 @@
           <!-- 成色 -->
           <div class="conditionRow">
             <span class="label">成色</span>
-            <span class="conditionTag">{{ product.condition }}</span>
+            <span class="conditionTag">{{ formatCondition(product.conditionLevel || product.condition) }}</span>
             <span v-if="product.isNew" class="conditionTag new">全新</span>
+          </div>
+
+          <!-- 品牌 -->
+          <div v-if="product.brand" class="conditionRow">
+            <span class="label">品牌</span>
+            <span class="modelValue">{{ product.brand }}</span>
           </div>
 
           <!-- 型号 -->
@@ -169,6 +177,8 @@
             <span class="label">型号</span>
             <span class="modelValue">{{ product.model }}</span>
           </div>
+
+
 
           <!-- 库存 -->
           <div v-if="product.stock != null" class="conditionRow">
@@ -337,7 +347,10 @@
             </div>
             <div class="recInfo">
               <h4>{{ r.title }}</h4>
-              <span class="recPrice">¥{{ r.price }}</span>
+              <div class="recPrice">
+                <span class="currentPrice">¥{{ r.price }}</span>
+                <span v-if="r.originalPrice" class="originalPrice">¥{{ r.originalPrice }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -372,6 +385,10 @@ import type { Product, ProductImage } from '@/types'
 import { getProductDetail, incrementProductView, getProductStats, getProductStatus, getProductPage } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
+import {
+  getSellerReputationSnapshotApi,
+  type SellerReputationSnapshot,
+} from '@/api/user'
 
 defineOptions({ name: 'ProductDetail' })
 
@@ -410,7 +427,6 @@ function normalizeImages(raw: unknown, title: string): ProductImage[] {
       alt: (obj.alt as string) || title,
     }
   }).filter(img => !!img.url)
-  console.log('[normalizeImages] 原始:', JSON.stringify(raw).substring(0, 300), '→ 归一化结果:', result)
   return result
 }
 
@@ -428,6 +444,8 @@ const currentIndex = ref(0)
 const images = ref<ProductImage[]>([])
 const recommendations = ref<Product[]>([])
 const productStats = ref({ viewCount: 0, favoriteCount: 0, orderCount: 0 })
+const sellerReputation = ref<SellerReputationSnapshot | null>(null)
+const sellerOnSaleCount = ref(0) // 卖家在售商品数量
 const productStatus = ref('')
 const isLoading = ref(true)
 const loadError = ref('')
@@ -722,6 +740,17 @@ const toggleFavorite = async () => {
   }
 }
 
+const formatCondition = (level?: string) => {
+  const map: Record<string, string> = {
+    new: '全新',
+    almost_new: '99新',
+    good: '9成新',
+    fair: '8成新',
+    poor: '7成新及以下',
+  }
+  return map[level || ''] || level || '成色未知'
+}
+
 const goToCheckout = () => {
   if (!ensureLoggedIn('购买商品')) return
   const productId = resolveRouteProductId()
@@ -733,7 +762,15 @@ const goToCheckout = () => {
 }
 const goToChat = () => {
   if (!ensureLoggedIn('和卖家聊天')) return
-  router.push('/chat')
+  router.push({
+    path: '/chat',
+    query: {
+      productId: String(product.value?.id),
+      sellerId: String(product.value?.sellerId),
+      sellerName: product.value?.sellerName || '',
+      sellerAvatar: product.value?.sellerAvatar || '',
+    }
+  })
 }
 
 const goToSellerProfile = () => {
@@ -801,8 +838,6 @@ const resolveRouteProductId = (): number | null => {
 
 const loadDetails = async () => {
   const id = resolveRouteProductId()
-  console.log('=== 商品详情请求 ===')
-  console.log('商品ID:', id)
   if (!id) {
     loadError.value = '无效的商品ID'
     isLoading.value = false
@@ -813,21 +848,17 @@ const loadDetails = async () => {
     try {
       const status = await getProductStatus(id)
       productStatus.value = status
-      console.log('商品状态:', status)
       // 仅真正下架/删除的商品阻止加载，其他状态（draft/pending_review/rejected 等）允许查看详情
       if (status === 'deleted') {
         loadError.value = '该商品已被删除'
         isLoading.value = false
         return
       }
-    } catch (err) {
-      console.error('查询商品状态失败:', err)
+    } catch {
       // 状态查询失败不阻塞详情加载
     }
 
     const data = await getProductDetail(id)
-    console.log('[商品详情] 接口返回:', data)
-    console.log('[商品详情] 原始 images 字段:', JSON.stringify(data.images))
 
     // API 字段映射：后端字段 → 前端 Product 接口
     product.value = {
@@ -840,6 +871,12 @@ const loadDetails = async () => {
       image: data.image || (Array.isArray(data.images) && data.images.length > 0
         ? extractFirstImageUrl(data.images[0])
         : ''),
+      // 卖家信息兜底
+      sellerName: data.sellerName || `用户${data.sellerId || ''}`,
+      sellerAvatar: data.sellerAvatar || '',
+      sellerOnSale: data.sellerOnSale ?? 0,
+      sellerSold: data.sellerSold ?? 0,
+      location: data.pickupCity || data.location || '未知',
     }
     // 增加浏览量（不阻塞主流程）
     incrementProductView(id).catch(err => console.error('增加浏览量失败:', err))
@@ -850,9 +887,28 @@ const loadDetails = async () => {
     } catch (err) {
       console.error('获取商品统计失败:', err)
     }
+    // 获取卖家信誉信息（信用分、好评率、评价数等）
+    if (data.sellerId) {
+      try {
+        const rep = await getSellerReputationSnapshotApi(data.sellerId)
+        sellerReputation.value = rep
+      } catch (err) {
+        console.error('获取卖家信誉信息失败:', err)
+        sellerReputation.value = null
+      }
+      // 获取卖家在售商品数量（与PublicProfile保持一致，只统计publishStatus为on_sale的商品）
+      try {
+        const res = await getProductPage({ sellerId: data.sellerId, current: 1, size: 100 })
+        // 只统计真正在售的商品（publishStatus === 'on_sale'）
+        const onSaleCount = res.records.filter((p) => (p as unknown as Record<string, unknown>).publishStatus === 'on_sale').length
+        sellerOnSaleCount.value = onSaleCount
+      } catch {
+        // 兜底：用 product.sellerOnSale 或 1
+        sellerOnSaleCount.value = data.sellerOnSale ?? 1
+      }
+    }
     // 图片归一化：兼容后端各种返回格式（string[] / {url}[] / {imageUrl}[] 等）
     const normalized = normalizeImages(data.images, data.title || '')
-    console.log('[商品详情] 归一化后的图片数组:', normalized)
     if (normalized.length > 0 && normalized.at(0)?.url) {
       images.value = normalized
     } else if (data.image) {
@@ -876,20 +932,19 @@ const loadDetails = async () => {
 }
 
 const loadRecs = async () => {
+  // 确保商品详情已加载
+  if (!product.value?.id) return
+
   try {
-    // 使用同分类或随机推荐，排除当前商品
+    // 使用同分类或随机推荐，排除当前商品，多请求几个以防过滤后不够
     const params: { current: number; size: number; categoryId?: number } = {
       current: 1,
-      size: 6,
-    }
-    if (product.value?.category) {
-      // 尝试通过分类名匹配，如果后端支持 categoryId 则传入
-      // 这里暂时用 keyword 做模糊推荐，或直接取最新上架
+      size: 12, // 多请求一些，过滤掉当前商品后可能不够6个
     }
     const res = await getProductPage(params)
-    // 过滤掉当前商品并处理图片字段
+    // 过滤掉当前商品并处理图片和价格字段
     recommendations.value = res.records
-      .filter(r => r.id !== product.value?.id)
+      .filter(r => r.id !== product.value?.id) // 确保不包含当前商品
       .slice(0, 6)
       .map(r => ({
         ...r,
@@ -897,6 +952,10 @@ const loadRecs = async () => {
         image: r.image || (Array.isArray(r.images) && r.images.length > 0
           ? extractFirstImageUrl(r.images[0])
           : ''),
+        // 确保 price 字段存在：优先使用已有的 price，否则使用 sellingPrice
+        price: r.price ?? (r as unknown as Record<string, unknown>).sellingPrice ?? '',
+        // 确保 originalPrice 字段存在
+        originalPrice: r.originalPrice ? String(r.originalPrice) : '',
       }))
   } catch (err) {
     console.error('获取推荐商品失败:', err)
@@ -916,11 +975,11 @@ const performSearch = () => {
 const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
 const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
 
-watch(() => [route.query.id, route.params.id], () => {
+watch(() => [route.query.id, route.params.id], async () => {
   if (resolveRouteProductId()) {
     isLoading.value = true
-    loadDetails()
-    loadRecs()
+    await loadDetails()
+    await loadRecs()
   }
 }, { immediate: true })
 
@@ -2068,6 +2127,14 @@ onMounted(() => {
   font-size: 13px;
   font-weight: bold;
   color: #f97316;
+}
+
+.recPrice .originalPrice {
+  font-size: 11px;
+  color: #9ca3af;
+  text-decoration: line-through;
+  font-weight: normal;
+  margin-left: 4px;
 }
 
 

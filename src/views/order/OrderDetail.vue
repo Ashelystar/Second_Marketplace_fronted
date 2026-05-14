@@ -15,7 +15,7 @@
       <section class="info-card">
         <h3>基础信息</h3>
         <div class="info-row"><span>状态</span><span>{{ statusLabel(order?.order_status) }}</span></div>
-        <div class="info-row"><span>交易方式</span><span>{{ order?.trade_mode === 'shipping' ? '配送' : '自提' }}</span></div>
+        <div class="info-row"><span>交易方式</span><span>{{ order?.trade_mode === 'shipping' ? '快递' : '自提' }}</span></div>
         <div class="info-row"><span>下单时间</span><span>{{ order?.created_at }}</span></div>
         <div v-if="order?.paid_at" class="info-row"><span>付款时间</span><span>{{ order?.paid_at }}</span></div>
       </section>
