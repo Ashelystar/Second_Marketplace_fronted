@@ -307,7 +307,7 @@ function getAuthHeader(): HeadersInit {
 // --- 下面是重点修改的地方，全部改回相对路径 ---
 
 export async function loginApi(body: LoginRequest): Promise<LoginResponseData> {
-  const url = `/api/user/login`
+  const url = `/api/user/login` // 改回去了
   const response = await fetch(url, {
     method: 'POST',
     headers: {
