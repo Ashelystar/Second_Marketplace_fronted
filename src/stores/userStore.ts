@@ -245,15 +245,23 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('favorites', JSON.stringify(favorites.value))
   }
 
-  const toFavoriteItem = (product: Product): FavoriteItem => ({
-    id: product.id,
-    title: product.title || `商品${product.id}`,
-    price: String(product.price ?? ''),
-    image: product.image || '',
-    condition: product.condition || '成色未知',
-    location: product.location || '',
-    addTime: new Date().toLocaleString(),
-  })
+  const toFavoriteItem = (product: Product): FavoriteItem => {
+    // 提取图片：优先用 image 字段，否则从 images 数组取第一张
+    let img = product.image || ''
+    if (!img && product.images && product.images.length > 0) {
+      const first = product.images[0]
+      img = first.url || first.imageUrl || ''
+    }
+    return {
+      id: product.id,
+      title: product.title || `商品${product.id}`,
+      price: String(product.price ?? ''),
+      image: img,
+      condition: product.condition || '成色未知',
+      location: product.location || '',
+      addTime: new Date().toLocaleString(),
+    }
+  }
 
   const syncFavoritesFromServer = async () => {
     if (!isLoggedIn.value) return

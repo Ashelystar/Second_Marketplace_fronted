@@ -71,7 +71,7 @@
         @click="viewDetail(item.id)"
       >
         <div class="productImage">
-          <img :src="item.image" :alt="item.title" />
+          <img :src="getImageUrl(item.image) || PLACEHOLDER_IMG" :alt="item.title" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
           <span class="statusBadge onSale">
             已收藏
           </span>
@@ -105,6 +105,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore, type FavoriteItem } from '@/stores/userStore'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'UserFavorites' })
 
