@@ -35,7 +35,7 @@
             :key="index"
             class="imageItem"
           >
-            <img :src="img" />
+            <img :src="getImageUrl(img)" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
             <button class="deleteBtn" @click="removeImage(index)">
               <i class="fa fa-times"></i>
             </button>
@@ -273,6 +273,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { getProductDetail, updateProduct, createProduct, saveToDraft, getCategoryList, uploadImage, submitForReview, type UpdateProductParams, type Category } from '@/api/goods'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'EditProduct' })

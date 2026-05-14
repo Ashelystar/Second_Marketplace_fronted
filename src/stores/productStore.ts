@@ -55,8 +55,8 @@ export const useProductStore = defineStore('product', () => {
     title: p.title as string || '',
     price: String(p.sellingPrice || 0),
     originalPrice: p.originalPrice ? String(p.originalPrice) : '',
-    image: Array.isArray(p.images) && p.images.length > 0 
-      ? (typeof p.images[0] === 'string' ? p.images[0] : (p.images[0] as { url?: string }).url || '') 
+    image: Array.isArray(p.images) && p.images.length > 0
+      ? (typeof p.images[0] === 'string' ? p.images[0] : (p.images[0] as { imageUrl?: string; url?: string }).imageUrl || (p.images[0] as { url?: string }).url || '')
       : '',
     location: p.pickupCity as string || '',
     condition: conditionLevelMap[p.conditionLevel as string] || (p.conditionLevel as string) || '',

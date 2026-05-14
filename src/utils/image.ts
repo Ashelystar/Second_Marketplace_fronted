@@ -17,5 +17,11 @@ export const PLACEHOLDER_IMG = `data:image/svg+xml;charset=utf-8,${encodeURIComp
 export function getImageUrl(path: string | null | undefined): string {
   if (!path) return ''
   if (path.startsWith('http://') || path.startsWith('https://')) return path
+  // /filebucket 由 Vite dev server proxy 转发到 MinIO
+  if (path.startsWith('/filebucket/') || path === '/filebucket') return path
+  // product/xxx 格式 — MinIO 存储路径，补上 /filebucket/ 前缀让 Vite 代理转发到 MinIO
+  if (path.startsWith('product/')) return '/filebucket/' + path
+  // /api 开头的请求由 axios/fetch 通过 Vite 代理发出，也不需要拼接
+  if (path.startsWith('/api/')) return path
   return `${API_BASE}${path}`
 }

@@ -391,14 +391,14 @@ const ensureLoggedIn = (actionHint: string) => {
  * 兼容格式：
  *   - string[]          → ["/a.jpg", "/b.jpg"]
  *   - { url }[]         → [{ url: "/a.jpg" }, ...]
- *   - { imageUrl }[]    → [{ imageUrl: "/a.jpg" }, ...]
+ *   - { imageUrl }[]    → [{ imageUrl: "/a.jpg" }, ...]  ← API 实际返回格式
  *   - { image }[]       → [{ image: "/a.jpg" }, ...]
  *   - { path }[]        → [{ path: "/a.jpg" }, ...]
  *   - ProductImage[]    → [{ id, url, alt }, ...]（标准格式）
  */
 function normalizeImages(raw: unknown, title: string): ProductImage[] {
   if (!raw || !Array.isArray(raw)) return []
-  return raw.map((item, index): ProductImage => {
+  const result = raw.map((item, index): ProductImage => {
     if (typeof item === 'string') {
       return { id: index + 1, url: item, alt: title }
     }
@@ -410,6 +410,16 @@ function normalizeImages(raw: unknown, title: string): ProductImage[] {
       alt: (obj.alt as string) || title,
     }
   }).filter(img => !!img.url)
+  console.log('[normalizeImages] 原始:', JSON.stringify(raw).substring(0, 300), '→ 归一化结果:', result)
+  return result
+}
+
+/** 从单个图片对象中提取 URL，兼容多种字段名 */
+function extractFirstImageUrl(item: unknown): string {
+  if (!item) return ''
+  if (typeof item === 'string') return item
+  const obj = item as Record<string, unknown>
+  return (obj.url || obj.imageUrl || obj.image || obj.path || '') as string
 }
 
 const searchInput = ref('')
@@ -799,29 +809,26 @@ const loadDetails = async () => {
     return
   }
   try {
-    // 先查询商品状态
+    // 先查询商品状态（非阻塞：失败时仍继续加载详情）
     try {
       const status = await getProductStatus(id)
       productStatus.value = status
       console.log('商品状态:', status)
-      // 可展示状态：on_sale(在售), published(已发布)
-      if (status === 'on_sale' || status === 'published') {
-        // 正常状态，继续加载
-      } else if (status === 'offline' || status === 'off_shelf') {
-        loadError.value = '该商品已下架'
-        isLoading.value = false
-        return
-      } else {
-        loadError.value = `该商品状态为：${status}，暂不可见`
+      // 仅真正下架/删除的商品阻止加载，其他状态（draft/pending_review/rejected 等）允许查看详情
+      if (status === 'deleted') {
+        loadError.value = '该商品已被删除'
         isLoading.value = false
         return
       }
     } catch (err) {
       console.error('查询商品状态失败:', err)
+      // 状态查询失败不阻塞详情加载
     }
 
     const data = await getProductDetail(id)
-    console.log('接口返回数据:', data)
+    console.log('[商品详情] 接口返回:', data)
+    console.log('[商品详情] 原始 images 字段:', JSON.stringify(data.images))
+
     // API 字段映射：后端字段 → 前端 Product 接口
     product.value = {
       ...data,
@@ -829,9 +836,9 @@ const loadDetails = async () => {
       price: String(data.sellingPrice ?? data.price ?? 0),
       // 原价：确保是字符串
       originalPrice: data.originalPrice ? String(data.originalPrice) : '',
-      // 图片兜底
+      // 图片兜底：兼容 { imageUrl } 和 { url } 两种格式
       image: data.image || (Array.isArray(data.images) && data.images.length > 0
-        ? (typeof data.images[0] === 'string' ? data.images[0] : (data.images[0]?.url || ''))
+        ? extractFirstImageUrl(data.images[0])
         : ''),
     }
     // 增加浏览量（不阻塞主流程）
@@ -845,7 +852,8 @@ const loadDetails = async () => {
     }
     // 图片归一化：兼容后端各种返回格式（string[] / {url}[] / {imageUrl}[] 等）
     const normalized = normalizeImages(data.images, data.title || '')
-    if (normalized.length > 0) {
+    console.log('[商品详情] 归一化后的图片数组:', normalized)
+    if (normalized.length > 0 && normalized.at(0)?.url) {
       images.value = normalized
     } else if (data.image) {
       images.value = [
