@@ -3,22 +3,22 @@ import { ref } from 'vue'
 import type { Product, FilterState, SortOption } from '@/types'
 import { getProductPage, type PageProductParams } from '@/api/goods'
 
-// 成色等级映射
+// 成色等级映射（与详情页 formatCondition 保持一致）
 const conditionLevelMap: Record<string, string> = {
   'new': '全新',
   'almost_new': '99新',
-  'good': '95新',
-  'fair': '9成新',
-  'poor': '8成新及以下'
+  'good': '9成新',
+  'fair': '8成新',
+  'poor': '7成新及以下'
 }
 
 // 反向映射：前端显示值 → 后端 conditionLevel 值
 const reverseConditionMap: Record<string, string> = {
   '全新': 'new',
   '99新': 'almost_new',
-  '95新': 'good',
-  '9成新': 'fair',
-  '8成新及以下': 'poor'
+  '9成新': 'good',
+  '8成新': 'fair',
+  '7成新及以下': 'poor'
 }
 
 export const useProductStore = defineStore('product', () => {

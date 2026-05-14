@@ -93,8 +93,8 @@
             @click="goToDetail(item.id)"
           >
             <div class="goods-image">
-              <img :src="item.image" :alt="item.title" />
-              <span class="condition">{{ item.condition }}</span>
+              <img :src="getImageUrl(item.image) || PLACEHOLDER_IMG" :alt="item.title" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
+              <span class="condition">{{ formatCondition(item.condition) }}</span>
             </div>
             <div class="goods-info">
               <h3>{{ item.title }}</h3>
@@ -122,12 +122,23 @@ import { useRoute, useRouter } from 'vue-router'
 import Topnav from '@/components/TopNav.vue'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import {
   getSellerReputationSnapshotApi,
   getSellerReputationHistoryApi,
   type SellerReputationSnapshot,
   type SellerReputationHistoryItem,
 } from '@/api/user'
+
+// 成色映射（与首页、详情页保持一致）
+const conditionMap: Record<string, string> = {
+  new: '全新',
+  almost_new: '99新',
+  good: '9成新',
+  fair: '8成新',
+  poor: '7成新及以下',
+}
+const formatCondition = (level?: string) => conditionMap[level || ''] || level || '成色未知'
 
 defineOptions({ name: 'PublicProfile' })
 

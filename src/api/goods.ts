@@ -23,14 +23,10 @@ async function handleRequest<T>(url: string, options: RequestInit, errorMsg: str
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  console.log('[API请求]', options.method || 'GET', url)
-
   const response = await fetch(url, {
     ...options,
     headers: { ...headers, ...options.headers },
   })
-
-  console.log('[API响应]', response.status, response.statusText)
 
   if (!response.ok) {
     const text = await response.text()
@@ -39,7 +35,6 @@ async function handleRequest<T>(url: string, options: RequestInit, errorMsg: str
   }
 
   const text = await response.text()
-  console.log('[API返回文本]', text.substring(0, 500))
 
   if (!text) {
     throw new Error('接口返回为空')
@@ -47,7 +42,6 @@ async function handleRequest<T>(url: string, options: RequestInit, errorMsg: str
 
   try {
     const json = JSON.parse(text) as ApiResponse<T>
-    console.log('[API解析成功]', json)
     // 只要 data 存在且不为 null，就视为成功（兼容各种 code 值）
     if (json.data === null || json.data === undefined) {
       throw new Error(json.message || errorMsg)
