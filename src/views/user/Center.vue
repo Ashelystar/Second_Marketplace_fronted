@@ -46,6 +46,13 @@
           >
             已下架
           </button>
+          <button
+            class="filterTab"
+            :class="{ active: filterStatus === 'pendingReview' }"
+            @click="filterStatus = 'pendingReview'"
+          >
+            待审核
+          </button>
         </div>
         <div class="filterActions">
           <button class="draftBtn" @click="$router.push('/drafts')">
@@ -61,9 +68,9 @@
       <div class="productGrid">
         <div v-if="filteredProducts.length === 0" class="empty user-page-card">
           <i class="fa fa-cube"></i>
-          <p>{{ filterStatus === 'all' ? '暂无发布的商品' : filterStatus === 'onSale' ? '暂无在售商品' : '暂无下架商品' }}</p>
+          <p>{{ filterStatus === 'all' ? '暂无发布的商品' : filterStatus === 'onSale' ? '暂无在售商品' : filterStatus === 'offSale' ? '暂无下架商品' : '暂无待审核商品' }}</p>
           <button
-            v-if="filterStatus !== 'offSale'"
+            v-if="filterStatus !== 'offSale' && filterStatus !== 'pendingReview'"
             :class="['emptyActionBtn', filterStatus === 'onSale' ? 'compact' : '']"
             @click="$router.push('/publish')"
           >

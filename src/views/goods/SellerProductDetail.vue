@@ -164,17 +164,10 @@
               </button>
             </div>
             <div class="actionRow">
-              <template v-if="product.status === '待审核'">
-                <button class="actionBtn warning" @click="handleRevokeReview">
-                  <i class="fa fa-undo"></i> 撤销审核
-                </button>
-              </template>
-              <template v-else>
-                <button class="actionBtn secondary" @click="toggleStatus">
-                  <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
-                  {{ product.status === '在售' ? '下架商品' : '重新上架' }}
-                </button>
-              </template>
+              <button class="actionBtn secondary" @click="toggleStatus">
+                <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
+                {{ product.status === '在售' ? '下架商品' : '重新上架' }}
+              </button>
               <button class="actionBtn primary" @click="editProduct">
                 <i class="fa fa-edit"></i> 编辑商品
               </button>
@@ -332,7 +325,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { offShelfProduct, relistProduct, revokeReview } from '@/api/goods'
+import { offShelfProduct, relistProduct } from '@/api/goods'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'SellerProductDetail' })
@@ -628,18 +621,6 @@ const toggleStatus = async () => {
     } catch (err) {
       alert(err instanceof Error ? err.message : '重新上架失败')
     }
-  }
-}
-
-const handleRevokeReview = async () => {
-  if (!product.value) return
-  if (!confirm('确定要撤销该商品的审核吗？撤回后将变为草稿状态。')) return
-  try {
-    await revokeReview(product.value.id)
-    product.value.status = '已下架'
-    alert('已撤销审核，商品已回到草稿箱')
-  } catch (err) {
-    alert(err instanceof Error ? err.message : '撤销审核失败')
   }
 }
 
