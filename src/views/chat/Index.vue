@@ -1,62 +1,64 @@
 <template>
   <div class="chat-page">
-    <!-- 好友列表侧边栏 -->
-    <aside class="friend-sidebar">
+    <aside class="friend-sidebar" :class="{ open: sidebarOpen }">
       <div class="friend-header">
         <h3>消息</h3>
         <span v-if="totalUnreadCount > 0" class="friend-count">{{ unreadCountDisplay }}</span>
       </div>
 
-      <div class="friend-list">
-        <div
-          v-for="friend in friends"
-          :key="friend.id"
-          class="friend-item"
-          :class="{ active: friend.id === seller.id }"
-          @click="switchFriend(friend)"
-        >
-          <div class="friend-avatar">
-            <img v-if="friend.avatar" :src="friend.avatar" :alt="friend.name">
-            <div v-else class="avatar-placeholder small">
-              {{ friend.name.charAt(0) }}
+      <div v-if="threads.length === 0" class="friend-empty">
+        暂无会话，去商品页点击“咨询卖家”开始聊天
+      </div>
+
+      <div v-else class="friend-list">
+        <transition-group name="list-fade" tag="div">
+          <div
+            v-for="thread in threads"
+            :key="thread.conversationId"
+            class="friend-item"
+            :class="{ active: thread.conversationId === activeConversationId }"
+            @click="switchThread(thread.conversationId)"
+          >
+            <div class="friend-avatar">
+              <img v-if="thread.partner.avatar" :src="thread.partner.avatar" :alt="thread.partner.name">
+              <div v-else class="avatar-placeholder small">
+                {{ thread.partner.name.charAt(0) }}
+              </div>
+            </div>
+            <div class="friend-info">
+              <p class="friend-name">{{ thread.partner.name }}</p>
+              <p class="last-message">{{ thread.lastMessagePreview || '开始聊天吧' }}</p>
+            </div>
+            <div class="friend-meta">
+              <span class="last-time">{{ formatTime(thread.updatedAt) }}</span>
+              <span v-if="thread.unread > 0" class="unread-badge">{{ thread.unread > 99 ? '99+' : thread.unread }}</span>
             </div>
           </div>
-          <div class="friend-info">
-            <p class="friend-name">{{ friend.name }}</p>
-            <p class="last-message">
-              {{ friend.lastMessage }}
-            </p>
-          </div>
-          <div class="friend-meta">
-            <span class="last-time">{{ friend.lastTime }}</span>
-            <span v-if="friend.unread" class="unread-badge">
-              {{ friend.unread }}
-            </span>
-          </div>
-        </div>
+        </transition-group>
       </div>
     </aside>
 
-    <!-- 主聊天区域 -->
-    <div class="chat-main">
-      <!-- 顶部导航 -->
+    <section class="chat-main">
       <div class="chat-header">
         <div class="header-inner">
+          <button class="action-btn only-mobile" @click="sidebarOpen = !sidebarOpen">
+            <i class="fa fa-bars"></i>
+          </button>
           <button class="back-btn" @click="goBack">
             <i class="fa fa-arrow-left"></i>
           </button>
           <div class="seller-info">
             <div class="seller-avatar">
-              <img v-if="seller.avatar" :src="seller.avatar" :alt="seller.name">
+              <img v-if="activePartner.avatar" :src="activePartner.avatar" :alt="activePartner.name">
               <div v-else class="avatar-placeholder">
-                {{ seller.name?.charAt(0) || '卖' }}
+                {{ activePartner.name.charAt(0) }}
               </div>
             </div>
             <div class="seller-details">
-              <h3 class="seller-name">{{ seller.name }}</h3>
+              <h3 class="seller-name">{{ activePartner.name }}</h3>
               <p class="seller-status">
                 <span class="online-dot"></span>
-                在线 · 信用分 {{ seller.rating }}
+                在线
               </p>
             </div>
           </div>
@@ -71,74 +73,74 @@
         </div>
       </div>
 
-      <!-- 商品信息卡片 -->
-      <div class="product-card" v-if="product" @click="viewProductDetail">
+      <div v-if="activeProductCard" class="product-card" @click="viewProductDetail">
         <div class="product-image">
-          <img :src="product.image" :alt="product.title" @error="(e: Event) => { const t = e.target as HTMLImageElement; if (t) t.src = PLACEHOLDER_IMG }">
+          <img :src="activeProductCard.image || PLACEHOLDER_IMG" :alt="activeProductCard.title">
         </div>
         <div class="product-info">
-          <h4 class="product-title">{{ product.title }}</h4>
-          <p class="product-price">¥{{ product.price }}</p>
+          <h4 class="product-title">{{ activeProductCard.title }}</h4>
+          <p class="product-price">¥{{ activeProductCard.price }}</p>
         </div>
         <button class="btn-view-product" title="查看商品详情">
           <i class="fa fa-chevron-right"></i>
         </button>
       </div>
 
-      <!-- 聊天消息区域 -->
       <div class="chat-messages" ref="messagesContainer">
         <div class="message-list">
           <div class="system-message">
-            <span class="system-text">你们已成为好友，开始聊天吧</span>
+            <span class="system-text">消息会按登录用户分账号保存</span>
           </div>
 
-          <div class="time-divider">
-            <span class="time-text">今天 14:30</span>
+          <div v-if="displayMessages.length === 0" class="messages-empty">
+            还没有消息，发一句问候开始对话吧
           </div>
 
-          <div
-            v-for="msg in messages"
-            :key="msg.id"
-            :class="['message-item', msg.type === 'sent' ? 'sent' : 'received']"
-          >
-            <div v-if="msg.type === 'received'" class="message-avatar">
-              <img v-if="seller.avatar" :src="seller.avatar" :alt="seller.name">
-              <div v-else class="avatar-placeholder small">
-                {{ seller.name?.charAt(0) || '卖' }}
-              </div>
-            </div>
-
-            <div class="message-bubble">
-              <div v-if="msg.contentType === 'text'" class="text-content">
-                {{ msg.content }}
-              </div>
-
-              <div v-else-if="msg.contentType === 'image'" class="image-content">
-                <img :src="msg.content" alt="图片消息">
-              </div>
-
-              <div v-else-if="msg.contentType === 'product'" class="product-content" @click="viewProductDetail">
-                <div class="product-mini">
-                  <img :src="msg.productImage" :alt="msg.productTitle">
-                  <div class="product-mini-info">
-                    <p class="product-mini-title">{{ msg.productTitle }}</p>
-                    <p class="product-mini-price">¥{{ msg.productPrice }}</p>
-                  </div>
+          <transition-group name="message-pop" tag="div" class="msg-group">
+            <div
+              v-for="msg in displayMessages"
+              :key="msg.id"
+              :class="['message-item', msg.type === 'sent' ? 'sent' : 'received']"
+            >
+              <div v-if="msg.type === 'received'" class="message-avatar">
+                <img v-if="activePartner.avatar" :src="activePartner.avatar" :alt="activePartner.name">
+                <div v-else class="avatar-placeholder small">
+                  {{ activePartner.name.charAt(0) }}
                 </div>
               </div>
-            </div>
 
-            <div v-if="msg.type === 'sent'" class="message-status">
-              <i v-if="msg.status === 'sending'" class="fa fa-clock-o sending"></i>
-              <i v-else-if="msg.status === 'sent'" class="fa fa-check sent"></i>
-              <i v-else-if="msg.status === 'delivered'" class="fa fa-check-double delivered"></i>
-              <i v-else-if="msg.status === 'failed'" class="fa fa-exclamation-circle failed"></i>
+              <div class="message-main">
+                <div class="message-bubble">
+                  <div v-if="msg.contentType === 'text'" class="text-content">
+                    {{ msg.content }}
+                  </div>
+                  <div v-else-if="msg.contentType === 'image'" class="image-content">
+                    <img :src="msg.content" alt="图片消息">
+                  </div>
+                  <div v-else-if="msg.contentType === 'product'" class="product-content" @click="viewProductDetail">
+                    <div class="product-mini">
+                      <img :src="msg.product?.image || PLACEHOLDER_IMG" :alt="msg.product?.title || '商品'">
+                      <div class="product-mini-info">
+                        <p class="product-mini-title">{{ msg.product?.title || '商品卡片' }}</p>
+                        <p class="product-mini-price">¥{{ msg.product?.price ?? 0 }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <p class="message-time">{{ formatTime(msg.createdAt) }}</p>
+              </div>
+
+              <div v-if="msg.type === 'sent'" class="message-status">
+                <i v-if="msg.status === 'sending'" class="fa fa-clock-o sending"></i>
+                <i v-else-if="msg.status === 'sent'" class="fa fa-check sent"></i>
+                <i v-else-if="msg.status === 'delivered'" class="fa fa-check-double delivered"></i>
+                <i v-else class="fa fa-exclamation-circle failed"></i>
+              </div>
             </div>
-          </div>
+          </transition-group>
         </div>
       </div>
 
-      <!-- 快捷回复 -->
       <div class="quick-replies" v-if="showQuickReplies">
         <div class="quick-reply-list">
           <button
@@ -152,7 +154,6 @@
         </div>
       </div>
 
-      <!-- 输入区域 -->
       <div class="chat-input-area">
         <div class="input-toolbar">
           <button class="toolbar-btn" @click="toggleQuickReplies">
@@ -172,23 +173,22 @@
             class="message-input"
             placeholder="输入消息..."
             rows="1"
-            @keydown.enter.prevent="sendMessage"
+            @keydown.enter.exact.prevent="sendTextMessage"
             @input="autoResize"
             ref="textareaRef"
           ></textarea>
           <button
             class="send-btn"
             :class="{ active: inputMessage.trim().length > 0 }"
-            @click="sendMessage"
+            @click="sendTextMessage"
             :disabled="inputMessage.trim().length === 0"
           >
             <i class="fa fa-paper-plane"></i>
           </button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 更多选项弹窗 -->
     <div v-if="showMoreOptions" class="modal-overlay" @click="showMoreOptions = false">
       <div class="more-options-modal" @click.stop>
         <button class="option-item" @click="clearChat">
@@ -217,280 +217,199 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { getProductDetail } from '@/api/goods'
+import { useUserStore } from '@/stores/userStore'
+import { useChatStore, type ChatProductCard, type ChatUserProfile } from '@/stores/chatStore'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'ChatPage' })
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
+const chatStore = useChatStore()
+
 const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
-
-interface Friend {
-  id: number
-  name: string
-  avatar: string
-  lastMessage: string
-  lastTime: string
-  unread?: number
-  rating: number
-  location: string
-}
-
-interface Message {
-  id: number
-  type: 'sent' | 'received'
-  contentType: 'text' | 'image' | 'product'
-  content: string
-  productTitle?: string
-  productPrice?: number
-  productImage?: string
-  timestamp: string
-  status: 'sending' | 'sent' | 'delivered' | 'failed'
-}
-
-interface Product {
-  id: number
-  title: string
-  price: number
-  image: string
-}
+const quickReplies = ['你好，在吗？', '这个还有货吗？', '可以小刀吗？', '支持面交吗？', '什么时候方便？']
 
 const messagesContainer = ref<HTMLElement>()
 const textareaRef = ref<HTMLTextAreaElement>()
 const imageInput = ref<HTMLInputElement>()
-const productLoading = ref(false)
-
-// 从路由参数初始化商品信息
-const initProduct = () => {
-  const productId = route.query.productId
-  const sellerId = route.query.sellerId
-  const sellerName = route.query.sellerName
-  const sellerAvatar = route.query.sellerAvatar
-  if (productId) {
-    productLoading.value = true
-    getProductDetail(Number(productId))
-      .then(data => {
-        let imageUrl = ''
-        if (data.image) {
-          imageUrl = getImageUrl(data.image)
-        } else if (Array.isArray(data.images) && data.images.length > 0) {
-          const firstImg = data.images[0]
-          if (firstImg) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            imageUrl = getImageUrl((firstImg as any).url || (firstImg as any).imageUrl || '')
-          }
-        }
-        product.value = {
-          id: data.id,
-          title: data.title || '',
-          price: Number(data.sellingPrice ?? data.price ?? 0),
-          image: imageUrl || PLACEHOLDER_IMG,
-        }
-      })
-      .catch(err => {
-        console.error('获取商品详情失败:', err)
-      })
-      .finally(() => {
-        productLoading.value = false
-      })
-  }
-  // 如果没有卖家信息但有 sellerId，也设置一下
-  if (sellerId && sellerName && !seller.value.id) {
-    seller.value = {
-      id: Number(sellerId),
-      name: String(sellerName),
-      avatar: String(sellerAvatar || ''),
-      lastMessage: '',
-      lastTime: '',
-      rating: 0,
-      location: '',
-    }
-  }
-}
-
-const friends = ref<Friend[]>([
-  {
-    id: 1,
-    name: '数码小王子',
-    avatar: '',
-    lastMessage: '还在的，成色很新',
-    lastTime: '14:33',
-    unread: 2,
-    rating: 4.8,
-    location: '北京'
-  },
-  {
-    id: 2,
-    name: '电脑专家',
-    avatar: '',
-    lastMessage: '可以面交',
-    lastTime: '昨天',
-    rating: 4.9,
-    location: '深圳'
-  },
-  {
-    id: 3,
-    name: '游戏达人',
-    avatar: '',
-    lastMessage: '支持验机',
-    lastTime: '3天前',
-    rating: 4.7,
-    location: '上海'
-  }
-])
-
-const mergeStoredFriends = () => {
-  const stored = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Friend[]
-  if (!Array.isArray(stored) || stored.length === 0) return
-
-  const friendMap = new Map<number, Friend>()
-  for (const friend of friends.value) {
-    friendMap.set(friend.id, friend)
-  }
-  for (const friend of stored) {
-    if (typeof friend.id === 'number' && friend.id > 0) {
-      friendMap.set(friend.id, friend)
-    }
-  }
-  friends.value = Array.from(friendMap.values())
-}
-
-const defaultSeller: Friend = {
-  id: 0,
-  name: '默认卖家',
-  avatar: '',
-  lastMessage: '',
-  lastTime: '',
-  rating: 5,
-  location: ''
-}
-const seller = ref<Friend>(friends.value[0] ?? defaultSeller)
-
-const product = ref<Product>({
-  id: 1,
-  title: '九成新iPhone 13 Pro 256G',
-  price: 4599,
-  image: 'https://via.placeholder.com/300x300?text=iPhone+13+Pro'
-})
-
-const messages = ref<Message[]>([
-  {
-    id: 1,
-    type: 'received',
-    contentType: 'text',
-    content: '您好，这个手机还在吗？',
-    timestamp: '14:30',
-    status: 'delivered'
-  },
-  {
-    id: 2,
-    type: 'sent',
-    contentType: 'text',
-    content: '还在的，成色很新，电池健康度还有88%',
-    timestamp: '14:31',
-    status: 'delivered'
-  },
-  {
-    id: 3,
-    type: 'received',
-    contentType: 'text',
-    content: '能便宜一点吗？',
-    timestamp: '14:32',
-    status: 'delivered'
-  },
-  {
-    id: 4,
-    type: 'sent',
-    contentType: 'text',
-    content: '4500最低了，已经比市场价低很多了',
-    timestamp: '14:33',
-    status: 'delivered'
-  }
-])
-
 const inputMessage = ref('')
 const showQuickReplies = ref(false)
 const showMoreOptions = ref(false)
+const sidebarOpen = ref(false)
 
-const quickReplies = [
-  '还在的',
-  '最低价了',
-  '可以面交',
-  '包邮',
-  '支持验机',
-  '可以小刀'
-]
+const activeConversationId = ref('')
+const pendingProduct = ref<ChatProductCard | null>(null)
 
-const totalUnreadCount = computed(() =>
-  friends.value.reduce((sum, friend) => sum + Math.max(friend.unread ?? 0, 0), 0)
-)
+const currentUserProfile = computed<ChatUserProfile>(() => ({
+  id: Number(userStore.userInfo?.id || 0),
+  name: userStore.userInfo?.nickname || userStore.userInfo?.username || '当前用户',
+  avatar: userStore.userInfo?.avatarUrl || userStore.userInfo?.avatar || '',
+}))
+
+const threads = computed(() => {
+  if (!currentUserProfile.value.id) return []
+  return chatStore.getConversationsForUser(currentUserProfile.value.id)
+})
+
+const totalUnreadCount = computed(() => {
+  if (!currentUserProfile.value.id) return 0
+  return chatStore.getUnreadCountForUser(currentUserProfile.value.id)
+})
 
 const unreadCountDisplay = computed(() =>
   totalUnreadCount.value > 99 ? '99+' : String(totalUnreadCount.value)
 )
 
-const switchFriend = (friend: Friend) => {
-  seller.value = friend
-  if (friend.unread) {
-    friend.unread = 0
+const activeThread = computed(() =>
+  threads.value.find((thread) => thread.conversationId === activeConversationId.value) || null
+)
+
+const activePartner = computed<ChatUserProfile>(() => {
+  return activeThread.value?.partner || {
+    id: 0,
+    name: '请选择会话',
+    avatar: '',
+    location: '',
+    rating: 0,
   }
-  // 实际项目中这里应加载该好友的消息记录
-  messages.value = []
+})
+
+const activeProductCard = computed<ChatProductCard | null>(() => {
+  return activeThread.value?.linkedProduct || pendingProduct.value
+})
+
+const displayMessages = computed(() => {
+  if (!activeConversationId.value || !currentUserProfile.value.id) return []
+  return chatStore.getConversationMessages(activeConversationId.value).map((message) => ({
+    ...message,
+    type: message.senderId === currentUserProfile.value.id ? 'sent' : 'received',
+  }))
+})
+
+const formatTime = (timestamp: number) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  const now = new Date()
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  return isToday
+    ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleDateString()
+}
+
+const getLegacyFriend = (targetId: number) => {
+  const legacy = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as ChatUserProfile[]
+  return legacy.find((friend) => Number(friend.id) === targetId) || null
+}
+
+const createConversationFromRoute = () => {
+  const current = currentUserProfile.value
+  if (!current.id) return
+  const routeFriendId = Number(route.query.friendId || route.query.sellerId || 0)
+  if (!routeFriendId || routeFriendId === current.id) return
+
+  const legacy = getLegacyFriend(routeFriendId)
+  const target: ChatUserProfile = {
+    id: routeFriendId,
+    name: String(route.query.sellerName || legacy?.name || `用户${routeFriendId}`),
+    avatar: String(route.query.sellerAvatar || legacy?.avatar || ''),
+    location: String(legacy?.location || ''),
+    rating: Number(legacy?.rating || 5),
+  }
+  const conversation = chatStore.ensureConversation(current, target, activeProductCard.value || undefined)
+  if (conversation) {
+    activeConversationId.value = conversation.id
+  }
+}
+
+const initProductFromQuery = async () => {
+  const productId = Number(route.query.productId || 0)
+  if (!productId) return
+  try {
+    const detail = await getProductDetail(productId)
+    const image = detail.image
+      ? getImageUrl(detail.image)
+      : Array.isArray(detail.images) && detail.images[0]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? getImageUrl(((detail.images[0] as any).url || (detail.images[0] as any).imageUrl || ''))
+        : PLACEHOLDER_IMG
+    pendingProduct.value = {
+      id: detail.id,
+      title: detail.title || `商品${detail.id}`,
+      price: Number(detail.sellingPrice ?? detail.price ?? 0),
+      image,
+    }
+  } catch (error) {
+    console.error('加载咨询商品失败', error)
+  }
+}
+
+const syncActiveConversation = () => {
+  if (!threads.value.length) {
+    activeConversationId.value = ''
+    return
+  }
+  const stillExists = threads.value.some((thread) => thread.conversationId === activeConversationId.value)
+  if (!stillExists) {
+    activeConversationId.value = threads.value[0]?.conversationId || ''
+  }
+}
+
+const scrollToBottom = async () => {
+  await nextTick()
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
+
+const switchThread = (conversationId: string) => {
+  activeConversationId.value = conversationId
+  sidebarOpen.value = false
+  if (currentUserProfile.value.id) {
+    chatStore.markConversationRead(conversationId, currentUserProfile.value.id)
+  }
+}
+
+const sendMessagePayload = (payload: { contentType: 'text' | 'image' | 'product'; content: string; product?: ChatProductCard }) => {
+  if (!activeConversationId.value || !currentUserProfile.value.id) {
+    ElMessage.info('请先选择会话')
+    return
+  }
+  chatStore.sendMessage({
+    conversationId: activeConversationId.value,
+    senderId: currentUserProfile.value.id,
+    contentType: payload.contentType,
+    content: payload.content,
+    product: payload.product,
+  })
+  chatStore.markConversationRead(activeConversationId.value, currentUserProfile.value.id)
   scrollToBottom()
 }
 
-const goBack = () => {
-  router.back()
-}
-
-const sendMessage = () => {
-  if (inputMessage.value.trim().length === 0) return
-
-  const newMessage: Message = {
-    id: messages.value.length + 1,
-    type: 'sent',
+const sendTextMessage = () => {
+  const text = inputMessage.value.trim()
+  if (!text) return
+  sendMessagePayload({
     contentType: 'text',
-    content: inputMessage.value.trim(),
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    status: 'sending'
-  }
-
-  messages.value.push(newMessage)
+    content: text,
+  })
   inputMessage.value = ''
-
   if (textareaRef.value) {
     textareaRef.value.style.height = 'auto'
   }
-
-  scrollToBottom()
-
-  setTimeout(() => {
-    const msg = messages.value.find(m => m.id === newMessage.id)
-    if (msg) {
-      msg.status = 'delivered'
-    }
-  }, 1000)
-
-  setTimeout(() => {
-    const autoReply: Message = {
-      id: messages.value.length + 1,
-      type: 'received',
-      contentType: 'text',
-      content: '好的，我考虑一下',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'delivered'
-    }
-    messages.value.push(autoReply)
-    scrollToBottom()
-  }, 2000)
 }
 
 const sendQuickReply = (reply: string) => {
   inputMessage.value = reply
-  sendMessage()
+  sendTextMessage()
   showQuickReplies.value = false
 }
 
@@ -504,107 +423,106 @@ const openImagePicker = () => {
 
 const handleImageSelect = (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
-  if (file) {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const newMessage: Message = {
-        id: messages.value.length + 1,
-        type: 'sent',
-        contentType: 'image',
-        content: e.target?.result as string,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        status: 'delivered'
-      }
-      messages.value.push(newMessage)
-      scrollToBottom()
-    }
-    reader.readAsDataURL(file)
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    sendMessagePayload({
+      contentType: 'image',
+      content: String(e.target?.result || ''),
+    })
   }
+  reader.readAsDataURL(file)
 }
 
 const sendProductCard = () => {
-  if (!product.value) return
-
-  const newMessage: Message = {
-    id: messages.value.length + 1,
-    type: 'sent',
+  const card = activeProductCard.value
+  if (!card) {
+    ElMessage.info('当前没有可发送的商品卡片')
+    return
+  }
+  sendMessagePayload({
     contentType: 'product',
     content: '',
-    productTitle: product.value.title,
-    productPrice: product.value.price,
-    productImage: product.value.image,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    status: 'delivered'
-  }
-  messages.value.push(newMessage)
-  scrollToBottom()
+    product: card,
+  })
 }
 
 const autoResize = () => {
   if (textareaRef.value) {
     textareaRef.value.style.height = 'auto'
-    textareaRef.value.style.height = textareaRef.value.scrollHeight + 'px'
+    textareaRef.value.style.height = `${textareaRef.value.scrollHeight}px`
   }
 }
 
-const scrollToBottom = async () => {
-  await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+const goBack = () => {
+  router.back()
 }
 
 const viewSellerProfile = () => {
-  if (!seller.value?.id) return
+  if (!activePartner.value.id) return
   router.push({
-    path: `/user/home/${seller.value.id}`,
+    path: `/user/home/${activePartner.value.id}`,
     query: {
-      name: seller.value.name || '',
-      avatar: seller.value.avatar || '',
-      location: seller.value.location || '未知',
+      name: activePartner.value.name,
+      avatar: activePartner.value.avatar,
+      location: activePartner.value.location || '未知',
     },
   })
 }
 
 const viewProductDetail = () => {
-  if (product.value) {
-    router.push({ name: 'goods-detail', params: { id: product.value.id } })
-  }
+  if (!activeProductCard.value?.id) return
+  router.push({ name: 'goods-detail', params: { id: activeProductCard.value.id } })
 }
 
 const clearChat = () => {
-  if (confirm('确定要清空聊天记录吗？')) {
-    messages.value = []
-    showMoreOptions.value = false
-  }
+  if (!activeConversationId.value) return
+  if (!window.confirm('确定要清空聊天记录吗？')) return
+  chatStore.clearConversation(activeConversationId.value)
+  showMoreOptions.value = false
 }
 
 const reportUser = () => {
-  alert('举报功能开发中...')
+  ElMessage.success('举报已提交，我们会尽快处理')
   showMoreOptions.value = false
 }
 
 const blockUser = () => {
-  if (confirm('确定要拉黑该用户吗？')) {
-    alert('已拉黑该用户')
-    showMoreOptions.value = false
-  }
+  ElMessage.info('拉黑功能开发中')
+  showMoreOptions.value = false
 }
 
-onMounted(() => {
-  mergeStoredFriends()
-  // 初始化商品信息（从商品详情页跳转过来时）
-  initProduct()
-  const selectedFriendId = Number(route.query.friendId)
-  if (Number.isFinite(selectedFriendId) && selectedFriendId > 0) {
-    const target = friends.value.find(friend => friend.id === selectedFriendId)
-    if (target) {
-      seller.value = target
-      if (target.unread) {
-        target.unread = 0
-      }
-    }
+watch(
+  () => activeConversationId.value,
+  (conversationId) => {
+    if (!conversationId || !currentUserProfile.value.id) return
+    chatStore.markConversationRead(conversationId, currentUserProfile.value.id)
+    scrollToBottom()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => displayMessages.value.length,
+  () => {
+    scrollToBottom()
   }
+)
+
+onMounted(async () => {
+  chatStore.initialize()
+  if (!currentUserProfile.value.id) {
+    ElMessage.info('请先登录再使用消息功能')
+    router.push('/user/login')
+    return
+  }
+  await initProductFromQuery()
+  createConversationFromRoute()
+  syncActiveConversation()
+  if (activeConversationId.value) {
+    chatStore.markConversationRead(activeConversationId.value, currentUserProfile.value.id)
+  }
+  sidebarOpen.value = false
   scrollToBottom()
 })
 </script>
@@ -612,19 +530,17 @@ onMounted(() => {
 <style scoped>
 .chat-page {
   min-height: 100vh;
-  background: #f5f5f5;
+  background: linear-gradient(180deg, #f5f7fb 0%, #f9fafc 100%);
   display: flex;
-  animation: pageEnter 260ms ease both;
 }
 
-/* 好友列表 */
 .friend-sidebar {
-  width: 260px;
-  background: #fff;
+  width: 280px;
+  background: rgba(255, 255, 255, 0.95);
   border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
-  box-shadow: 6px 0 20px rgba(17, 24, 39, 0.06);
+  backdrop-filter: blur(8px);
 }
 
 .friend-header {
@@ -632,26 +548,33 @@ onMounted(() => {
   border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
-  align-items: center;
 }
 
 .friend-header h3 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
 }
 
-.friend-count {
+.friend-count,
+.unread-badge {
   background: #f97316;
   color: #fff;
+  border-radius: 999px;
   font-size: 12px;
   padding: 2px 8px;
-  border-radius: 10px;
 }
 
 .friend-list {
   flex: 1;
   overflow-y: auto;
+}
+
+.friend-empty {
+  margin: 24px 16px;
+  padding: 16px;
+  border-radius: 12px;
+  color: #6b7280;
+  background: #f9fafb;
+  font-size: 13px;
 }
 
 .friend-item {
@@ -660,14 +583,12 @@ onMounted(() => {
   gap: 10px;
   padding: 12px 16px;
   cursor: pointer;
-  transition: background 180ms, transform 180ms;
   border-bottom: 1px solid #f3f4f6;
-  animation: listItemEnter 320ms ease both;
+  transition: background 180ms ease, transform 180ms ease;
 }
 
 .friend-item:hover {
   background: #f9fafb;
-  transform: translateX(2px);
 }
 
 .friend-item.active {
@@ -675,7 +596,8 @@ onMounted(() => {
   border-left: 3px solid #f97316;
 }
 
-.friend-avatar {
+.friend-avatar,
+.seller-avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -684,104 +606,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.friend-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.friend-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.friend-name {
-  font-size: 14px;
-  font-weight: 500;
-  margin: 0 0 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.last-message {
-  font-size: 12px;
-  color: #6b7280;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.friend-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.last-time {
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.unread-badge {
-  background: #f97316;
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 10px;
-}
-
-/* 主聊天区域 */
-.chat-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-/* 原有样式保持不变 */
-.chat-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
-  backdrop-filter: blur(6px);
-}
-
-.header-inner {
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.back-btn {
-  padding: 8px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #374151;
-  font-size: 18px;
-}
-
-.seller-info {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.seller-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #e5e7eb;
-}
-
+.friend-avatar img,
 .seller-avatar img {
   width: 100%;
   height: 100%;
@@ -791,43 +616,100 @@ onMounted(() => {
 .avatar-placeholder {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   background: #f97316;
   color: #fff;
-  font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .avatar-placeholder.small {
   font-size: 12px;
 }
 
-.seller-details {
+.friend-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.friend-name {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.last-message {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.friend-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.last-time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid #e5e7eb;
+  backdrop-filter: blur(6px);
+}
+
+.header-inner {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.seller-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
   min-width: 0;
 }
 
 .seller-name {
+  margin: 0;
   font-size: 15px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .seller-status {
+  margin: 2px 0 0;
   font-size: 12px;
   color: #6b7280;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .online-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
   background: #10b981;
 }
 
@@ -836,73 +718,73 @@ onMounted(() => {
   gap: 8px;
 }
 
-.action-btn {
+.action-btn,
+.back-btn,
+.toolbar-btn {
   width: 36px;
   height: 36px;
   border: none;
-  background: #f3f4f6;
   border-radius: 50%;
+  background: #f3f4f6;
   color: #6b7280;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 150ms;
-  position: relative;
+  display: grid;
+  place-items: center;
+  transition: all 140ms ease;
 }
 
-.action-btn:hover {
+.back-btn:hover,
+.action-btn:hover,
+.toolbar-btn:hover {
   background: #e5e7eb;
   transform: translateY(-1px);
+}
+
+.tip-btn {
+  position: relative;
 }
 
 .tip-btn::after {
   content: attr(data-tip);
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   left: 50%;
-  transform: translateX(-50%) translateY(-2px);
-  background: rgba(17, 24, 39, 0.88);
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.86);
   color: #fff;
   font-size: 12px;
-  line-height: 1;
-  white-space: nowrap;
-  border-radius: 999px;
-  padding: 6px 10px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition: opacity 120ms ease;
+  white-space: nowrap;
 }
 
 .tip-btn:hover::after {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
 }
 
 .product-card {
-  background: #fff;
   padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
-  transition: background 150ms, box-shadow 180ms, transform 180ms;
-  position: relative;
+  background: #fff;
+  transition: box-shadow 180ms ease;
 }
 
 .product-card:hover {
-  background: #f9fafb;
-  transform: translateY(-1px);
   box-shadow: 0 8px 18px rgba(249, 115, 22, 0.12);
 }
 
 .product-image {
   width: 50px;
   height: 50px;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
-  flex-shrink: 0;
 }
 
 .product-image img {
@@ -917,100 +799,66 @@ onMounted(() => {
 }
 
 .product-title {
+  margin: 0 0 3px;
   font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-  margin: 0 0 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .product-price {
-  font-size: 14px;
-  font-weight: 600;
-  color: #f97316;
   margin: 0;
+  color: #f97316;
+  font-weight: 700;
 }
 
 .btn-view-product {
-  background: none;
   border: none;
+  background: transparent;
   color: #9ca3af;
-  cursor: pointer;
-  padding: 4px;
-  position: relative;
-}
-
-.btn-view-product::after {
-  content: attr(title);
-  position: absolute;
-  right: calc(100% + 8px);
-  top: 50%;
-  transform: translateY(-50%) translateX(4px);
-  background: rgba(17, 24, 39, 0.88);
-  color: #fff;
-  font-size: 12px;
-  line-height: 1;
-  padding: 6px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 160ms ease, transform 160ms ease;
-}
-
-.btn-view-product:hover::after {
-  opacity: 1;
-  transform: translateY(-50%) translateX(0);
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  scroll-behavior: smooth;
+  padding: 14px 16px;
 }
 
 .message-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .system-message {
   display: flex;
   justify-content: center;
-  margin: 8px 0;
 }
 
 .system-text {
-  background: #e5e7eb;
+  font-size: 12px;
   color: #6b7280;
-  font-size: 12px;
-  padding: 6px 12px;
+  padding: 5px 10px;
   border-radius: 12px;
+  background: #eef2ff;
 }
 
-.time-divider {
-  display: flex;
-  justify-content: center;
-  margin: 12px 0;
-}
-
-.time-text {
-  background: #f3f4f6;
+.messages-empty {
+  margin: 20px auto;
   color: #9ca3af;
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 10px;
+  font-size: 13px;
+}
+
+.msg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .message-item {
   display: flex;
   gap: 8px;
-  max-width: 80%;
-  animation: bubbleIn 220ms ease both;
+  max-width: 86%;
 }
 
 .message-item.sent {
@@ -1018,8 +866,13 @@ onMounted(() => {
   flex-direction: row-reverse;
 }
 
-.message-item.received {
-  margin-right: auto;
+.message-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.message-item.sent .message-main {
+  align-items: flex-end;
 }
 
 .message-avatar {
@@ -1027,7 +880,6 @@ onMounted(() => {
   height: 32px;
   border-radius: 50%;
   overflow: hidden;
-  flex-shrink: 0;
   background: #e5e7eb;
 }
 
@@ -1039,32 +891,26 @@ onMounted(() => {
 
 .message-bubble {
   background: #fff;
-  border-radius: 12px;
-  padding: 10px 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: transform 150ms, box-shadow 150ms;
-}
-
-.message-bubble:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.1);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 2px 10px rgba(30, 41, 59, 0.08);
+  max-width: min(480px, 75vw);
 }
 
 .message-item.sent .message-bubble {
-  background: #f97316;
+  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
   color: #fff;
 }
 
 .text-content {
-  font-size: 14px;
   line-height: 1.5;
   word-break: break-word;
 }
 
 .image-content img {
-  max-width: 200px;
-  max-height: 200px;
-  border-radius: 8px;
+  max-width: min(220px, 55vw);
+  max-height: 220px;
+  border-radius: 10px;
   display: block;
 }
 
@@ -1075,50 +921,42 @@ onMounted(() => {
 .product-mini {
   display: flex;
   gap: 8px;
-  background: #f9fafb;
+  border-radius: 10px;
   padding: 8px;
-  border-radius: 8px;
-  min-width: 200px;
+  background: #f9fafb;
+  min-width: 220px;
 }
 
 .message-item.sent .product-mini {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .product-mini img {
-  width: 50px;
-  height: 50px;
-  border-radius: 6px;
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
   object-fit: cover;
 }
 
-.product-mini-info {
-  flex: 1;
-  min-width: 0;
-}
-
 .product-mini-title {
-  font-size: 13px;
-  font-weight: 500;
   margin: 0 0 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.message-item.sent .product-mini-title {
-  color: #fff;
+  font-size: 13px;
 }
 
 .product-mini-price {
-  font-size: 14px;
-  font-weight: 600;
-  color: #f97316;
   margin: 0;
+  font-weight: 700;
+  color: #f97316;
 }
 
 .message-item.sent .product-mini-price {
   color: #fff;
+}
+
+.message-time {
+  margin: 4px 2px 0;
+  font-size: 11px;
+  color: #9ca3af;
 }
 
 .message-status {
@@ -1127,38 +965,29 @@ onMounted(() => {
   padding-bottom: 4px;
 }
 
-.message-status i {
-  font-size: 12px;
-}
-
-.message-status .sending {
+.sending,
+.sent {
   color: #9ca3af;
 }
 
-.message-status .sent {
-  color: #9ca3af;
-}
-
-.message-status .delivered {
+.delivered {
   color: #3b82f6;
 }
 
-.message-status .failed {
+.failed {
   color: #ef4444;
 }
 
 .quick-replies {
-  background: #fff;
   border-top: 1px solid #e5e7eb;
-  padding: 12px 16px;
-  animation: quickRepliesEnter 180ms ease both;
+  background: #fff;
+  padding: 10px 16px;
 }
 
 .quick-reply-list {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 4px;
 }
 
 .quick-reply-list::-webkit-scrollbar {
@@ -1166,71 +995,47 @@ onMounted(() => {
 }
 
 .quick-reply-btn {
+  border: none;
+  border-radius: 999px;
   padding: 6px 12px;
   background: #f3f4f6;
-  border: none;
-  border-radius: 16px;
-  font-size: 13px;
   color: #374151;
   white-space: nowrap;
-  cursor: pointer;
-  transition: background 150ms;
+  transition: background 120ms ease;
 }
 
 .quick-reply-btn:hover {
   background: #e5e7eb;
-  transform: translateY(-1px);
 }
 
 .chat-input-area {
-  background: #fff;
   border-top: 1px solid #e5e7eb;
+  background: #fff;
   padding: 12px 16px;
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
 }
 
 .input-toolbar {
   display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.toolbar-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: #f3f4f6;
-  border-radius: 50%;
-  color: #6b7280;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 150ms;
-}
-
-.toolbar-btn:hover {
-  background: #e5e7eb;
-  transform: translateY(-1px);
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .input-wrapper {
   display: flex;
+  gap: 10px;
   align-items: flex-end;
-  gap: 12px;
 }
 
 .message-input {
   flex: 1;
-  border: 1px solid #e5e7eb;
   border-radius: 20px;
-  padding: 10px 16px;
-  font-size: 14px;
+  border: 1px solid #e5e7eb;
+  padding: 10px 14px;
+  max-height: 130px;
   resize: none;
-  outline: none;
-  max-height: 120px;
-  line-height: 1.5;
   background: #f9fafb;
+  outline: none;
 }
 
 .message-input:focus {
@@ -1246,10 +1051,6 @@ onMounted(() => {
   background: #e5e7eb;
   color: #9ca3af;
   cursor: not-allowed;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 150ms;
 }
 
 .send-btn.active {
@@ -1258,75 +1059,66 @@ onMounted(() => {
   cursor: pointer;
 }
 
-.send-btn.active:hover {
-  background: #ea580c;
-}
-
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 200;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.36);
   display: flex;
   align-items: flex-end;
+  z-index: 50;
 }
 
 .more-options-modal {
+  width: 100%;
   background: #fff;
   border-radius: 16px 16px 0 0;
-  width: 100%;
-  padding: 16px;
+  padding: 12px;
+  animation: modal-slide-in 180ms ease both;
 }
 
 .option-item {
   width: 100%;
-  padding: 16px;
   border: none;
-  background: none;
+  background: transparent;
+  padding: 14px;
+  border-radius: 10px;
   display: flex;
+  gap: 10px;
   align-items: center;
-  gap: 12px;
-  font-size: 15px;
-  color: #374151;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background 150ms;
 }
 
 .option-item:hover {
   background: #f3f4f6;
 }
 
-.option-item i {
-  width: 24px;
-  text-align: center;
-  color: #6b7280;
-}
-
 .hidden {
   display: none;
 }
 
-/* 响应式 */
+.only-mobile {
+  display: none;
+}
+
 @media (max-width: 900px) {
+  .only-mobile {
+    display: grid;
+  }
+
   .friend-sidebar {
-    display: none;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 220ms ease;
+    width: min(86vw, 320px);
   }
 
-  .chat-main {
-    width: 100%;
-  }
-
-  .chat-header {
-    position: sticky;
-    top: 0;
+  .friend-sidebar.open {
+    transform: translateX(0);
   }
 
   .message-item {
-    max-width: 92%;
+    max-width: 96%;
   }
 }
 
@@ -1336,19 +1128,22 @@ onMounted(() => {
   }
 
   .chat-messages {
-    padding: 12px;
+    padding: 10px 12px;
   }
 
   .chat-input-area {
     padding: 10px 12px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .product-mini {
+    min-width: 180px;
   }
 }
 
-@keyframes bubbleIn {
+@keyframes modal-slide-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -1356,34 +1151,28 @@ onMounted(() => {
   }
 }
 
-@keyframes listItemEnter {
-  from {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+.list-fade-enter-active,
+.list-fade-leave-active,
+.message-pop-enter-active,
+.message-pop-leave-active {
+  transition: all 180ms ease;
 }
 
-@keyframes quickRepliesEnter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.list-fade-enter-from,
+.list-fade-leave-to,
+.message-pop-enter-from,
+.message-pop-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
-@keyframes pageEnter {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
   }
 }
 </style>

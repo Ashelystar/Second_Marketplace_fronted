@@ -251,12 +251,15 @@ function normalizeProfileId(rawId: string) {
 }
 
 function goAuthorHome(author: { id: string; name: string; avatarUrl: string }) {
+  const numericId = Number(author.id)
+  const isVirtualUser = !(Number.isFinite(numericId) && numericId > 0)
   const profileId = normalizeProfileId(author.id)
   router.push({
     path: `/user/home/${profileId}`,
     query: {
       name: author.name,
       avatar: author.avatarUrl || '',
+      virtualUser: isVirtualUser ? '1' : '0',
       fromForumPostId: postId.value,
     },
   })

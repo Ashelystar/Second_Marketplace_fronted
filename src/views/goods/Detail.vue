@@ -707,11 +707,13 @@ const buildProfileIdByName = (name: string) => {
 
 const goToUserProfile = (user: { userId?: number; name: string; avatar?: string }) => {
   const profileId = user.userId ?? buildProfileIdByName(user.name)
+  const isVirtualUser = !(Number.isFinite(Number(user.userId)) && Number(user.userId) > 0)
   router.push({
     path: `/user/home/${profileId}`,
     query: {
       name: user.name,
       avatar: user.avatar || '',
+      virtualUser: isVirtualUser ? '1' : '0',
       location: product.value?.location || '未知',
       fromProductId: String(product.value?.id || ''),
     },

@@ -119,6 +119,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import Topnav from '@/components/TopNav.vue'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
@@ -148,6 +149,7 @@ const productStore = useProductStore()
 const userStore = useUserStore()
 
 const sellerId = computed(() => Number(route.params.id))
+const isVirtualProfile = computed(() => String(route.query.virtualUser || '') === '1')
 const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
 const followPending = ref(false)
 const sellerReputation = ref<SellerReputationSnapshot | null>(null)
@@ -310,19 +312,25 @@ const handleToggleFollow = async () => {
   if (!canFollowSeller.value) return
   if (followPending.value) return
   if (!userStore.isLoggedIn) {
-    alert('请先登录后再关注')
+    ElMessage.info('请先登录后再关注')
     await router.push('/user/login')
     return
   }
   try {
     followPending.value = true
-    await userStore.toggleFollow(sellerId.value)
+    const wasFollowing = isFollowingSeller.value
+    await userStore.toggleFollow(sellerId.value, { localOnly: isVirtualProfile.value })
+    if (isVirtualProfile.value) {
+      ElMessage.success(wasFollowing ? '已取消关注（社区用户）' : '已关注（社区用户）')
+    } else {
+      ElMessage.success(wasFollowing ? '已取消关注' : '已关注')
+    }
   } catch (error) {
     if (error instanceof Error) {
-      alert(error.message || '操作失败，请稍后重试')
+      ElMessage.error(error.message || '操作失败，请稍后重试')
       return
     }
-    alert('操作失败，请稍后重试')
+    ElMessage.error('操作失败，请稍后重试')
   } finally {
     followPending.value = false
   }

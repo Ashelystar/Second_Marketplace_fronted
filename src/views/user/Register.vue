@@ -42,6 +42,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { registerApi } from '@/api/user'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -63,6 +64,17 @@ async function handleRegister() {
       phone: phone.value.trim() || undefined,
       password: password.value.trim(),
     })
+
+    if (!data?.token) {
+      throw new Error('注册成功，但登录凭证缺失，请稍后重试')
+    }
+
+    if (!data.userInfo) {
+      ElMessage.success('注册成功，请使用新账号登录')
+      await router.push('/user/login')
+      return
+    }
+
     userStore.login(
       {
         ...data.userInfo,
@@ -72,7 +84,7 @@ async function handleRegister() {
     )
     await router.push('/user/profile')
   } catch (error) {
-    alert((error as Error).message)
+    ElMessage.error(error instanceof Error ? error.message : '注册失败，请稍后重试')
   } finally {
     loading.value = false
   }
