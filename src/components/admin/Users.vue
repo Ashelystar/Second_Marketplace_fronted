@@ -5,148 +5,156 @@
       <p class="section-description">管理平台用户，包括警告和封禁操作</p>
     </div>
     
-    <div class="search-bar">
-      <div class="filter-options">
-        <ElSelect v-model="statusFilter" placeholder="按状态筛选" style="width: 120px; margin-right: 10px;">
-          <ElOption label="全部" value="" />
-          <ElOption label="活跃" value="active" />
-          <ElOption label="封禁中" value="banned" />
-          <ElOption label="禁止购买" value="no-buy" />
-          <ElOption label="禁止销售" value="no-sell" />
-        </ElSelect>
-        <ElSelect v-model="roleFilter" placeholder="按角色筛选" style="width: 120px; margin-right: 10px;">
-          <ElOption label="全部" value="" />
-          <ElOption label="管理员" value="admin" />
-          <ElOption label="普通用户" value="user" />
-        </ElSelect>
-      </div>
-      <div class="search-input">
-        <ElInput 
-          v-model="searchKeyword" 
-          placeholder="搜索用户" 
-          style="width: 300px;" 
-          prefix-icon="Search"
-        />
-        <ElDropdown style="margin-left: 10px;">
-          <ElButton>
-            搜索字段 <ElIcon class="el-icon--right"><ArrowDown /></ElIcon>
-          </ElButton>
-          <template #dropdown>
-            <ElDropdownMenu>
-              <ElDropdownItem>
-                <ElCheckboxGroup v-model="searchFields">
-                  <ElCheckbox label="id">ID</ElCheckbox>
-                  <ElCheckbox label="username">账号</ElCheckbox>
-                  <ElCheckbox label="nickname">昵称</ElCheckbox>
-                  <ElCheckbox label="email">邮箱</ElCheckbox>
-                  <ElCheckbox label="phone">手机号</ElCheckbox>
-                </ElCheckboxGroup>
-              </ElDropdownItem>
-            </ElDropdownMenu>
-          </template>
-        </ElDropdown>
-        <ElButton type="primary" @click="handleSearch" style="margin-left: 10px;">
-          搜索
-        </ElButton>
-      </div>
+    <!-- 错误状态显示 -->
+    <div v-if="apiError && !isDev" class="error-container">
+      <ElResult
+        icon="warning"
+        title="数据加载失败"
+        sub-title="无法连接到服务器，请稍后重试"
+      >
+        <template #extra>
+          <ElButton type="primary" @click="reloadData">重新加载</ElButton>
+        </template>
+      </ElResult>
     </div>
     
-    <div class="table-container">
-      <ElTable :data="filteredUsers" style="width: 100%" stripe>
-        <ElTableColumn prop="id" label="用户ID" width="80" />
-        <ElTableColumn prop="username" label="账号" width="150" />
-        <ElTableColumn prop="nickname" label="昵称" width="120" />
-        <ElTableColumn prop="email" label="邮箱" width="180" />
-        <ElTableColumn prop="phone" label="手机号" width="120" />
-        <ElTableColumn prop="userStatus" label="状态" width="100">
-          <template #default="scope">
-            <ElTag :type="getTagType(scope.row)">
-              {{ getStatusText(scope.row) }}
-            </ElTag>
-          </template>
-        </ElTableColumn>
-        <ElTableColumn label="角色" width="80">
-          <template #default="scope">
-            <ElTag :type="scope.row.isAdmin ? 'danger' : 'info'">
-              {{ scope.row.isAdmin ? '管理员' : '用户' }}
-            </ElTag>
-          </template>
-        </ElTableColumn>
-        <ElTableColumn label="最后登录" width="150">
-          <template #default="scope">
-            {{ formatTime(scope.row.lastLoginAt) }}
-          </template>
-        </ElTableColumn>
-        <ElTableColumn label="注册时间" width="150">
-          <template #default="scope">
-            {{ formatTime(scope.row.registeredAt) }}
-          </template>
-        </ElTableColumn>
-        <ElTableColumn label="操作" width="200">
-          <template #default="scope">
-            <ElButton type="info" size="small" @click="notifyUser(scope.row.id)">
-              通知
-            </ElButton>
-            <ElButton 
-              :type="isFullyActive(scope.row) ? 'danger' : 'success'" 
-              size="small" 
-              @click="showBanDialog(scope.row)"
-              style="margin-left: 8px;"
-            >
-              {{ isFullyActive(scope.row) ? '封禁' : '解封' }}
-            </ElButton>
-          </template>
-        </ElTableColumn>
-      </ElTable>
-    </div>
-    
-    <div class="pagination">
-      <ElPagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        :total="adminStore.totalUsers"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
-    </div>
-    
-    <!-- 封禁/解封理由输入模态框 -->
-    <ElDialog
-      v-model="banDialogVisible"
-      :title="banDialogTitle"
-      width="500px"
-    >
-      <ElForm :model="banForm" label-width="100px">
-        <ElFormItem :label="isFullyActive(currentUser) ? '封禁理由' : '解封理由'">
-          <ElInput
-            v-model="banForm.reason"
-            type="textarea"
-            :rows="4"
-            :placeholder="isFullyActive(currentUser) ? '请输入封禁理由' : '请输入解封理由'"
-            required
+    <!-- 用户管理界面 -->
+    <div v-else>
+      <div class="search-bar">
+        <div class="filter-options">
+          <ElSelect v-model="statusFilter" placeholder="按状态筛选" style="width: 120px; margin-right: 10px;">
+            <ElOption label="全部" value="" />
+            <ElOption label="活跃" value="active" />
+            <ElOption label="封禁中" value="banned" />
+            <ElOption label="禁止购买" value="no-buy" />
+            <ElOption label="禁止销售" value="no-sell" />
+          </ElSelect>
+          <ElSelect v-model="roleFilter" placeholder="按角色筛选" style="width: 120px; margin-right: 10px;">
+            <ElOption label="全部" value="" />
+            <ElOption label="管理员" value="admin" />
+            <ElOption label="普通用户" value="user" />
+          </ElSelect>
+        </div>
+        <div class="search-input">
+          <ElInput 
+            v-model="searchKeyword" 
+            placeholder="搜索用户" 
+            style="width: 300px;" 
+            prefix-icon="Search"
           />
-        </ElFormItem>
-        <ElFormItem label="权限控制">
-          <ElCheckboxGroup v-model="banForm.permissions">
-            <ElCheckbox label="canBuy">{{ isFullyActive(currentUser) ? '禁止购买' : '允许购买' }}</ElCheckbox>
-            <ElCheckbox label="canSell">{{ isFullyActive(currentUser) ? '禁止销售' : '允许销售' }}</ElCheckbox>
-            <ElCheckbox label="userStatus">{{ isFullyActive(currentUser) ? '禁止其他操作（评论等）' : '允许其他操作（评论等）' }}</ElCheckbox>
-          </ElCheckboxGroup>
-        </ElFormItem>
-        <ElFormItem label="消息推送">
-          <ElSwitch v-model="banForm.notify" />
-        </ElFormItem>
-      </ElForm>
-      <template #footer>
-        <span class="dialog-footer">
-          <ElButton @click="banDialogVisible = false">取消</ElButton>
-          <ElButton type="primary" @click="confirmBan">确定</ElButton>
-        </span>
-      </template>
-    </ElDialog>
-    
+          <ElDropdown style="margin-left: 10px;">
+            <ElButton>
+              搜索字段 <ElIcon class="el-icon--right"><ArrowDown /></ElIcon>
+            </ElButton>
+            <template #dropdown>
+              <ElDropdownMenu>
+                <ElDropdownItem>
+                  <ElCheckboxGroup v-model="searchFields">
+                    <ElCheckbox label="id">ID</ElCheckbox>
+                    <ElCheckbox label="username">账号</ElCheckbox>
+                    <ElCheckbox label="nickname">昵称</ElCheckbox>
+                    <ElCheckbox label="email">邮箱</ElCheckbox>
+                    <ElCheckbox label="phone">手机号</ElCheckbox>
+                  </ElCheckboxGroup>
+                </ElDropdownItem>
+              </ElDropdownMenu>
+            </template>
+          </ElDropdown>
+          <ElButton type="primary" @click="handleSearch" style="margin-left: 10px;">
+            搜索
+          </ElButton>
+        </div>
+      </div>
+      
+      <div class="table-container">
+        <ElTable :data="filteredUsers" style="width: 100%" stripe>
+          <ElTableColumn prop="id" label="用户ID" width="80" />
+          <ElTableColumn prop="username" label="账号" width="150" />
+          <ElTableColumn prop="nickname" label="昵称" width="120" />
+          <ElTableColumn prop="email" label="邮箱" width="180" />
+          <ElTableColumn prop="phone" label="手机号" width="120" />
+          <ElTableColumn prop="userStatus" label="状态" width="100">
+            <template #default="scope">
+              <ElTag :type="getTagType(scope.row)">
+                {{ getStatusText(scope.row) }}
+              </ElTag>
+            </template>
+          </ElTableColumn>
+          <ElTableColumn label="角色" width="80">
+            <template #default="scope">
+              <ElTag :type="scope.row.isAdmin ? 'danger' : 'info'">
+                {{ scope.row.isAdmin ? '管理员' : '用户' }}
+              </ElTag>
+            </template>
+          </ElTableColumn>
+          <ElTableColumn label="最后登录" width="150">
+            <template #default="scope">
+              {{ formatTime(scope.row.lastLoginAt) }}
+            </template>
+          </ElTableColumn>
+          <ElTableColumn label="注册时间" width="150">
+            <template #default="scope">
+              {{ formatTime(scope.row.registeredAt) }}
+            </template>
+          </ElTableColumn>
+          <ElTableColumn label="操作" width="120">
+            <template #default="scope">
+              <ElButton 
+                :type="isFullyActive(scope.row) ? 'danger' : 'success'" 
+                size="small" 
+                @click="showBanDialog(scope.row)"
+              >
+                {{ isFullyActive(scope.row) ? '封禁' : '解封' }}
+              </ElButton>
+            </template>
+          </ElTableColumn>
+        </ElTable>
+      </div>
+      
+      <div class="pagination">
+        <ElPagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="adminStore.totalUsers"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+      
+      <!-- 封禁/解封理由输入模态框 -->
+      <ElDialog
+        v-model="banDialogVisible"
+        :title="banDialogTitle"
+        width="500px"
+      >
+        <ElForm :model="banForm" label-width="100px">
+          <ElFormItem :label="isFullyActive(currentUser) ? '封禁理由' : '解封理由'">
+            <ElInput
+              v-model="banForm.reason"
+              type="textarea"
+              :rows="4"
+              :placeholder="isFullyActive(currentUser) ? '请输入封禁理由' : '请输入解封理由'"
+              required
+            />
+          </ElFormItem>
+          <ElFormItem label="权限控制">
+            <ElCheckboxGroup v-model="banForm.permissions">
+              <ElCheckbox label="canBuy">{{ isFullyActive(currentUser) ? '禁止购买' : '允许购买' }}</ElCheckbox>
+              <ElCheckbox label="canSell">{{ isFullyActive(currentUser) ? '禁止销售' : '允许销售' }}</ElCheckbox>
+              <ElCheckbox label="userStatus">{{ isFullyActive(currentUser) ? '禁止其他操作（评论等）' : '允许其他操作（评论等）' }}</ElCheckbox>
+            </ElCheckboxGroup>
+          </ElFormItem>
+        </ElForm>
+        <template #footer>
+          <span class="dialog-footer">
+            <ElButton @click="banDialogVisible = false">取消</ElButton>
+            <ElButton type="primary" @click="confirmBan">确定</ElButton>
+          </span>
+        </template>
+      </ElDialog>
+    </div>
 
   </div>
 </template>
@@ -154,24 +162,58 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAdminStore } from '@/stores/adminStore'
-import { ElInput, ElButton, ElTable, ElTableColumn, ElTag, ElPagination, ElMessage, ElDialog, ElForm, ElFormItem, ElSwitch, ElCheckboxGroup, ElCheckbox } from 'element-plus'
+import { ElInput, ElButton, ElTable, ElTableColumn, ElTag, ElPagination, ElMessage, ElDialog, ElForm, ElFormItem, ElSwitch, ElCheckboxGroup, ElCheckbox, ElResult } from 'element-plus'
 
 const adminStore = useAdminStore()
 const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 
+// 开发模式开关 - 默认false
+const isDev = ref(false)
+
+// API错误状态
+const apiError = ref(false)
+
 // 封禁对话框
 const banDialogVisible = ref(false)
 const banDialogTitle = ref('')
 const banForm = ref({
   reason: '',
-  notify: true,
   permissions: [] as string[]
 })
 const currentUser = ref<any>(null)
 
+// 加载数据
+const loadData = async () => {
+  try {
+    apiError.value = false
+    if (isDev.value) {
+      // 开发模式下直接使用模拟数据
+      adminStore.loadMockData()
+    } else {
+      // 生产模式下请求真实API
+      await adminStore.loadUsers({
+        page: currentPage.value,
+        pageSize: pageSize.value
+      })
+    }
+  } catch (error) {
+    console.error('加载数据失败:', error)
+    if (!isDev.value) {
+      apiError.value = true
+      ElMessage.error('数据加载失败，请检查网络连接')
+    } else {
+      // 开发模式下即使API失败也确保显示模拟数据
+      adminStore.loadMockData()
+    }
+  }
+}
 
+// 重新加载数据
+const reloadData = () => {
+  loadData()
+}
 
 // 过滤选项
 const statusFilter = ref('')
@@ -185,42 +227,81 @@ const filteredUsers = computed(() => {
 
 // 搜索用户
 async function handleSearch() {
-  currentPage.value = 1
-  await adminStore.loadUsers({
-    status: statusFilter.value,
-    isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
-    keyword: searchKeyword.value,
-    searchFields: searchFields.value,
-    page: currentPage.value,
-    pageSize: pageSize.value
-  })
+  try {
+    apiError.value = false
+    currentPage.value = 1
+    if (isDev.value) {
+      adminStore.loadMockData()
+    } else {
+      await adminStore.loadUsers({
+        status: statusFilter.value,
+        isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
+        keyword: searchKeyword.value,
+        searchFields: searchFields.value,
+        page: currentPage.value,
+        pageSize: pageSize.value
+      })
+    }
+  } catch (error) {
+    console.error('搜索失败:', error)
+    if (!isDev.value) {
+      apiError.value = true
+      ElMessage.error('搜索失败，请检查网络连接')
+    }
+  }
 }
 
 // 页面大小变化
 async function handleSizeChange(size: number) {
-  pageSize.value = size
-  currentPage.value = 1
-  await adminStore.loadUsers({
-    status: statusFilter.value,
-    isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
-    keyword: searchKeyword.value,
-    searchFields: searchFields.value,
-    page: currentPage.value,
-    pageSize: pageSize.value
-  })
+  try {
+    apiError.value = false
+    pageSize.value = size
+    currentPage.value = 1
+    if (isDev.value) {
+      adminStore.loadMockData()
+    } else {
+      await adminStore.loadUsers({
+        status: statusFilter.value,
+        isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
+        keyword: searchKeyword.value,
+        searchFields: searchFields.value,
+        page: currentPage.value,
+        pageSize: pageSize.value
+      })
+    }
+  } catch (error) {
+    console.error('加载失败:', error)
+    if (!isDev.value) {
+      apiError.value = true
+      ElMessage.error('加载失败，请检查网络连接')
+    }
+  }
 }
 
 // 当前页面变化
 async function handleCurrentChange(current: number) {
-  currentPage.value = current
-  await adminStore.loadUsers({
-    status: statusFilter.value,
-    isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
-    keyword: searchKeyword.value,
-    searchFields: searchFields.value,
-    page: currentPage.value,
-    pageSize: pageSize.value
-  })
+  try {
+    apiError.value = false
+    currentPage.value = current
+    if (isDev.value) {
+      adminStore.loadMockData()
+    } else {
+      await adminStore.loadUsers({
+        status: statusFilter.value,
+        isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
+        keyword: searchKeyword.value,
+        searchFields: searchFields.value,
+        page: currentPage.value,
+        pageSize: pageSize.value
+      })
+    }
+  } catch (error) {
+    console.error('加载失败:', error)
+    if (!isDev.value) {
+      apiError.value = true
+      ElMessage.error('加载失败，请检查网络连接')
+    }
+  }
 }
 
 // 获取标签类型
@@ -258,13 +339,11 @@ function showBanDialog(user: any) {
     // 封禁逻辑
     banDialogTitle.value = `封禁用户 ${user.nickname}`
     banForm.value.reason = ''
-    banForm.value.notify = true
     banForm.value.permissions = []
   } else {
     // 解封逻辑
     banDialogTitle.value = `解封用户 ${user.nickname}`
     banForm.value.reason = ''
-    banForm.value.notify = true
     banForm.value.permissions = []
     
     // 默认选中已禁用的权限（需要解封的权限）
@@ -350,13 +429,17 @@ async function confirmBan() {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ 
-            reason: banForm.value.reason, 
-            notify: banForm.value.notify 
+            reason: banForm.value.reason
           })
         })
         
         if (!response.ok) {
-          throw new Error(`封禁用户失败: ${response.status}`)
+          throw new Error(`封禁用户失败: HTTP ${response.status}`)
+        }
+        
+        const data = await response.json()
+        if (data.code !== 200) {
+          throw new Error(`封禁用户失败: ${data.message || data.code}`)
         }
       }
       
@@ -375,7 +458,12 @@ async function confirmBan() {
         })
         
         if (!response.ok) {
-          throw new Error(`禁用购买权限失败: ${response.status}`)
+          throw new Error(`禁用购买权限失败: HTTP ${response.status}`)
+        }
+        
+        const data = await response.json()
+        if (data.code !== 200) {
+          throw new Error(`禁用购买权限失败: ${data.message || data.code}`)
         }
       }
       
@@ -394,7 +482,12 @@ async function confirmBan() {
         })
         
         if (!response.ok) {
-          throw new Error(`禁用销售权限失败: ${response.status}`)
+          throw new Error(`禁用销售权限失败: HTTP ${response.status}`)
+        }
+        
+        const data = await response.json()
+        if (data.code !== 200) {
+          throw new Error(`禁用销售权限失败: ${data.message || data.code}`)
         }
       }
     } else {
@@ -408,13 +501,17 @@ async function confirmBan() {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ 
-            reason: banForm.value.reason, 
-            notify: banForm.value.notify 
+            reason: banForm.value.reason
           })
         })
         
         if (!response.ok) {
-          throw new Error(`解封用户失败: ${response.status}`)
+          throw new Error(`解封用户失败: HTTP ${response.status}`)
+        }
+        
+        const data = await response.json()
+        if (data.code !== 200) {
+          throw new Error(`解封用户失败: ${data.message || data.code}`)
         }
       }
       
@@ -433,7 +530,12 @@ async function confirmBan() {
         })
         
         if (!response.ok) {
-          throw new Error(`启用购买权限失败: ${response.status}`)
+          throw new Error(`启用购买权限失败: HTTP ${response.status}`)
+        }
+        
+        const data = await response.json()
+        if (data.code !== 200) {
+          throw new Error(`启用购买权限失败: ${data.message || data.code}`)
         }
       }
       
@@ -452,7 +554,12 @@ async function confirmBan() {
         })
         
         if (!response.ok) {
-          throw new Error(`启用销售权限失败: ${response.status}`)
+          throw new Error(`启用销售权限失败: HTTP ${response.status}`)
+        }
+        
+        const data = await response.json()
+        if (data.code !== 200) {
+          throw new Error(`启用销售权限失败: ${data.message || data.code}`)
         }
       }
     }
@@ -491,14 +598,6 @@ async function confirmBan() {
     console.error('操作失败:', error)
     ElMessage.error('操作失败')
   }
-}
-
-// 显示通知模态框
-function notifyUser(userId: number) {
-  // 显示功能正在开发的提示
-  ElMessage.info('通知功能正在开发中')
-  // 记录管理员操作日志
-  console.log('管理员尝试发送通知给用户:', userId)
 }
 
 // 格式化时间
@@ -577,21 +676,31 @@ function formatTime(time: string | number[]): string {
 import { watch } from 'vue'
 
 watch([statusFilter, roleFilter], async () => {
-  await adminStore.loadUsers({
-    status: statusFilter.value,
-    isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
-    keyword: searchKeyword.value,
-    searchFields: searchFields.value,
-    page: currentPage.value,
-    pageSize: pageSize.value
-  })
+  try {
+    apiError.value = false
+    if (isDev.value) {
+      adminStore.loadMockData()
+    } else {
+      await adminStore.loadUsers({
+        status: statusFilter.value,
+        isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
+        keyword: searchKeyword.value,
+        searchFields: searchFields.value,
+        page: currentPage.value,
+        pageSize: pageSize.value
+      })
+    }
+  } catch (error) {
+    console.error('加载失败:', error)
+    if (!isDev.value) {
+      apiError.value = true
+      ElMessage.error('加载失败，请检查网络连接')
+    }
+  }
 })
 
 onMounted(async () => {
-  await adminStore.loadUsers({
-    page: currentPage.value,
-    pageSize: pageSize.value
-  })
+  await loadData()
 })
 </script>
 
