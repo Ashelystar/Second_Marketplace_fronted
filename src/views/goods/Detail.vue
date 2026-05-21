@@ -100,9 +100,9 @@
           </button>
         </div>
         <div class="sellerStats">
-          <div>在售 <strong>{{ sellerOnSaleCount || product.sellerOnSale || 0 }}</strong></div>
-          <div>已完成 <strong>{{ sellerReputation?.completedOrders || product.sellerSold || 0 }}</strong></div>
-          <div>总订单 <strong>{{ sellerReputation?.totalOrders || 0 }}</strong></div>
+          <div>在售 <strong>{{ sellerOnSaleCount }}</strong></div>
+          <div>已完成 <strong>{{ sellerReputation?.completedOrders ?? 0 }}</strong></div>
+          <div>总订单 <strong>{{ sellerReputation?.totalOrders ?? 0 }}</strong></div>
         </div>
       </div>
 
@@ -239,7 +239,7 @@
 
         <!-- 评论输入框 -->
         <div class="commentInput">
-          <img v-if="userStore.userInfo?.avatar" :src="userStore.userInfo.avatar" class="commentAvatar" />
+          <img v-if="currentUserAvatar" :src="currentUserAvatar" class="commentAvatar" />
           <div v-else class="commentAvatar avatarDefault">{{ userStore.userInfo?.username?.charAt(0) || '游' }}</div>
           <div class="inputWrapper">
             <textarea
@@ -382,7 +382,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
-import { getProductDetail, incrementProductView, getProductStats, getProductStatus, getProductPage } from '@/api/goods'
+import { getProductDetail, incrementProductView, getProductStats, getProductStatus, getProductPage, getSellerProducts } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
 import {
@@ -395,6 +395,12 @@ defineOptions({ name: 'ProductDetail' })
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+
+// 当前用户头像 URL（经过 getImageUrl 处理）
+const currentUserAvatar = computed(() => {
+  const raw = userStore.userInfo?.avatar || userStore.userInfo?.avatarUrl
+  return raw ? getImageUrl(raw) : ''
+})
 
 const ensureLoggedIn = (actionHint: string) => {
   if (userStore.isLoggedIn) return true
@@ -504,7 +510,7 @@ const submitComment = () => {
   const comment: Comment = {
     id: Date.now(),
     name: userStore.userInfo?.username || '匿名用户',
-    avatar: userStore.userInfo?.avatar ?? undefined,
+    avatar: userStore.userInfo?.avatar || userStore.userInfo?.avatarUrl || undefined,
     time: '刚刚',
     content: newComment.value.trim(),
     replies: []
@@ -524,7 +530,7 @@ const submitReply = (commentId: number) => {
     const reply: Reply = {
       id: Date.now(),
       name: userStore.userInfo?.username || '匿名用户',
-      avatar: userStore.userInfo?.avatar ?? undefined,
+      avatar: userStore.userInfo?.avatar || userStore.userInfo?.avatarUrl || undefined,
       time: '刚刚',
       content: replyContent.value.trim()
     }
@@ -896,15 +902,13 @@ const loadDetails = async () => {
         console.error('获取卖家信誉信息失败:', err)
         sellerReputation.value = null
       }
-      // 获取卖家在售商品数量（与PublicProfile保持一致，只统计publishStatus为on_sale的商品）
+      // 获取卖家在售商品数量（与 PublicProfile 保持一致）
       try {
-        const res = await getProductPage({ sellerId: data.sellerId, current: 1, size: 100 })
-        // 只统计真正在售的商品（publishStatus === 'on_sale'）
-        const onSaleCount = res.records.filter((p) => (p as unknown as Record<string, unknown>).publishStatus === 'on_sale').length
+        const res = await getSellerProducts(data.sellerId, { current: 1, size: 100 })
+        const onSaleCount = res.records.filter((p) => p.publishStatus === 'on_sale').length
         sellerOnSaleCount.value = onSaleCount
       } catch {
-        // 兜底：用 product.sellerOnSale 或 1
-        sellerOnSaleCount.value = data.sellerOnSale ?? 1
+        sellerOnSaleCount.value = data.sellerOnSale ?? 0
       }
     }
     // 图片归一化：兼容后端各种返回格式（string[] / {url}[] / {imageUrl}[] 等）

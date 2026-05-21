@@ -37,6 +37,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { getImageUrl } from '@/utils/image'
 
 // 内联默认头像 SVG
 const PLACEHOLDER_AVATAR = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect fill="#f0f0f0" width="40" height="40" rx="20"/><text fill="#999" font-family="sans-serif" font-size="18" x="50%" y="55%" text-anchor="middle" dominant-baseline="middle">U</text></svg>')}`
@@ -65,7 +66,11 @@ const menuItems = [
   { icon: 'fa fa-bell', label: '消息通知', path: '/chat' },
 ]
 
-const avatarSrc = computed(() => userStore.userInfo?.avatar || PLACEHOLDER_AVATAR)
+const avatarSrc = computed(() => {
+  const raw = userStore.userInfo?.avatar || userStore.userInfo?.avatarUrl
+  if (!raw) return PLACEHOLDER_AVATAR
+  return getImageUrl(raw) || PLACEHOLDER_AVATAR
+})
 const displayName = computed(() => userStore.userInfo?.nickname || userStore.userInfo?.username || '用户')
 
 const toggle = (e: Event) => {

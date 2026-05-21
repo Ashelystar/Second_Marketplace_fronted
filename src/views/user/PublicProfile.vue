@@ -82,10 +82,15 @@
       <section class="goods-section">
         <div class="section-header">
           <h2>TA发布的商品</h2>
-          <span class="count">共 {{ sellerProducts.length }} 件</span>
+          <span class="count">共 {{ sellerProductTotal }} 件</span>
         </div>
 
-        <div v-if="sellerProducts.length" class="goods-grid">
+        <div v-if="sellerProductLoading" class="empty">
+          <i class="fa fa-spinner fa-spin"></i>
+          <p>加载中...</p>
+        </div>
+
+        <div v-else-if="sellerProducts.length" class="goods-grid">
           <article
             v-for="item in sellerProducts"
             :key="item.id"
@@ -129,6 +134,7 @@ import {
   type SellerReputationSnapshot,
   type SellerReputationHistoryItem,
 } from '@/api/user'
+import { getSellerProducts, type ProductVO } from '@/api/goods'
 
 // 成色映射（与首页、详情页保持一致）
 const conditionMap: Record<string, string> = {
@@ -152,13 +158,30 @@ const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
 const followPending = ref(false)
 const sellerReputation = ref<SellerReputationSnapshot | null>(null)
 const sellerReputationHistory = ref<SellerReputationHistoryItem[]>([])
+const sellerProductVOList = ref<ProductVO[]>([])
+const sellerProductTotal = ref(0)
+const sellerProductLoading = ref(true)
 
-const sellerProducts = computed(() => {
-  if (!Number.isFinite(sellerId.value)) return []
-  return productStore.products
-    .filter((product) => product.sellerId === sellerId.value)
-    .sort((a, b) => b.id - a.id)
-})
+/** 显示用的卖家商品列表 */
+const sellerProducts = computed(() =>
+  sellerProductVOList.value.map(vo => {
+    const coverImg = vo.images?.find(img => img.isCover) ?? vo.images?.[0]
+    return {
+      id: vo.id,
+      title: vo.title || '未命名',
+      description: vo.description || '',
+      price: vo.sellingPrice ?? 0,
+      image: coverImg?.imageUrl || '',
+      location: vo.pickupCity || '未知',
+      condition: vo.conditionLevel || '',
+    }
+  })
+)
+
+/** 卖家在售商品数 */
+const sellerOnSaleCount = computed(() =>
+  sellerProductVOList.value.filter(vo => vo.publishStatus === 'on_sale').length
+)
 
 const reputationHistory = computed(() =>
   sellerReputationHistory.value
@@ -194,20 +217,39 @@ const seller = computed(() => {
   if (!base) return querySeller
 
   return {
-    id: base.sellerId,
-    name: querySeller?.name || base.sellerName || `用户${sellerId.value}`,
-    avatar: querySeller?.avatar || base.sellerAvatar || '',
+    id: base.id,
+    name: querySeller?.name || `用户${sellerId.value}`,
+    avatar: querySeller?.avatar || '',
     location: querySeller?.location || base.location || '未知',
-    rating: base.sellerRating || 0,
-    verified: Boolean(base.sellerVerified),
-    goodRate: sellerReputation.value?.positiveRate ?? base.sellerGoodRate ?? 0,
-    onSale: base.sellerOnSale || sellerProducts.value.length,
-    sold: sellerReputation.value?.completedOrders ?? base.sellerSold ?? 0,
+    rating: 0,
+    verified: false,
+    goodRate: sellerReputation.value?.positiveRate ?? 0,
+    onSale: sellerOnSaleCount.value,
+    sold: sellerReputation.value?.completedOrders ?? 0,
     creditScore: sellerReputation.value?.creditScore ?? 0,
     totalOrders: sellerReputation.value?.totalOrders ?? 0,
     totalReviewCount: sellerReputation.value?.totalReviewCount ?? 0,
   }
 })
+
+const fetchSellerProducts = async () => {
+  if (!Number.isFinite(sellerId.value) || sellerId.value <= 0) {
+    sellerProductLoading.value = false
+    return
+  }
+  sellerProductLoading.value = true
+  try {
+    const result = await getSellerProducts(sellerId.value, { current: 1, size: 100 })
+    sellerProductVOList.value = result.records || []
+    sellerProductTotal.value = result.total || 0
+  } catch (error) {
+    console.error('获取卖家商品列表失败:', error)
+    sellerProductVOList.value = []
+    sellerProductTotal.value = 0
+  } finally {
+    sellerProductLoading.value = false
+  }
+}
 
 const fetchSellerReputation = async () => {
   if (!Number.isFinite(sellerId.value) || sellerId.value <= 0) {
@@ -343,6 +385,7 @@ const goBackToProduct = () => {
 
 onMounted(() => {
   productStore.initialize()
+  void fetchSellerProducts()
   void fetchSellerReputation()
   void fetchSellerReputationHistory()
   if (userStore.isLoggedIn) {
@@ -353,6 +396,7 @@ onMounted(() => {
 watch(
   () => sellerId.value,
   () => {
+    void fetchSellerProducts()
     void fetchSellerReputation()
     void fetchSellerReputationHistory()
   }
