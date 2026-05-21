@@ -155,14 +155,21 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { logoutApi, getUserCreditScoreApi, getUserStatsApi } from '@/api/user'
+import { logoutApi, getUserCreditScoreApi, getUserStatsApi, getUserProfileApi } from '@/api/user'
+import { getImageUrl } from '@/utils/image'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const avatarUrl = computed(() => userStore.userInfo?.avatar || '')
-const displayName = computed(() => userStore.userInfo?.username || '未登录用户')
+const avatarUrl = computed(() => {
+  const raw = userStore.userInfo?.avatar || userStore.userInfo?.avatarUrl || ''
+  return raw ? getImageUrl(raw) : ''
+})
+const displayName = computed(() => {
+  const info = userStore.userInfo
+  return info?.nickname || info?.username || '未登录用户'
+})
 const creditScore = ref<number>(0)
 const positiveRate = ref<number>(0)
 const totalReviewCount = ref<number>(0)
@@ -227,8 +234,27 @@ const fetchUserStats = async () => {
   }
 }
 
+const fetchUserProfile = async () => {
+  if (!userStore.isLoggedIn) return
+  try {
+    const data = await getUserProfileApi()
+    const avatarVal = data.avatarUrl || ''
+    const userInfo = {
+      ...data,
+      avatar: avatarVal,
+      avatarUrl: avatarVal
+    }
+    localStorage.setItem('userInfo', JSON.stringify(userInfo))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    userStore.userInfo = { ...userStore.userInfo, ...userInfo } as any
+  } catch (error) {
+    console.error('获取用户信息失败:', error)
+  }
+}
+
 onMounted(() => {
   console.log('✅ 用户侧边栏组件已挂载')
+  fetchUserProfile()
   fetchCreditScore()
   fetchUserStats()
 })

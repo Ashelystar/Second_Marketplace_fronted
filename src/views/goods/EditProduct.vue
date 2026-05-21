@@ -272,7 +272,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { getProductDetail, updateProduct, createProduct, saveToDraft, getCategoryList, uploadImage, type UpdateProductParams, type Category } from '@/api/goods'
+import { getProductDetail, updateProduct, createProduct, getCategoryList, uploadImage, type UpdateProductParams, type Category } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
 
@@ -556,13 +556,16 @@ const handleSaveDraft = async () => {
     tradeMode: form.tradeMode,
     pickupCity: form.location || undefined,
     pickupAddress: form.pickupAddress || undefined,
-    images: form.images
+    images: form.images,
+    canBargain: form.canBargain,
+    freeFreight: form.freeFreight,
+    tags: form.tags.length > 0 ? form.tags : undefined,
   }
 
   try {
-    console.log('【保存草稿】调用 saveToDraft 接口')
-    console.log('请求参数:', params)
-    const result = await saveToDraft(params)
+    console.log('【保存草稿】调用 createProduct 接口, publishStatus=draft')
+    console.log('请求参数:', { ...params, publishStatus: 'draft' })
+    const result = await createProduct({ ...params, publishStatus: 'draft' })
     console.log('【保存草稿】接口返回:', result)
     alert('已保存至草稿箱')
     router.push('/drafts')
@@ -601,7 +604,10 @@ const handleSave = async () => {
     tradeMode: form.tradeMode,
     pickupCity: form.location || undefined,
     pickupAddress: form.pickupAddress || undefined,
-    images: form.images
+    images: form.images,
+    canBargain: form.canBargain,
+    freeFreight: form.freeFreight,
+    tags: form.tags.length > 0 ? form.tags : undefined,
   }
 
   try {
@@ -614,9 +620,9 @@ const handleSave = async () => {
       console.log('【编辑商品】接口返回:', result)
     } else {
       // 发布新商品
-      console.log('【发布商品】调用 createProduct 接口')
-      console.log('请求参数:', params)
-      const result = await createProduct(params)
+      console.log('【发布商品】调用 createProduct 接口, publishStatus=pending_review')
+      console.log('请求参数:', { ...params, publishStatus: 'pending_review' })
+      const result = await createProduct({ ...params, publishStatus: 'pending_review' })
       console.log('【发布商品】接口返回:', result)
     }
 

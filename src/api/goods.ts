@@ -75,6 +75,91 @@ export async function relistProduct(id: number): Promise<string> {
   return handleRequest<string>(`/api/product/${id}/relist`, { method: 'PUT' }, '重新上架失败')
 }
 
+// ==========================================
+// 4. 获取我发布的商品列表
+// ==========================================
+
+/** 商品分页查询参数 */
+export interface ProductPageQueryDTO {
+  /** 当前页码 */
+  current?: number
+  /** 每页条数 */
+  size?: number
+  /** 分类 ID */
+  categoryId?: number
+  /** 发布状态（draft/on_sale/off_sale/pending_review 等） */
+  publishStatus?: string
+  /** 搜索关键词 */
+  keyword?: string
+  /** 成色级别 */
+  conditionLevels?: string[]
+  /** 自提城市 */
+  pickupCities?: string[]
+  /** 交易方式 */
+  tradeMode?: string
+  /** 最低售价 */
+  minPrice?: number
+  /** 最高售价 */
+  maxPrice?: number
+}
+
+/** 商品图片 */
+export interface ProductImageVO {
+  id: number
+  imageUrl: string
+  isCover: boolean
+  sortNo: number
+}
+
+/** 商品 VO */
+export interface ProductVO {
+  id: number
+  sellerId: number
+  categoryId: number
+  title: string
+  subtitle?: string
+  description?: string
+  brand?: string
+  model?: string
+  conditionLevel?: string
+  purchaseYear?: number
+  originalPrice?: number
+  sellingPrice?: number
+  canBargain?: boolean
+  tradeMode?: string
+  pickupCity?: string
+  pickupAddress?: string
+  stock?: number
+  publishStatus: string
+  rejectReason?: string
+  viewCount: number
+  favoriteCount: number
+  publishedAt?: string
+  images: ProductImageVO[]
+}
+
+/** 分页结果 */
+export interface PageResultProductVO {
+  total: number
+  records: ProductVO[]
+}
+
+/** 获取我发布的商品列表 */
+export async function getMyProducts(params: ProductPageQueryDTO = {}): Promise<PageResultProductVO> {
+  return handleRequest<PageResultProductVO>('/api/product/my/list', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  }, '获取商品列表失败')
+}
+
+/** 获取目标卖家商品列表（公开的"卖家橱窗"场景） */
+export async function getSellerProducts(sellerId: number, params: ProductPageQueryDTO = {}): Promise<PageResultProductVO> {
+  return handleRequest<PageResultProductVO>(`/api/product/${sellerId}/list`, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  }, '获取卖家商品列表失败')
+}
+
 /** 商品简要统计 */
 export interface ProductStats {
   viewCount: number
@@ -126,6 +211,14 @@ export interface UpdateProductParams {
   locationLng?: number
   /** 图片数组（可选，对象格式匹配后端接口）*/
   images?: { imageUrl?: string; url?: string; id?: number; isCover?: boolean; sortNum?: number }[]
+  /** 是否可议价（可选）*/
+  canBargain?: boolean
+  /** 是否包邮（可选）*/
+  freeFreight?: boolean
+  /** 商品标签（可选）*/
+  tags?: string[]
+  /** 发布状态：draft=草稿，pending_review=待审核 */
+  publishStatus?: 'draft' | 'pending_review'
 }
 
 /** 修改商品信息 */
@@ -167,17 +260,9 @@ export async function createProduct(params: CreateProductParams): Promise<Produc
   }, '发布商品失败')
 }
 
-/** 保存商品至草稿箱 */
-export async function saveToDraft(params: CreateProductParams): Promise<Product> {
-  return handleRequest<Product>('/api/product/draft', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  }, '保存草稿失败')
-}
-
 /** 获取当前用户的草稿列表 */
-export async function getDraftList(): Promise<PageProductResponse> {
-  return handleRequest<PageProductResponse>('/api/product/list', {
+export async function getDraftList(): Promise<PageResultProductVO> {
+  return handleRequest<PageResultProductVO>('/api/product/my/list', {
     method: 'POST',
     body: JSON.stringify({ publishStatus: 'draft', current: 1, size: 50 }),
   }, '获取草稿列表失败')
