@@ -2,7 +2,7 @@
   <div class="users-content">
     <div class="section-header">
       <h2>用户管理</h2>
-      <p class="section-description">管理平台用户，包括警告和封禁操作</p>
+      <p class="section-description">管理平台用户，包括权限限制和封禁操作</p>
     </div>
     
     <!-- 错误状态显示 -->
@@ -22,12 +22,11 @@
     <div v-else>
       <div class="search-bar">
         <div class="filter-options">
-          <ElSelect v-model="statusFilter" placeholder="按状态筛选" style="width: 120px; margin-right: 10px;">
+          <ElSelect v-model="statusFilter" placeholder="按状态筛选" style="width: 140px; margin-right: 10px;">
             <ElOption label="全部" value="" />
             <ElOption label="活跃" value="active" />
-            <ElOption label="封禁中" value="banned" />
-            <ElOption label="禁止购买" value="no-buy" />
-            <ElOption label="禁止销售" value="no-sell" />
+            <ElOption label="封禁" value="banned" />
+            <ElOption label="权限限制" value="restricted" />
           </ElSelect>
           <ElSelect v-model="roleFilter" placeholder="按角色筛选" style="width: 120px; margin-right: 10px;">
             <ElOption label="全部" value="" />
@@ -73,11 +72,21 @@
           <ElTableColumn prop="nickname" label="昵称" width="120" />
           <ElTableColumn prop="email" label="邮箱" width="180" />
           <ElTableColumn prop="phone" label="手机号" width="120" />
-          <ElTableColumn prop="userStatus" label="状态" width="100">
+          <ElTableColumn label="状态" width="100">
             <template #default="scope">
               <ElTag :type="getTagType(scope.row)">
                 {{ getStatusText(scope.row) }}
               </ElTag>
+            </template>
+          </ElTableColumn>
+          <ElTableColumn label="权限" width="150">
+            <template #default="scope">
+              <div class="permission-tags">
+                <ElTag v-if="scope.row.canBuy" type="success" size="small">可买</ElTag>
+                <ElTag v-else type="danger" size="small">禁买</ElTag>
+                <ElTag v-if="scope.row.canSell" type="success" size="small">可卖</ElTag>
+                <ElTag v-else type="danger" size="small">禁卖</ElTag>
+              </div>
             </template>
           </ElTableColumn>
           <ElTableColumn label="角色" width="80">
@@ -97,14 +106,22 @@
               {{ formatTime(scope.row.registeredAt) }}
             </template>
           </ElTableColumn>
-          <ElTableColumn label="操作" width="120">
+          <ElTableColumn label="操作" width="200" fixed="right">
             <template #default="scope">
               <ElButton 
-                :type="isFullyActive(scope.row) ? 'danger' : 'success'" 
+                type="primary" 
+                size="small" 
+                @click="showPermissionDialog(scope.row)"
+              >
+                权限设置
+              </ElButton>
+              <ElButton 
+                :type="isBanned(scope.row) ? 'success' : 'danger'" 
                 size="small" 
                 @click="showBanDialog(scope.row)"
+                style="margin-left: 5px;"
               >
-                {{ isFullyActive(scope.row) ? '封禁' : '解封' }}
+                {{ isBanned(scope.row) ? '解封' : '封禁' }}
               </ElButton>
             </template>
           </ElTableColumn>
@@ -123,34 +140,91 @@
         />
       </div>
       
-      <!-- 封禁/解封理由输入模态框 -->
+      <!-- 权限设置对话框 -->
+      <ElDialog
+        v-model="permissionDialogVisible"
+        :title="`设置用户权限 - ${currentUser?.nickname || ''}`"
+        width="450px"
+      >
+        <ElForm :model="permissionForm" label-width="100px">
+          <ElFormItem label="购买权限">
+            <ElSwitch 
+              v-model="permissionForm.canBuy" 
+              active-text="允许" 
+              inactive-text="禁止" 
+            />
+          </ElFormItem>
+          <ElFormItem label="销售权限">
+            <ElSwitch 
+              v-model="permissionForm.canSell" 
+              active-text="允许" 
+              inactive-text="禁止" 
+            />
+          </ElFormItem>
+          <ElFormItem label="操作理由">
+            <ElInput
+              v-model="permissionForm.reason"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入操作理由（选填）"
+            />
+          </ElFormItem>
+        </ElForm>
+        <template #footer>
+          <span class="dialog-footer">
+            <ElButton @click="permissionDialogVisible = false">取消</ElButton>
+            <ElButton type="primary" @click="confirmPermission">确定</ElButton>
+          </span>
+        </template>
+      </ElDialog>
+      
+      <!-- 封禁/解封对话框 -->
       <ElDialog
         v-model="banDialogVisible"
         :title="banDialogTitle"
-        width="500px"
+        width="450px"
       >
-        <ElForm :model="banForm" label-width="100px">
-          <ElFormItem :label="isFullyActive(currentUser) ? '封禁理由' : '解封理由'">
+        <div class="ban-warning" v-if="isBanned(currentUser)">
+          <ElAlert
+            title="解封说明"
+            type="info"
+            :closable="false"
+            show-icon
+          >
+            <template #default>
+              <p>解封将恢复用户的购买和销售权限，并将用户状态设为活跃。</p>
+            </template>
+          </ElAlert>
+        </div>
+        <div class="ban-warning" v-else>
+          <ElAlert
+            title="封禁说明"
+            type="warning"
+            :closable="false"
+            show-icon
+          >
+            <template #default>
+              <p>封禁将同时禁用用户的购买和销售权限，并标记用户状态为封禁。</p>
+            </template>
+          </ElAlert>
+        </div>
+        <ElForm :model="banForm" label-width="100px" style="margin-top: 20px;">
+          <ElFormItem :label="isBanned(currentUser) ? '解封理由' : '封禁理由'">
             <ElInput
               v-model="banForm.reason"
               type="textarea"
               :rows="4"
-              :placeholder="isFullyActive(currentUser) ? '请输入封禁理由' : '请输入解封理由'"
+              :placeholder="isBanned(currentUser) ? '请输入解封理由' : '请输入封禁理由'"
               required
             />
-          </ElFormItem>
-          <ElFormItem label="权限控制">
-            <ElCheckboxGroup v-model="banForm.permissions">
-              <ElCheckbox label="canBuy">{{ isFullyActive(currentUser) ? '禁止购买' : '允许购买' }}</ElCheckbox>
-              <ElCheckbox label="canSell">{{ isFullyActive(currentUser) ? '禁止销售' : '允许销售' }}</ElCheckbox>
-              <ElCheckbox label="userStatus">{{ isFullyActive(currentUser) ? '禁止其他操作（评论等）' : '允许其他操作（评论等）' }}</ElCheckbox>
-            </ElCheckboxGroup>
           </ElFormItem>
         </ElForm>
         <template #footer>
           <span class="dialog-footer">
             <ElButton @click="banDialogVisible = false">取消</ElButton>
-            <ElButton type="primary" @click="confirmBan">确定</ElButton>
+            <ElButton :type="isBanned(currentUser) ? 'success' : 'danger'" @click="confirmBan">
+              {{ isBanned(currentUser) ? '确认解封' : '确认封禁' }}
+            </ElButton>
           </span>
         </template>
       </ElDialog>
@@ -160,9 +234,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAdminStore } from '@/stores/adminStore'
-import { ElInput, ElButton, ElTable, ElTableColumn, ElTag, ElPagination, ElMessage, ElDialog, ElForm, ElFormItem, ElSwitch, ElCheckboxGroup, ElCheckbox, ElResult } from 'element-plus'
+import { ElInput, ElButton, ElTable, ElTableColumn, ElTag, ElPagination, ElMessage, ElDialog, ElForm, ElFormItem, ElSwitch, ElResult, ElAlert, ElSelect, ElOption, ElDropdown, ElDropdownMenu, ElDropdownItem, ElCheckboxGroup, ElCheckbox } from 'element-plus'
+import { ArrowDown } from '@element-plus/icons-vue'
 
 const adminStore = useAdminStore()
 const searchKeyword = ref('')
@@ -175,14 +250,339 @@ const isDev = ref(false)
 // API错误状态
 const apiError = ref(false)
 
-// 封禁对话框
+// 权限设置对话框
+const permissionDialogVisible = ref(false)
+const permissionForm = ref({
+  canBuy: true,
+  canSell: true,
+  reason: ''
+})
+
+// 封禁/解封对话框
 const banDialogVisible = ref(false)
 const banDialogTitle = ref('')
 const banForm = ref({
-  reason: '',
-  permissions: [] as string[]
+  reason: ''
 })
 const currentUser = ref<any>(null)
+
+// 过滤选项
+const statusFilter = ref('')
+const roleFilter = ref('')
+const searchFields = ref(['id', 'username', 'nickname', 'email', 'phone'])
+
+/**
+ * 判断用户是否为封禁状态
+ * 封禁状态定义：userStatus !== 'active' AND canBuy === false AND canSell === false
+ */
+function isBanned(user: any) {
+  return user.userStatus !== 'active' && !user.canBuy && !user.canSell
+}
+
+/**
+ * 判断用户是否为权限限制状态
+ * 权限限制状态定义：userStatus === 'active' 但 canBuy 或 canSell 为 false
+ */
+function isRestricted(user: any) {
+  return user.userStatus === 'active' && (!user.canBuy || !user.canSell)
+}
+
+/**
+ * 判断用户是否为活跃状态
+ * 活跃状态定义：userStatus === 'active' AND canBuy === true AND canSell === true
+ */
+function isActive(user: any) {
+  return user.userStatus === 'active' && user.canBuy && user.canSell
+}
+
+// 获取标签类型
+function getTagType(user: any) {
+  if (isBanned(user)) return 'danger'
+  if (isRestricted(user)) return 'warning'
+  if (isActive(user)) return 'success'
+  return 'info'
+}
+
+// 获取状态文本
+function getStatusText(user: any) {
+  if (isBanned(user)) return '封禁'
+  if (isRestricted(user)) return '权限限制'
+  if (isActive(user)) return '活跃'
+  return '未知'
+}
+
+// 过滤用户
+const filteredUsers = computed(() => {
+  if (!statusFilter.value) {
+    return adminStore.users
+  }
+  
+  return adminStore.users.filter(user => {
+    if (statusFilter.value === 'banned') return isBanned(user)
+    if (statusFilter.value === 'restricted') return isRestricted(user)
+    if (statusFilter.value === 'active') return isActive(user)
+    return true
+  })
+})
+
+// 显示权限设置对话框
+function showPermissionDialog(user: any) {
+  currentUser.value = user
+  permissionForm.value = {
+    canBuy: user.canBuy,
+    canSell: user.canSell,
+    reason: ''
+  }
+  permissionDialogVisible.value = true
+}
+
+// 确认权限设置
+async function confirmPermission() {
+  try {
+    const token = localStorage.getItem('token')
+    
+    // 更新购买权限
+    if (permissionForm.value.canBuy !== currentUser.value.canBuy) {
+      const queryParams = new URLSearchParams()
+      queryParams.append('userId', currentUser.value.id.toString())
+      queryParams.append('canBuy', permissionForm.value.canBuy.toString())
+      
+      const response = await fetch(`/api/admin/user/toggle-can-buy?${queryParams.toString()}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`更新购买权限失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.code !== 200) {
+        throw new Error(`更新购买权限失败: ${data.message || data.code}`)
+      }
+    }
+
+    // 更新销售权限
+    if (permissionForm.value.canSell !== currentUser.value.canSell) {
+      const queryParams = new URLSearchParams()
+      queryParams.append('userId', currentUser.value.id.toString())
+      queryParams.append('canSell', permissionForm.value.canSell.toString())
+      
+      const response = await fetch(`/api/admin/user/toggle-can-sell?${queryParams.toString()}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`更新销售权限失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.code !== 200) {
+        throw new Error(`更新销售权限失败: ${data.message || data.code}`)
+      }
+    }
+    
+    // 更新本地数据
+    const user = adminStore.users.find(u => u.id === currentUser.value.id)
+    if (user) {
+      user.canBuy = permissionForm.value.canBuy
+      user.canSell = permissionForm.value.canSell
+    }
+    
+    ElMessage.success('权限设置成功')
+    permissionDialogVisible.value = false
+  } catch (error) {
+    console.error('权限设置失败:', error)
+    ElMessage.error('权限设置失败')
+  }
+}
+
+// 显示封禁/解封对话框
+function showBanDialog(user: any) {
+  currentUser.value = user
+  
+  if (isBanned(user)) {
+    banDialogTitle.value = `解封用户 ${user.nickname}`
+  } else {
+    banDialogTitle.value = `封禁用户 ${user.nickname}`
+  }
+  
+  banForm.value.reason = ''
+  banDialogVisible.value = true
+}
+
+// 确认封禁/解封
+async function confirmBan() {
+  // 验证理由
+  if (!banForm.value.reason.trim()) {
+    ElMessage.error('请输入操作理由')
+    return
+  }
+  
+  try {
+    const token = localStorage.getItem('token')
+    
+    if (isBanned(currentUser.value)) {
+      // 解封操作
+      // 1. 解封用户状态
+      const unbanResponse = await fetch(`/api/admin/user/unban/${currentUser.value.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          reason: banForm.value.reason
+        })
+      })
+      
+      if (!unbanResponse.ok) {
+        throw new Error(`解封用户失败: HTTP ${unbanResponse.status}`)
+      }
+      
+      const unbanData = await unbanResponse.json()
+      if (unbanData.code !== 200) {
+        throw new Error(`解封用户失败: ${unbanData.message || unbanData.code}`)
+      }
+      
+      // 2. 恢复购买权限
+      const buyQueryParams = new URLSearchParams()
+      buyQueryParams.append('userId', currentUser.value.id.toString())
+      buyQueryParams.append('canBuy', 'true')
+      
+      const buyResponse = await fetch(`/api/admin/user/toggle-can-buy?${buyQueryParams.toString()}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!buyResponse.ok) {
+        throw new Error(`恢复购买权限失败: HTTP ${buyResponse.status}`)
+      }
+
+      const buyData = await buyResponse.json()
+      if (buyData.code !== 200) {
+        throw new Error(`恢复购买权限失败: ${buyData.message || buyData.code}`)
+      }
+
+      // 3. 恢复销售权限
+      const sellQueryParams = new URLSearchParams()
+      sellQueryParams.append('userId', currentUser.value.id.toString())
+      sellQueryParams.append('canSell', 'true')
+      
+      const sellResponse = await fetch(`/api/admin/user/toggle-can-sell?${sellQueryParams.toString()}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (!sellResponse.ok) {
+        throw new Error(`恢复销售权限失败: HTTP ${sellResponse.status}`)
+      }
+      
+      const sellData = await sellResponse.json()
+      if (sellData.code !== 200) {
+        throw new Error(`恢复销售权限失败: ${sellData.message || sellData.code}`)
+      }
+      
+      // 更新本地数据
+      const user = adminStore.users.find(u => u.id === currentUser.value.id)
+      if (user) {
+        user.userStatus = 'active'
+        user.canBuy = true
+        user.canSell = true
+      }
+      
+      ElMessage.success('解封成功')
+    } else {
+      // 封禁操作
+      // 1. 封禁用户状态
+      const banResponse = await fetch(`/api/admin/user/ban/${currentUser.value.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          reason: banForm.value.reason
+        })
+      })
+      
+      if (!banResponse.ok) {
+        throw new Error(`封禁用户失败: HTTP ${banResponse.status}`)
+      }
+      
+      const banData = await banResponse.json()
+      if (banData.code !== 200) {
+        throw new Error(`封禁用户失败: ${banData.message || banData.code}`)
+      }
+      
+      // 2. 禁用购买权限
+      const buyQueryParams = new URLSearchParams()
+      buyQueryParams.append('userId', currentUser.value.id.toString())
+      buyQueryParams.append('canBuy', 'false')
+      
+      const buyResponse = await fetch(`/api/admin/user/toggle-can-buy?${buyQueryParams.toString()}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!buyResponse.ok) {
+        throw new Error(`禁用购买权限失败: HTTP ${buyResponse.status}`)
+      }
+
+      const buyData = await buyResponse.json()
+      if (buyData.code !== 200) {
+        throw new Error(`禁用购买权限失败: ${buyData.message || buyData.code}`)
+      }
+
+      // 3. 禁用销售权限
+      const sellQueryParams = new URLSearchParams()
+      sellQueryParams.append('userId', currentUser.value.id.toString())
+      sellQueryParams.append('canSell', 'false')
+      
+      const sellResponse = await fetch(`/api/admin/user/toggle-can-sell?${sellQueryParams.toString()}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (!sellResponse.ok) {
+        throw new Error(`禁用销售权限失败: HTTP ${sellResponse.status}`)
+      }
+      
+      const sellData = await sellResponse.json()
+      if (sellData.code !== 200) {
+        throw new Error(`禁用销售权限失败: ${sellData.message || sellData.code}`)
+      }
+      
+      // 更新本地数据
+      const user = adminStore.users.find(u => u.id === currentUser.value.id)
+      if (user) {
+        user.userStatus = 'banned'
+        user.canBuy = false
+        user.canSell = false
+      }
+      
+      ElMessage.success('封禁成功')
+    }
+    
+    banDialogVisible.value = false
+  } catch (error) {
+    console.error('操作失败:', error)
+    ElMessage.error('操作失败')
+  }
+}
 
 // 加载数据
 const loadData = async () => {
@@ -215,16 +615,6 @@ const reloadData = () => {
   loadData()
 }
 
-// 过滤选项
-const statusFilter = ref('')
-const roleFilter = ref('')
-const searchFields = ref(['id', 'username', 'nickname', 'email', 'phone'])
-
-// 过滤用户 - 直接使用adminStore.users，因为后端已经处理了过滤和分页
-const filteredUsers = computed(() => {
-  return adminStore.users
-})
-
 // 搜索用户
 async function handleSearch() {
   try {
@@ -234,7 +624,6 @@ async function handleSearch() {
       adminStore.loadMockData()
     } else {
       await adminStore.loadUsers({
-        status: statusFilter.value,
         isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
         keyword: searchKeyword.value,
         searchFields: searchFields.value,
@@ -261,7 +650,6 @@ async function handleSizeChange(size: number) {
       adminStore.loadMockData()
     } else {
       await adminStore.loadUsers({
-        status: statusFilter.value,
         isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
         keyword: searchKeyword.value,
         searchFields: searchFields.value,
@@ -287,7 +675,6 @@ async function handleCurrentChange(current: number) {
       adminStore.loadMockData()
     } else {
       await adminStore.loadUsers({
-        status: statusFilter.value,
         isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
         keyword: searchKeyword.value,
         searchFields: searchFields.value,
@@ -301,302 +688,6 @@ async function handleCurrentChange(current: number) {
       apiError.value = true
       ElMessage.error('加载失败，请检查网络连接')
     }
-  }
-}
-
-// 获取标签类型
-function getTagType(user: any) {
-  if (!user.userStatus) return 'info'
-  
-  if (user.userStatus !== 'active') return 'danger'
-  if (!user.canBuy) return 'warning'
-  if (!user.canSell) return 'warning'
-  return 'success'
-}
-
-// 判断用户是否完全活跃
-function isFullyActive(user: any) {
-  return user.userStatus === 'active' && user.canBuy && user.canSell
-}
-
-// 获取状态文本
-function getStatusText(user: any) {
-  if (!user.userStatus) return '未知'
-  
-  if (user.userStatus !== 'active') return '封禁中'
-  if (!user.canBuy && !user.canSell) return '完全禁用'
-  if (!user.canBuy) return '禁止购买'
-  if (!user.canSell) return '禁止销售'
-  return '活跃'
-}
-
-// 显示封禁/解封对话框
-function showBanDialog(user: any) {
-  currentUser.value = user
-  const isFullyActive = user.userStatus === 'active' && user.canBuy && user.canSell
-  
-  if (isFullyActive) {
-    // 封禁逻辑
-    banDialogTitle.value = `封禁用户 ${user.nickname}`
-    banForm.value.reason = ''
-    banForm.value.permissions = []
-  } else {
-    // 解封逻辑
-    banDialogTitle.value = `解封用户 ${user.nickname}`
-    banForm.value.reason = ''
-    banForm.value.permissions = []
-    
-    // 默认选中已禁用的权限（需要解封的权限）
-    if (!user.canBuy) banForm.value.permissions.push('canBuy')
-    if (!user.canSell) banForm.value.permissions.push('canSell')
-    if (user.userStatus !== 'active') banForm.value.permissions.push('userStatus')
-  }
-  
-  banDialogVisible.value = true
-}
-
-// 计算权限计数
-function calculatePermissionCount(user: any, permissions: string[]) {
-  let count = 0
-  
-  // 计算当前封禁的权限数
-  let currentBannedCount = 0
-  if (user.userStatus !== 'active') currentBannedCount++
-  if (!user.canBuy) currentBannedCount++
-  if (!user.canSell) currentBannedCount++
-  
-  // 计算操作后的权限数
-  let newBannedCount = currentBannedCount
-  
-  if (user.userStatus === 'active' && user.canBuy && user.canSell) {
-    // 封禁操作
-    if (permissions.includes('userStatus')) newBannedCount++
-    if (permissions.includes('canBuy')) newBannedCount++
-    if (permissions.includes('canSell')) newBannedCount++
-  } else {
-    // 解封操作
-    if (permissions.includes('userStatus') && user.userStatus !== 'active') newBannedCount--
-    if (permissions.includes('canBuy') && !user.canBuy) newBannedCount--
-    if (permissions.includes('canSell') && !user.canSell) newBannedCount--
-  }
-  
-  return newBannedCount - currentBannedCount
-}
-
-// 确认封禁/解封
-async function confirmBan() {
-  // 验证理由
-  if (!banForm.value.reason.trim()) {
-    ElMessage.error('请输入操作理由')
-    return
-  }
-  
-  // 验证是否选择了权限
-  if (banForm.value.permissions.length === 0) {
-    ElMessage.error('请至少选择一项权限进行操作')
-    return
-  }
-  
-  // 验证权限计数
-  const permissionCount = calculatePermissionCount(currentUser.value, banForm.value.permissions)
-  const isFullyActive = currentUser.value.userStatus === 'active' && currentUser.value.canBuy && currentUser.value.canSell
-  
-  if (isFullyActive) {
-    // 封禁操作，权限计数应为+1,+2,+3
-    if (permissionCount < 1 || permissionCount > 3) {
-      ElMessage.error('封禁操作必须选择至少一项权限')
-      return
-    }
-  } else {
-    // 解封操作，权限计数应为-1,-2,-3
-    if (permissionCount > -1 || permissionCount < -3) {
-      ElMessage.error('解封操作必须选择至少一项已封禁的权限')
-      return
-    }
-  }
-  
-  try {
-    const token = localStorage.getItem('token')
-    
-    if (isFullyActive) {
-      // 封禁操作
-      // 处理用户状态
-      if (banForm.value.permissions.includes('userStatus')) {
-        const response = await fetch(`/api/admin/user/ban/${currentUser.value.id}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            reason: banForm.value.reason
-          })
-        })
-        
-        if (!response.ok) {
-          throw new Error(`封禁用户失败: HTTP ${response.status}`)
-        }
-        
-        const data = await response.json()
-        if (data.code !== 200) {
-          throw new Error(`封禁用户失败: ${data.message || data.code}`)
-        }
-      }
-      
-      // 处理购买权限
-      if (banForm.value.permissions.includes('canBuy')) {
-        const response = await fetch('/api/admin/user/toggle-can-buy', {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            userId: currentUser.value.id, 
-            canBuy: false 
-          })
-        })
-        
-        if (!response.ok) {
-          throw new Error(`禁用购买权限失败: HTTP ${response.status}`)
-        }
-        
-        const data = await response.json()
-        if (data.code !== 200) {
-          throw new Error(`禁用购买权限失败: ${data.message || data.code}`)
-        }
-      }
-      
-      // 处理销售权限
-      if (banForm.value.permissions.includes('canSell')) {
-        const response = await fetch('/api/admin/user/toggle-can-sell', {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            userId: currentUser.value.id, 
-            canSell: false 
-          })
-        })
-        
-        if (!response.ok) {
-          throw new Error(`禁用销售权限失败: HTTP ${response.status}`)
-        }
-        
-        const data = await response.json()
-        if (data.code !== 200) {
-          throw new Error(`禁用销售权限失败: ${data.message || data.code}`)
-        }
-      }
-    } else {
-      // 解封操作
-      // 处理用户状态
-      if (banForm.value.permissions.includes('userStatus')) {
-        const response = await fetch(`/api/admin/user/unban/${currentUser.value.id}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            reason: banForm.value.reason
-          })
-        })
-        
-        if (!response.ok) {
-          throw new Error(`解封用户失败: HTTP ${response.status}`)
-        }
-        
-        const data = await response.json()
-        if (data.code !== 200) {
-          throw new Error(`解封用户失败: ${data.message || data.code}`)
-        }
-      }
-      
-      // 处理购买权限
-      if (banForm.value.permissions.includes('canBuy')) {
-        const response = await fetch('/api/admin/user/toggle-can-buy', {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            userId: currentUser.value.id, 
-            canBuy: true 
-          })
-        })
-        
-        if (!response.ok) {
-          throw new Error(`启用购买权限失败: HTTP ${response.status}`)
-        }
-        
-        const data = await response.json()
-        if (data.code !== 200) {
-          throw new Error(`启用购买权限失败: ${data.message || data.code}`)
-        }
-      }
-      
-      // 处理销售权限
-      if (banForm.value.permissions.includes('canSell')) {
-        const response = await fetch('/api/admin/user/toggle-can-sell', {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            userId: currentUser.value.id, 
-            canSell: true 
-          })
-        })
-        
-        if (!response.ok) {
-          throw new Error(`启用销售权限失败: HTTP ${response.status}`)
-        }
-        
-        const data = await response.json()
-        if (data.code !== 200) {
-          throw new Error(`启用销售权限失败: ${data.message || data.code}`)
-        }
-      }
-    }
-    
-    // 更新本地数据
-    const user = adminStore.users.find(u => u.id === currentUser.value.id)
-    if (user) {
-      if (isFullyActive) {
-        // 封禁操作
-        if (banForm.value.permissions.includes('userStatus')) {
-          user.userStatus = 'banned'
-        }
-        if (banForm.value.permissions.includes('canBuy')) {
-          user.canBuy = false
-        }
-        if (banForm.value.permissions.includes('canSell')) {
-          user.canSell = false
-        }
-      } else {
-        // 解封操作
-        if (banForm.value.permissions.includes('userStatus')) {
-          user.userStatus = 'active'
-        }
-        if (banForm.value.permissions.includes('canBuy')) {
-          user.canBuy = true
-        }
-        if (banForm.value.permissions.includes('canSell')) {
-          user.canSell = true
-        }
-      }
-    }
-    
-    ElMessage.success('操作成功')
-    banDialogVisible.value = false
-  } catch (error) {
-    console.error('操作失败:', error)
-    ElMessage.error('操作失败')
   }
 }
 
@@ -672,17 +763,14 @@ function formatTime(time: string | number[]): string {
   return Array.isArray(time) ? time.toString() : time
 }
 
-// 监听状态和角色过滤变化
-import { watch } from 'vue'
-
-watch([statusFilter, roleFilter], async () => {
+// 监听角色过滤变化
+watch([roleFilter], async () => {
   try {
     apiError.value = false
     if (isDev.value) {
       adminStore.loadMockData()
     } else {
       await adminStore.loadUsers({
-        status: statusFilter.value,
         isAdmin: roleFilter.value === 'admin' ? true : roleFilter.value === 'user' ? false : undefined,
         keyword: searchKeyword.value,
         searchFields: searchFields.value,
@@ -771,6 +859,15 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.permission-tags {
+  display: flex;
+  gap: 4px;
+}
+
+.ban-warning {
+  margin-bottom: 10px;
 }
 
 @media (max-width: 768px) {

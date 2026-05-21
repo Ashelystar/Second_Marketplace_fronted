@@ -303,39 +303,30 @@
         </ElCol>
       </ElRow>
 
-      <!-- 图表区域 -->
+      <!-- 趋势图表区域 -->
       <ElRow :gutter="20" class="mb-4">
-        <ElCol :span="24">
+        <ElCol :span="12">
           <ElCard shadow="hover">
             <template #header>
               <div class="card-header">
-                <span>每日销售额趋势</span>
+                <span>销售额趋势</span>
+                <ElRadioGroup v-model="salesPeriod" size="small" @change="updateSalesChart">
+                  <ElRadioButton value="weekly">本周</ElRadioButton>
+                  <ElRadioButton value="monthly">本月</ElRadioButton>
+                </ElRadioGroup>
               </div>
             </template>
             <div ref="salesChartRef" class="chart-container"></div>
           </ElCard>
         </ElCol>
-      </ElRow>
-
-      <ElRow :gutter="20">
         <ElCol :span="12">
           <ElCard shadow="hover">
             <template #header>
               <div class="card-header">
-                <span>订单趋势</span>
+                <span>本周订单趋势</span>
               </div>
             </template>
             <div ref="ordersChartRef" class="chart-container"></div>
-          </ElCard>
-        </ElCol>
-        <ElCol :span="12">
-          <ElCard shadow="hover">
-            <template #header>
-              <div class="card-header">
-                <span>社区活跃度</span>
-              </div>
-            </template>
-            <div ref="communityChartRef" class="chart-container"></div>
           </ElCard>
         </ElCol>
       </ElRow>
@@ -347,7 +338,7 @@
 import { ref, onMounted, nextTick, watch } from 'vue'
 import { useAdminStore } from '@/stores/adminStore'
 import * as echarts from 'echarts'
-import { ElCard, ElRow, ElCol, ElStatistic, ElProgress, ElResult, ElButton, ElMessage } from 'element-plus'
+import { ElCard, ElRow, ElCol, ElStatistic, ElProgress, ElResult, ElButton, ElMessage, ElRadioGroup, ElRadioButton } from 'element-plus'
 
 const adminStore = useAdminStore()
 
@@ -360,12 +351,13 @@ const apiError = ref(false)
 // 图表引用
 const salesChartRef = ref<HTMLElement>()
 const ordersChartRef = ref<HTMLElement>()
-const communityChartRef = ref<HTMLElement>()
 
 // 图表实例
 let salesChart: echarts.ECharts | null = null
 let ordersChart: echarts.ECharts | null = null
-let communityChart: echarts.ECharts | null = null
+
+// 销售额图表显示周期
+const salesPeriod = ref<'weekly' | 'monthly'>('weekly')
 
 // 加载数据
 const loadData = async () => {
@@ -401,31 +393,54 @@ const reloadData = () => {
 const initSalesChart = () => {
   if (salesChartRef.value) {
     salesChart = echarts.init(salesChartRef.value)
-    const option = {
-      tooltip: {
-        trigger: 'axis',
-        formatter: '{b}: ¥{c}'
-      },
-      xAxis: {
-        type: 'category',
-        data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-      },
-      yAxis: {
-        type: 'value',
-        axisLabel: {
-          formatter: '¥{value}'
-        }
-      },
-      series: [{
-        data: adminStore.stats.weeklySales,
-        type: 'bar',
-        itemStyle: {
-          color: '#ff7f00'
-        }
-      }]
-    }
-    salesChart.setOption(option)
+    updateSalesChart()
   }
+}
+
+// 更新销售额图表
+const updateSalesChart = () => {
+  if (!salesChart) return
+  
+  let xAxisData: string[]
+  let seriesData: number[]
+  
+  if (salesPeriod.value === 'weekly') {
+    xAxisData = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+    seriesData = adminStore.stats.weeklySales || []
+  } else {
+    xAxisData = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+    seriesData = adminStore.stats.monthlySales || []
+  }
+  
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: any) => {
+        if (params && params[0]) {
+          return `${params[0].name}: ¥${params[0].value.toFixed(2)}`
+        }
+        return ''
+      }
+    },
+    xAxis: {
+      type: 'category',
+      data: xAxisData
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        formatter: '¥{value}'
+      }
+    },
+    series: [{
+      data: seriesData,
+      type: 'bar',
+      itemStyle: {
+        color: '#ff7f00'
+      }
+    }]
+  }
+  salesChart.setOption(option)
 }
 
 // 初始化订单图表
@@ -463,53 +478,11 @@ const initOrdersChart = () => {
   }
 }
 
-// 初始化社区活跃度图表
-const initCommunityChart = () => {
-  if (communityChartRef.value) {
-    communityChart = echarts.init(communityChartRef.value)
-    const option = {
-      tooltip: {
-        trigger: 'axis'
-      },
-      legend: {
-        data: ['帖子数', '评论数']
-      },
-      xAxis: {
-        type: 'category',
-        data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-      },
-      yAxis: {
-        type: 'value'
-      },
-      series: [
-        {
-          name: '帖子数',
-          data: adminStore.stats.weeklySales.map(v => Math.round(v / 1000)),
-          type: 'bar',
-          itemStyle: {
-            color: '#4caf50'
-          }
-        },
-        {
-          name: '评论数',
-          data: adminStore.stats.weeklySales.map(v => Math.round(v / 2000)),
-          type: 'bar',
-          itemStyle: {
-            color: '#ff9800'
-          }
-        }
-      ]
-    }
-    communityChart.setOption(option)
-  }
-}
-
 // 初始化所有图表
 const initCharts = () => {
   nextTick(() => {
     initSalesChart()
     initOrdersChart()
-    initCommunityChart()
   })
 }
 
@@ -517,13 +490,22 @@ const initCharts = () => {
 const handleResize = () => {
   salesChart?.resize()
   ordersChart?.resize()
-  communityChart?.resize()
 }
 
 // 监听apiError变化，当没有错误时重新初始化图表
 watch(() => apiError.value, (newVal) => {
   if (!newVal) {
     initCharts()
+  }
+})
+
+// 监听数据变化更新图表
+watch(() => [adminStore.stats.weeklySales, adminStore.stats.monthlySales, adminStore.stats.weeklyOrders], () => {
+  if (!apiError.value) {
+    updateSalesChart()
+    if (ordersChart) {
+      initOrdersChart()
+    }
   }
 })
 
