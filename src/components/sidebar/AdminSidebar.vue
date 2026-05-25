@@ -27,7 +27,7 @@ import {
   Goods, 
   Ticket, 
   ChatLineSquare, 
-  Bell, 
+  Document, 
   SwitchButton 
 } from '@element-plus/icons-vue'
 
@@ -46,7 +46,7 @@ const menuItems = [
   { id: 'products', text: '商品审核', icon: Goods },
   { id: 'disputes', text: '纠纷仲裁', icon: Ticket },
   { id: 'forum', text: '社区管理', icon: ChatLineSquare },
-  { id: 'notifications', text: '系统通知', icon: Bell }
+  { id: 'logs', text: '操作日志', icon: Document }
 ]
 
 function handleMenuItemClick(tabId: string) {

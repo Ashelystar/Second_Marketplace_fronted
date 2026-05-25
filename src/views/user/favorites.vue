@@ -27,32 +27,13 @@
           全部
         </button>
         <button
+          v-for="cat in categoryList"
+          :key="cat.id"
           class="filterTab"
-          :class="{ active: activeCategory === 'digital' }"
-          @click="activeCategory = 'digital'"
+          :class="{ active: activeCategory === String(cat.id) }"
+          @click="activeCategory = String(cat.id)"
         >
-          数码电子
-        </button>
-        <button
-          class="filterTab"
-          :class="{ active: activeCategory === 'clothing' }"
-          @click="activeCategory = 'clothing'"
-        >
-          服装服饰
-        </button>
-        <button
-          class="filterTab"
-          :class="{ active: activeCategory === 'book' }"
-          @click="activeCategory = 'book'"
-        >
-          图书教材
-        </button>
-        <button
-          class="filterTab"
-          :class="{ active: activeCategory === 'daily' }"
-          @click="activeCategory = 'daily'"
-        >
-          日用百货
+          {{ cat.categoryName }}
         </button>
       </div>
     </div>
@@ -83,7 +64,7 @@
             <span v-if="item.originalPrice" class="originalPrice">¥{{ item.originalPrice }}</span>
           </div>
           <div class="productStats">
-            <span><i class="fa fa-tag"></i> {{ detectCategoryLabel(item.title) }}</span>
+            <span><i class="fa fa-tag"></i> {{ getCategoryName(item.categoryId) }}</span>
             <span><i class="fa fa-map-marker"></i> {{ item.location || '未知地点' }}</span>
           </div>
           <div class="productMeta">
@@ -108,6 +89,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore, type FavoriteItem } from '@/stores/userStore'
+import { getCategoryList, type Category } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 // 成色映射（与首页、详情页保持一致）
@@ -124,6 +106,7 @@ defineOptions({ name: 'UserFavorites' })
 
 const router = useRouter()
 const userStore = useUserStore()
+const categoryList = ref<Category[]>([])
 const activeCategory = ref('all')
 const favorites = computed<FavoriteItem[]>(() => userStore.favorites)
 
@@ -135,14 +118,8 @@ const favoriteStats = computed(() => ({
 
 const filteredFavorites = computed(() => {
   if (activeCategory.value === 'all') return favorites.value
-  const categoryMap: Record<string, string> = {
-    digital: 'digital',
-    clothing: 'clothing',
-    book: 'book',
-    daily: 'daily',
-  }
-  const selected = categoryMap[activeCategory.value]
-  return favorites.value.filter((item) => detectCategory(item.title) === selected)
+  const selectedId = Number(activeCategory.value)
+  return favorites.value.filter((item) => item.categoryId === selectedId)
 })
 
 const viewDetail = (id: number) => {
@@ -153,26 +130,11 @@ const contactSeller = () => {
   router.push('/chat')
 }
 
-const detectCategory = (title: string) => {
-  const normalized = title.toLowerCase()
-  if (/(iphone|macbook|ipad|耳机|ps5|switch|电脑|手机|数码|相机)/.test(normalized)) {
-    return 'digital'
-  }
-  if (/(衣|裤|鞋|外套|服|裙|帽|nike|adidas)/.test(normalized)) {
-    return 'clothing'
-  }
-  if (/(书|教材|考研|题|笔记)/.test(normalized)) {
-    return 'book'
-  }
-  return 'daily'
-}
-
-const detectCategoryLabel = (title: string) => {
-  const category = detectCategory(title)
-  if (category === 'digital') return '数码电子'
-  if (category === 'clothing') return '服装服饰'
-  if (category === 'book') return '图书教材'
-  return '日用百货'
+/** 根据 categoryId 获取分类名称 */
+const getCategoryName = (categoryId?: number) => {
+  if (!categoryId) return '未分类'
+  const cat = categoryList.value.find((c) => c.id === categoryId)
+  return cat?.categoryName || '未分类'
 }
 
 const toggleFavorite = async (item: FavoriteItem) => {
@@ -185,6 +147,11 @@ const toggleFavorite = async (item: FavoriteItem) => {
 }
 
 onMounted(() => {
+  // 获取分类列表
+  getCategoryList()
+    .then((list) => { categoryList.value = list })
+    .catch(() => { categoryList.value = [] })
+  // 同步收藏数据
   if (userStore.isLoggedIn) {
     void userStore.syncFavoritesFromServer()
     return

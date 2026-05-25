@@ -37,15 +37,21 @@
         </button>
       </div>
 
+      <!-- 加载中 -->
+      <div v-if="loading" class="loadingState">
+        <i class="fa fa-spinner fa-spin"></i>
+        <p>加载中...</p>
+      </div>
+
       <!-- 草稿列表 -->
-      <div class="draftList" v-if="drafts.length > 0">
+      <div v-else-if="drafts.length > 0" class="draftList">
         <div
           v-for="draft in drafts"
           :key="draft.id"
           class="draftCard card"
         >
           <div class="draftImage" @click="editDraft(draft)">
-            <img v-if="draft.images?.length" :src="draft.images[0]" :alt="draft.title" />
+            <img v-if="draft.images?.length" :src="getImageUrl(draft.images[0])" :alt="draft.title" />
             <div v-else class="noImage">
               <i class="fa fa-image"></i>
               <span>暂无图片</span>
@@ -56,7 +62,10 @@
             <p class="draftDesc">{{ draft.description || '暂无描述' }}</p>
             <div class="draftMeta">
               <span class="draftCategory">{{ getCategoryName(draft.categoryId) }}</span>
-              <span class="draftPrice" v-if="draft.sellingPrice">¥{{ draft.sellingPrice }}</span>
+              <span class="draftPrice" v-if="draft.sellingPrice">
+                <span class="currentPrice">¥{{ draft.sellingPrice }}</span>
+                <span v-if="draft.originalPrice" class="originalPrice">¥{{ draft.originalPrice }}</span>
+              </span>
             </div>
             <div class="draftTime">
               <i class="fa fa-clock-o"></i>
@@ -64,14 +73,11 @@
             </div>
           </div>
           <div class="draftActions">
-            <button class="actionBtn primary" @click="publishDraft(draft)">
-              <i class="fa fa-send"></i> 发布
-            </button>
             <button class="actionBtn" @click="editDraft(draft)">
               <i class="fa fa-edit"></i> 编辑
             </button>
             <button class="actionBtn delete" @click="deleteDraft(draft)">
-              <i class="fa fa-trash-alt"></i> 删除
+              <i class="fa fa-trash"></i> 删除
             </button>
           </div>
         </div>
@@ -90,8 +96,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { getCategoryList, getDraftList, submitForReview } from '@/api/goods'
-import type { Category } from '@/api/goods'
+import { getCategoryList, getDraftList } from '@/api/goods'
+import type { Category, ProductImageVO } from '@/api/goods'
+import { getImageUrl } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'Drafts' })
@@ -106,10 +113,13 @@ interface Draft {
   description?: string
   categoryId?: number
   sellingPrice?: number
+  originalPrice?: number
   images?: string[]
   updatedAt?: string
+  _imageVOs?: ProductImageVO[]
 }
 
+const loading = ref(true)
 const drafts = ref<Draft[]>([])
 const categoryList = ref<Category[]>([])
 
@@ -154,19 +164,6 @@ const editDraft = (draft: Draft) => {
   router.push({ path: '/edit', query: { id: draft.id.toString() } })
 }
 
-const publishDraft = async (draft: Draft) => {
-  if (!confirm(`确定要提交「${draft.title || '未命名'}」审核吗？`)) return
-  try {
-    await submitForReview(draft.id)
-    alert('已提交审核，请等待管理员审核')
-    // 从列表中移除该草稿
-    drafts.value = drafts.value.filter(d => d.id !== draft.id)
-  } catch (err) {
-    console.error('提交审核失败:', err)
-    alert(err instanceof Error ? err.message : '提交审核失败，请稍后重试')
-  }
-}
-
 const deleteDraft = (draft: Draft) => {
   if (confirm(`确定要删除草稿「${draft.title || '未命名'}」吗？`)) {
     drafts.value = drafts.value.filter(d => d.id !== draft.id)
@@ -186,18 +183,32 @@ onMounted(async () => {
   await loadCategories()
   try {
     const res = await getDraftList()
-    // 将后端返回的 Product[] 映射为 Draft 格式
-    drafts.value = res.records.map(item => ({
-      id: item.id,
-      title: item.title,
-      description: item.description,
-      categoryId: undefined as number | undefined, // Product 返回 category(名称)，需从分类列表反查 ID
-      sellingPrice: item.sellingPrice || parseFloat(item.price) || undefined,
-      images: item.images?.map(img => img.url).filter(Boolean) || [],
-      updatedAt: item.publishedAt || undefined,
-    }))
+    // 将后端返回的数据映射为 Draft 格式
+    drafts.value = res.records.map(item => {
+      // item.images 已是 ProductImageVO[]，无需额外转换
+      const rawImages = item.images || []
+      const imageVOs: ProductImageVO[] = rawImages.map((img) => ({
+        id: img.id || 0,
+        imageUrl: img.imageUrl || '',
+        isCover: img.isCover || false,
+        sortNo: img.sortNo || 0,
+      }))
+      return {
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        categoryId: item.categoryId,
+        sellingPrice: item.sellingPrice,
+        originalPrice: item.originalPrice,
+        images: imageVOs.map(v => v.imageUrl).filter(Boolean) as string[],
+        updatedAt: item.publishedAt,
+        _imageVOs: imageVOs,
+      }
+    })
   } catch (err) {
     console.error('加载草稿列表失败:', err)
+  } finally {
+    loading.value = false
   }
 })
 </script>
@@ -422,6 +433,14 @@ onMounted(async () => {
   color: #f97316;
 }
 
+.draftPrice .originalPrice {
+  font-size: 12px;
+  color: #9ca3af;
+  text-decoration: line-through;
+  font-weight: normal;
+  margin-left: 6px;
+}
+
 .draftTime {
   font-size: 12px;
   color: #9ca3af;
@@ -471,6 +490,26 @@ onMounted(async () => {
 .actionBtn.delete:hover {
   border-color: #ef4444;
   background: #fef2f2;
+}
+
+/* 加载状态 */
+.loadingState {
+  text-align: center;
+  padding: 80px 20px;
+  background: #fff;
+  border-radius: 12px;
+}
+
+.loadingState i {
+  font-size: 48px;
+  color: #f97316;
+  margin-bottom: 16px;
+}
+
+.loadingState p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
 }
 
 /* 空状态 */

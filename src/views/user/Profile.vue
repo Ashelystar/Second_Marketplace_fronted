@@ -17,7 +17,7 @@
               <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow">
                 <img
                   v-if="form.avatarUrl"
-                  :src="form.avatarUrl"
+                  :src="getImageUrl(form.avatarUrl)"
                   alt="头像"
                   class="w-full h-full object-cover"
                 />
@@ -151,11 +151,15 @@
 </template>
 
 
-<script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
-import axios from 'axios'
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue'
+import axios, { type AxiosError } from 'axios'
+import { useUserStore } from '@/stores/userStore'
+import { getImageUrl } from '@/utils/image'
+
+const userStore = useUserStore()
 // 在已有声明（如 const cityList = ref...）附近添加
-const fileInputRef = ref(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 // 城市列表（示例）
 const cityList = ref([
   '河北省',
@@ -195,7 +199,7 @@ const cityList = ref([
 ])
 
 // 区县映射（示例，实际项目中应从后端或静态数据获取）
-const districtMap = {
+const districtMap: Record<string, string[]> = {
   '河北省': ['石家庄市', '唐山市', '秦皇岛市', '邯郸市', '邢台市', '保定市', '张家口市', '承德市', '沧州市', '廊坊市', '衡水市'],
   '山西省': ['太原市', '大同市', '阳泉市', '长治市', '晋城市', '朔州市', '晋中市', '运城市', '忻州市', '临汾市', '吕梁市'],
   '辽宁省': ['沈阳市', '大连市', '鞍山市', '抚顺市', '本溪市', '丹东市', '锦州市', '营口市', '阜新市', '辽阳市', '盘锦市', '铁岭市', '朝阳市', '葫芦岛市'],
@@ -244,13 +248,13 @@ const form = reactive({
   district: ''
 })
 
-const districtList = ref([])
+const districtList = ref<string[]>([])
 
 // 监听城市变化，更新区县列表
 const onCityChange = () => {
   const city = form.city
   if (districtMap[city]) {
-    districtList.value = districtMap[city]
+    districtList.value = districtMap[city]!
     // 如果当前选中的区不属于新城市，清空区
     if (!districtList.value.includes(form.district)) {
       form.district = ''
@@ -268,7 +272,7 @@ const loadUserInfoFromLocalStorage = () => {
 
   const userInfo = JSON.parse(userInfoStr)
 
-  form.avatarUrl = userInfo.avatar || ''
+  form.avatarUrl = userInfo.avatarUrl || userInfo.avatar || ''
   form.username = userInfo.username || ''
   form.nickname = userInfo.nickname || ''
   form.gender = userInfo.gender || 'male'
@@ -279,7 +283,7 @@ const loadUserInfoFromLocalStorage = () => {
 
   // 关键：生成 districtList
   if (form.city && districtMap[form.city]) {
-    districtList.value = districtMap[form.city]
+    districtList.value = districtMap[form.city]!
   }
   console.log('从 localStorage 加载的用户信息:', form)  // 调试用
 }
@@ -313,14 +317,22 @@ const fetchUserProfile = async () => {
       console.log('从 API 获取的用户信息:', form)  // 调试用
       // 关键：生成 districtList
       if (form.city && districtMap[form.city]) {
-        districtList.value = districtMap[form.city]
+        districtList.value = districtMap[form.city]!
       }
 
-      localStorage.setItem('userInfo', JSON.stringify(d))
+      // 同步 avatar 和 avatarUrl 字段，确保各组件都能读取到
+      const userInfoToSave = {
+        ...d,
+        avatar: d.avatarUrl || d.avatar || '',
+        avatarUrl: d.avatarUrl || d.avatar || ''
+      }
+      localStorage.setItem('userInfo', JSON.stringify(userInfoToSave))
+      // 同步更新 userStore，使侧边栏等组件立即刷新
+      userStore.userInfo = userInfoToSave
     } else {
       alert(res.data.message || '获取用户信息失败')
     }
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('获取用户信息失败', err)
     alert('网络错误，请稍后重试')
   }
@@ -354,6 +366,8 @@ const handleSave = async () => {
       // 更新 localStorage
       const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
       Object.assign(userInfo, {
+        avatarUrl: form.avatarUrl,
+        avatar: form.avatarUrl,
         nickname: form.nickname,
         gender: form.gender,
         birthday: form.birthday,
@@ -362,12 +376,15 @@ const handleSave = async () => {
         district: form.district
       })
       localStorage.setItem('userInfo', JSON.stringify(userInfo))
+      // 同步更新 userStore
+      userStore.userInfo = { ...userStore.userInfo, ...userInfo }
     } else {
       alert(res.data.message || '修改失败')
     }
-  } catch (err) {
-    console.error('保存失败', err)
-    alert('网络错误，请稍后重试')
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>
+    console.error('保存失败', error)
+    alert(error.response?.data?.message || '网络错误，请稍后重试')
   }
 }
 // 触发隐藏的文件输入框点击
@@ -376,8 +393,9 @@ const triggerFileInput = () => {
 }
 
 // 处理文件选择变化
-const handleFileChange = async (event) => {
-  const file = event.target.files[0]
+const handleFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
   if (!file) return
 
   const token = localStorage.getItem('token')
@@ -408,42 +426,49 @@ const handleFileChange = async (event) => {
       
       // 将返回的URL更新到表单数据中
       form.avatarUrl = avatarUrl
-      
+
+      // 同步更新 localStorage 和 userStore，使侧边栏等组件立即显示新头像
+      const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
+      Object.assign(userInfo, { avatarUrl: avatarUrl, avatar: avatarUrl })
+      localStorage.setItem('userInfo', JSON.stringify(userInfo))
+      userStore.userInfo = { ...userStore.userInfo, ...userInfo }
+
       // 第二步：自动调用保存函数，将新头像URL及其他资料更新到 /api/user/profile
       await handleSave()
-      
+
       alert('头像上传并更新成功')
     } else {
       alert(uploadRes.data.message || '头像上传失败')
     }
-  } catch (err) {
-    console.error('头像上传失败', err)
-    if (err.response) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>
+    console.error('头像上传失败', error)
+    if (error.response) {
       // 服务器返回了错误状态码
-      console.error('响应数据:', err.response.data)
-      console.error('响应状态:', err.response.status)
-      alert(`上传失败: ${err.response.data.message || '服务器错误'}`)
-    } else if (err.request) {
+      console.error('响应数据:', error.response.data)
+      console.error('响应状态:', error.response.status)
+      alert(`上传失败: ${error.response.data?.message || '服务器错误'}`)
+    } else if (error.request) {
       // 请求已发送但无响应
-      console.error('无响应:', err.request)
+      console.error('无响应:', error.request)
       alert('网络错误，请检查网络连接')
     } else {
       // 请求配置错误
-      console.error('请求错误:', err.message)
-      alert('请求配置错误: ' + err.message)
+      console.error('请求错误:', error.message)
+      alert('请求配置错误: ' + error.message)
     }
   } finally {
     // 清空input的值，允许重复选择同一文件
-    event.target.value = ''
+    target.value = ''
   }
 }
 // 添加一个函数，用于将完整的头像URL转换为相对路径
-const convertToRelativePath = (url) => {
+const convertToRelativePath = (url: string): string => {
   if (!url) return ''; // 如果url为空，直接返回空字符串
   // 判断是否是包含“218.244.142.223:9000”的完整URL
   if (url.includes('218.244.142.223:9000')) {
     // 提取出 /filebucket/avatars/xxx.jpg 这部分路径
-    return url.split('218.244.142.223:9000')[1];
+    return url.split('218.244.142.223:9000')[1] || '';
   }
   // 如果已经是相对路径或以其他域名开头的路径，则原样返回
   return url;

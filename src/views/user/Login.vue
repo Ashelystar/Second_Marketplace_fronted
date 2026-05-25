@@ -58,6 +58,7 @@ async function handleLogin() {
       {
         ...data.userInfo,
         avatar: data.userInfo.avatarUrl || data.userInfo.avatar || null,
+        avatarUrl: data.userInfo.avatarUrl || data.userInfo.avatar || null,
       },
       data.token
     )

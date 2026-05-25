@@ -11,6 +11,7 @@ export interface Product {
   conditionDetail?: string
   brand?: string
   category?: string
+  categoryId?: number        // 分类ID（来自后端）
   tags: string[]
   description: string
   attributes?: { name: string; value: string }[]

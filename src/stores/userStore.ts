@@ -24,6 +24,7 @@ export interface FavoriteItem {
   condition: string
   location: string
   addTime: string
+  categoryId?: number
 }
 
 export interface UserInfo {
@@ -306,6 +307,7 @@ export const useUserStore = defineStore('user', () => {
       condition: product.conditionLevel || product.condition || '成色未知',
       location: product.location || '',
       addTime: new Date().toLocaleString(),
+      categoryId: product.categoryId,
     }
   }
 

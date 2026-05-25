@@ -275,9 +275,9 @@ const router = createRouter({
           component: () => import('../components/admin/Forum.vue'),
         },
         {
-          path: 'notifications',
-          name: 'admin-notifications',
-          component: () => import('../components/admin/Notifications.vue'),
+          path: 'logs',
+          name: 'admin-logs',
+          component: () => import('../components/admin/Log.vue'),
         },
       ],
     },

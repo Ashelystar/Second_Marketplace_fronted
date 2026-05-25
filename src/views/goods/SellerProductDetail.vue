@@ -110,8 +110,9 @@
             </div>
             <div class="priceTags">
               <span v-if="product.canBargain" class="tag tagRed">可议价</span>
+              <span v-if="!product.canBargain" class="tag tagGray">不议价</span>
               <span v-if="product.freight === 0" class="tag tagGreen">包邮</span>
-              <span class="muted">快递: ¥{{ product.freight || 0 }}</span>
+              <span class="muted">交易方式: {{ product.tradeMode === 'pickup' ? '自提' : product.tradeMode === 'shipping' ? '快递' : product.tradeMode === 'both' ? '自提/快递' : product.tradeMode || '未知' }}</span>
             </div>
           </div>
 
@@ -120,16 +121,34 @@
 
           <!-- 数据统计 -->
           <div class="stats">
-            <span><i class="fa fa-eye"></i> {{ product.viewCount }}人想要</span>
+            <span><i class="fa fa-eye"></i> {{ product.viewCount }}人看过</span>
             <span><i class="fa fa-heart"></i> {{ product.favoriteCount }}人收藏</span>
-            <span><i class="fa fa-clock-o"></i> {{ getPublishTime(product.id) }}</span>
+            <span><i class="fa fa-clock-o"></i> {{ getPublishTime() }}</span>
           </div>
 
           <!-- 成色 -->
           <div class="conditionRow">
             <span class="label">成色</span>
-            <span class="conditionTag">{{ product.condition }}</span>
+            <span class="conditionTag">{{ formatCondition(product.condition) }}</span>
             <span v-if="product.isNew" class="conditionTag new">全新</span>
+          </div>
+
+          <!-- 品牌 -->
+          <div v-if="product.brand" class="conditionRow">
+            <span class="label">品牌</span>
+            <span class="modelValue">{{ product.brand }}</span>
+          </div>
+
+          <!-- 型号 -->
+          <div v-if="product.model" class="conditionRow">
+            <span class="label">型号</span>
+            <span class="modelValue">{{ product.model }}</span>
+          </div>
+
+          <!-- 库存 -->
+          <div v-if="product.stock != null" class="conditionRow">
+            <span class="label">库存</span>
+            <span class="stockValue" :class="{ lowStock: product.stock <= 3 }">{{ product.stock > 0 ? `剩余 ${product.stock} 件` : '已售罄' }}</span>
           </div>
 
           <!-- 安全保障 -->
@@ -164,17 +183,10 @@
               </button>
             </div>
             <div class="actionRow">
-              <template v-if="product.status === '待审核'">
-                <button class="actionBtn warning" @click="handleRevokeReview">
-                  <i class="fa fa-undo"></i> 撤销审核
-                </button>
-              </template>
-              <template v-else>
-                <button class="actionBtn secondary" @click="toggleStatus">
-                  <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
-                  {{ product.status === '在售' ? '下架商品' : '重新上架' }}
-                </button>
-              </template>
+              <button class="actionBtn secondary" @click="toggleStatus">
+                <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
+                {{ product.status === '在售' ? '下架商品' : '重新上架' }}
+              </button>
               <button class="actionBtn primary" @click="editProduct">
                 <i class="fa fa-edit"></i> 编辑商品
               </button>
@@ -332,7 +344,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { offShelfProduct, relistProduct, revokeReview } from '@/api/goods'
+import { offShelfProduct, relistProduct, getProductDetail } from '@/api/goods'
+import type { ProductVO } from '@/api/goods'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'SellerProductDetail' })
@@ -401,6 +415,11 @@ interface ProductData {
   consultCount: number
   soldCount: number
   tags: string[]
+  publishedAt?: string
+  tradeMode?: string
+  brand?: string
+  model?: string
+  stock?: number
   consults?: Consult[]
   intentions?: Intention[]
 }
@@ -463,134 +482,102 @@ const getDisplayReplies = (consult: Consult) => {
 
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })
 
-const getPublishTime = (id: number) => {
-  if (id >= 21 && id <= 24) return '今天发布'
-  if (id >= 18 && id <= 20) return '3天内发布'
-  if (id >= 12 && id <= 17) return '1周内发布'
-  return '1周前发布'
+const formatCondition = (level?: string) => {
+  const map: Record<string, string> = {
+    new: '全新',
+    almost_new: '99新',
+    good: '9成新',
+    fair: '8成新',
+    poor: '7成新及以下',
+  }
+  return map[level || ''] || level || '成色未知'
 }
 
-const loadDetails = () => {
-  const id = parseInt(route.query.id as string) || 1
+const getPublishTime = () => {
+  if (!product.value?.publishedAt) return '未知'
+  try {
+    const pub = new Date(product.value.publishedAt)
+    const now = Date.now()
+    const diffMs = now - pub.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    if (diffDays <= 0) return '今天发布'
+    if (diffDays <= 3) return '3天内发布'
+    if (diffDays <= 7) return '1周内发布'
+    if (diffDays <= 30) return '1月内发布'
+    return '1个月前发布'
+  } catch {
+    return '未知'
+  }
+}
 
-  product.value = {
-    id,
-    title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
-    category: '手机数码',
-    location: '广州',
-    sellerId: 101,
-    sellerName: '卖家小李',
-    sellerAvatar: 'https://picsum.photos/id/101/50/50',
-    sellerRating: 4.9,
-    price: 6999,
-    originalPrice: 8999,
-    image: 'https://picsum.photos/id/1/800/800',
-    description: '2024年3月购买，使用不到一年，功能完好，配件齐全。因为换了新手机，所以出售。屏幕无划痕，电池健康度95%以上。',
-    condition: '95新',
-    isNew: false,
-    canBargain: true,
-    freight: 0,
-    status: '在售',
-    viewCount: 128,
-    favoriteCount: 23,
-    consultCount: 5,
-    soldCount: 0,
-    tags: ['手机', '苹果', '数码'],
-    consults: [
-      {
-        id: 1,
-        buyerName: '买家小李',
-        buyerAvatar: 'https://picsum.photos/id/100/50/50',
-        time: '10分钟前',
-        content: '您好，请问可以便宜点吗？',
-        replies: [
-          {
-            id: 101,
-            isSeller: true,
-            name: '卖家小李',
-            avatar: 'https://picsum.photos/id/101/50/50',
-            time: '5分钟前',
-            content: '您好，价格已经是最低了，诚心要的话可以包邮。'
-          },
-          {
-            id: 102,
-            isSeller: false,
-            name: '买家小李',
-            avatar: 'https://picsum.photos/id/100/50/50',
-            time: '2分钟前',
-            content: '好的，我考虑一下'
-          }
-        ]
-      },
-      {
-        id: 2,
-        buyerName: '买家小王',
-        buyerAvatar: 'https://picsum.photos/id/101/50/50',
-        time: '30分钟前',
-        content: '电池健康度具体是多少？',
-        replies: []
-      },
-      {
-        id: 3,
-        buyerName: '买家小张',
-        buyerAvatar: 'https://picsum.photos/id/102/50/50',
-        time: '1小时前',
-        content: '请问支持当面交易吗？',
-        replies: [
-          {
-            id: 301,
-            isSeller: true,
-            name: '卖家小李',
-            avatar: 'https://picsum.photos/id/101/50/50',
-            time: '50分钟前',
-            content: '支持的，周末在大学城附近'
-          },
-          {
-            id: 302,
-            isSeller: false,
-            name: '买家小张',
-            avatar: 'https://picsum.photos/id/102/50/50',
-            time: '40分钟前',
-            content: '周六下午方便吗？'
-          },
-          {
-            id: 303,
-            isSeller: true,
-            name: '卖家小李',
-            avatar: 'https://picsum.photos/id/101/50/50',
-            time: '30分钟前',
-            content: '可以的，下午2点到5点都行'
-          }
-        ],
-        showReplies: false
-      }
-    ],
-    intentions: [
-      {
-        id: 1,
-        buyerName: '买家小明',
-        buyerAvatar: 'https://picsum.photos/id/200/50/50',
-        price: 6500,
-        note: '诚心购买，可以今天交易'
-      },
-      {
-        id: 2,
-        buyerName: '买家小红',
-        buyerAvatar: 'https://picsum.photos/id/201/50/50',
-        price: 6200,
-        note: '学生党，预算有限'
-      }
-    ]
+const loadDetails = async () => {
+  const id = parseInt(route.query.id as string) || 0
+  if (!id) {
+    isLoading.value = false
+    return
   }
 
-  images.value = [
-    { id: 1, url: 'https://picsum.photos/id/1/800/800', alt: '商品主图' },
-    { id: 2, url: 'https://picsum.photos/id/10/800/800', alt: '细节图1' },
-    { id: 3, url: 'https://picsum.photos/id/20/800/800', alt: '细节图2' },
-    { id: 4, url: 'https://picsum.photos/id/30/800/800', alt: '细节图3' }
-  ]
+  try {
+    const data = await getProductDetail(id)
+    // getProductDetail 返回的实际是 ProductVO 结构
+    const vo = data as unknown as ProductVO
 
-  isLoading.value = false
+    // 处理图片（url 需经过 getImageUrl 转为完整路径）
+    const productImages: ProductImage[] = (vo.images || []).map(img => ({
+      id: img.id,
+      url: getImageUrl(img.imageUrl || ''),
+      alt: vo.title || '商品图片'
+    }))
+
+    // 条件映射
+    const conditionMap: Record<string, string> = {
+      new: '全新',
+      almost_new: '99新',
+      good: '95新',
+      fair: '八成新',
+      poor: '有瑕疵'
+    }
+
+    product.value = {
+      id: vo.id,
+      title: vo.title || '未命名商品',
+      category: vo.categoryId ? `分类${vo.categoryId}` : '未分类',
+      location: vo.pickupCity || '未知',
+      sellerId: vo.sellerId || 0,
+      sellerName: userStore.userInfo?.nickname || userStore.userInfo?.username || '卖家',
+      sellerAvatar: userStore.userInfo?.avatar || userStore.userInfo?.avatarUrl || '',
+      sellerRating: 5.0,
+      price: vo.sellingPrice || 0,
+      originalPrice: vo.originalPrice || 0,
+      image: productImages.length > 0 ? getImageUrl(productImages[0].url) : PLACEHOLDER_IMG,
+      images: productImages,
+      description: vo.description || '',
+      condition: vo.conditionLevel ? (conditionMap[vo.conditionLevel] || vo.conditionLevel) : '未知',
+      isNew: vo.conditionLevel === 'new',
+      canBargain: vo.canBargain ?? false,
+      freight: 0,
+      status: vo.publishStatus === 'off_shelf' ? '已下架' : '在售',
+      viewCount: vo.viewCount || 0,
+      favoriteCount: vo.favoriteCount || 0,
+      consultCount: 0,
+      soldCount: 0,
+      tags: [],
+      publishedAt: vo.publishedAt || undefined,
+      tradeMode: vo.tradeMode || undefined,
+      brand: vo.brand || undefined,
+      model: vo.model || undefined,
+      stock: vo.stock ?? undefined,
+      consults: [],
+      intentions: [],
+    }
+
+    images.value = productImages
+  } catch (err) {
+    console.error('获取商品详情失败:', err)
+    alert('获取商品信息失败，请稍后重试')
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const prevImage = () => { if (currentIndex.value > 0) currentIndex.value-- }
@@ -628,18 +615,6 @@ const toggleStatus = async () => {
     } catch (err) {
       alert(err instanceof Error ? err.message : '重新上架失败')
     }
-  }
-}
-
-const handleRevokeReview = async () => {
-  if (!product.value) return
-  if (!confirm('确定要撤销该商品的审核吗？撤回后将变为草稿状态。')) return
-  try {
-    await revokeReview(product.value.id)
-    product.value.status = '已下架'
-    alert('已撤销审核，商品已回到草稿箱')
-  } catch (err) {
-    alert(err instanceof Error ? err.message : '撤销审核失败')
   }
 }
 
@@ -1210,6 +1185,25 @@ onMounted(() => {
 
 .conditionTag.new {
   background: #22c55e;
+}
+
+.modelValue {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.stockValue {
+  font-size: 14px;
+  color: #16a34a;
+}
+
+.stockValue.lowStock {
+  color: #dc2626;
+}
+
+.tagGray {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .securityBox {
