@@ -22,7 +22,7 @@
     <div v-else-if="isDev || !apiError">
       <!-- 筛选栏 -->
       <div class="filter-bar">
-        <ElSelect v-model="filterStatus" placeholder="帖子状态" clearable style="width: 150px;">
+        <ElSelect v-model="filterStatus" placeholder="帖子状态" clearable style="width: 150px;" @change="onFilterChange">
           <ElOption label="全部" value="" />
           <ElOption label="待审核" value="pending" />
           <ElOption label="已通过" value="approved" />
@@ -30,12 +30,12 @@
           <ElOption label="已隐藏" value="hidden" />
         </ElSelect>
 
-        <ElSelect v-model="filterCategory" placeholder="板块筛选" clearable style="width: 150px;">
+        <ElSelect v-model="filterCategory" placeholder="板块筛选" clearable style="width: 150px;" @change="onFilterChange">
           <ElOption label="全部" :value="null" />
           <ElOption
             v-for="section in adminStore.forumSections"
             :key="section.id"
-            :label="section.name"
+            :label="sectionLabel(section)"
             :value="section.id"
           />
         </ElSelect>
@@ -55,7 +55,7 @@
         <ElButton @click="handleReset">重置</ElButton>
       </div>
       
-      <ElTable :data="filteredPosts" style="width: 100%" stripe v-loading="tableLoading">
+      <ElTable :data="displayPosts" style="width: 100%" stripe v-loading="tableLoading">
         <ElTableColumn prop="id" label="帖子ID" width="80" />
         <ElTableColumn prop="title" label="帖子标题" min-width="280" show-overflow-tooltip>
           <template #default="{ row }">
@@ -325,7 +325,9 @@ const loadData = async () => {
         adminStore.loadForumPosts({
           page: currentPage.value,
           size: pageSize.value,
-          keyword: searchKeyword.value || undefined
+          keyword: searchKeyword.value || undefined,
+          status: filterStatus.value || undefined,
+          categoryId: filterCategory.value ?? undefined,
         })
       ])
       console.log('社区管理-生产环境')
@@ -348,34 +350,41 @@ const reloadData = () => {
   loadData()
 }
 
-// 过滤帖子
-const filteredPosts = computed(() => {
-  // 非开发模式且有错误时，不返回任何数据
-  if (!isDev.value && apiError.value) {
-    return []
-  }
-  
+// 开发模式下本地筛选；生产模式由服务端筛选
+const displayPosts = computed(() => {
+  if (!isDev.value && apiError.value) return []
+  if (!isDev.value) return adminStore.forumPosts
+
   let posts = adminStore.forumPosts
-  
+
   if (filterStatus.value) {
     posts = posts.filter(p => p.status === filterStatus.value)
   }
-  
+
   if (filterCategory.value !== null) {
     posts = posts.filter(p => p.categoryId === filterCategory.value)
   }
-  
+
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
-    posts = posts.filter(p => 
+    posts = posts.filter(p =>
       p.id.toString().includes(keyword) ||
       p.title.toLowerCase().includes(keyword) ||
       p.authorName.toLowerCase().includes(keyword)
     )
   }
-  
+
   return posts
 })
+
+function onFilterChange() {
+  currentPage.value = 1
+  loadData()
+}
+
+function sectionLabel(section: { name: string; depth: number }) {
+  return section.depth > 0 ? `${'　'.repeat(section.depth)}${section.name}` : section.name
+}
 
 // 获取状态类型
 function getStatusType(status: string): string {

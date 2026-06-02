@@ -221,6 +221,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { getProductDetail } from '@/api/goods'
+import { resolveUserDisplayProfile, isFallbackUserLabel } from '@/api/user'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore, type ChatProductCard, type ChatUserProfile } from '@/stores/chatStore'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
@@ -310,17 +311,24 @@ const getLegacyFriend = (targetId: number) => {
   return legacy.find((friend) => Number(friend.id) === targetId) || null
 }
 
-const createConversationFromRoute = () => {
+const createConversationFromRoute = async () => {
   const current = currentUserProfile.value
   if (!current.id) return
   const routeFriendId = Number(route.query.friendId || route.query.sellerId || 0)
   if (!routeFriendId || routeFriendId === current.id) return
 
   const legacy = getLegacyFriend(routeFriendId)
+  const profile = await resolveUserDisplayProfile(routeFriendId, {
+    sellerName: route.query.sellerName,
+    name: route.query.sellerName || route.query.name,
+    sellerAvatar: route.query.sellerAvatar,
+    avatar: route.query.sellerAvatar || legacy?.avatar,
+    nickname: legacy?.name,
+  })
   const target: ChatUserProfile = {
     id: routeFriendId,
-    name: String(route.query.sellerName || legacy?.name || `用户${routeFriendId}`),
-    avatar: String(route.query.sellerAvatar || legacy?.avatar || ''),
+    name: profile.nickname,
+    avatar: profile.avatarUrl || String(route.query.sellerAvatar || legacy?.avatar || ''),
     location: String(legacy?.location || ''),
     rating: Number(legacy?.rating || 5),
   }
@@ -509,6 +517,33 @@ watch(
   }
 )
 
+const refreshFallbackPartnerNames = async () => {
+  const userId = currentUserProfile.value.id
+  if (!userId) return
+
+  const partnerIds = new Set<number>()
+  for (const conv of chatStore.conversations) {
+    if (!conv.participantIds.includes(userId)) continue
+    const partnerId = conv.participantIds[0] === userId ? conv.participantIds[1] : conv.participantIds[0]
+    const partner = conv.participants[String(partnerId)]
+    if (partner && isFallbackUserLabel(partner.name, partnerId)) {
+      partnerIds.add(partnerId)
+    }
+  }
+
+  for (const partnerId of partnerIds) {
+    try {
+      const profile = await resolveUserDisplayProfile(partnerId)
+      chatStore.updateParticipantProfile(partnerId, {
+        name: profile.nickname,
+        avatar: profile.avatarUrl || '',
+      })
+    } catch (error) {
+      console.error('刷新会话昵称失败:', error)
+    }
+  }
+}
+
 onMounted(async () => {
   chatStore.initialize()
   if (!currentUserProfile.value.id) {
@@ -516,8 +551,9 @@ onMounted(async () => {
     router.push('/user/login')
     return
   }
+  await refreshFallbackPartnerNames()
   await initProductFromQuery()
-  createConversationFromRoute()
+  await createConversationFromRoute()
   syncActiveConversation()
   if (activeConversationId.value) {
     chatStore.markConversationRead(activeConversationId.value, currentUserProfile.value.id)

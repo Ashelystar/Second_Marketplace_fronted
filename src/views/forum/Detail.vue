@@ -1,5 +1,18 @@
 <template>
-  <div class="layout" v-if="post">
+  <div v-if="store.currentPostLoading" class="empty card">
+    <div class="t">加载中...</div>
+  </div>
+
+  <div v-else-if="store.currentPostError && !post" class="empty card">
+    <div class="t">加载失败</div>
+    <div class="s">{{ store.currentPostError }}</div>
+    <div class="actions">
+      <button class="btn btn-primary" type="button" @click="fetchPost">重试</button>
+      <RouterLink class="btn" to="/forum">返回社区</RouterLink>
+    </div>
+  </div>
+
+  <div class="layout" v-else-if="post">
     <section class="left">
       <div class="card main">
         <div class="head-top">
@@ -191,6 +204,12 @@ const productStore = useProductStore()
 
 const postId = computed(() => (props.id as string) ?? (route.params.id as string) ?? '')
 const post = computed(() => store.postById(postId.value))
+
+async function fetchPost() {
+  if (!postId.value) return
+  const loaded = await store.loadPostDetail(postId.value)
+  if (loaded) store.incrementView(loaded.id)
+}
 const relatedProduct = computed(() => {
   if (!post.value?.productId) return null
   const pid = String(post.value.productId)
@@ -337,13 +356,13 @@ function submitComment() {
 }
 
 onMounted(() => {
-  if (post.value) store.incrementView(post.value.id)
+  fetchPost()
 })
 
 watch(
   () => postId.value,
   () => {
-    if (post.value) store.incrementView(post.value.id)
+    fetchPost()
     commentText.value = ''
     replyTarget.value = null
   },

@@ -41,7 +41,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { registerApi } from '@/api/user'
+import { registerApi, loginApi } from '@/api/user'
+import type { LoginUserInfo } from '@/api/user'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
@@ -65,11 +66,26 @@ async function handleRegister() {
       password: password.value.trim(),
     })
 
-    if (!data?.token) {
-      throw new Error('注册成功，但登录凭证缺失，请稍后重试')
+    let token = data?.token
+    let userInfo: LoginUserInfo | undefined = data?.userInfo
+
+    // 注册接口可能只返回成功、不附带 token，此时用刚填的账号密码自动登录
+    if (!token) {
+      try {
+        const loginData = await loginApi({
+          account: username.value.trim(),
+          password: password.value.trim(),
+        })
+        token = loginData.token
+        userInfo = loginData.userInfo
+      } catch {
+        ElMessage.success('注册成功，请使用新账号登录')
+        await router.push('/user/login')
+        return
+      }
     }
 
-    if (!data.userInfo) {
+    if (!token || !userInfo) {
       ElMessage.success('注册成功，请使用新账号登录')
       await router.push('/user/login')
       return
@@ -77,11 +93,12 @@ async function handleRegister() {
 
     userStore.login(
       {
-        ...data.userInfo,
-        avatar: data.userInfo.avatarUrl || data.userInfo.avatar || null,
+        ...userInfo,
+        avatar: userInfo.avatarUrl || userInfo.avatar || null,
       },
-      data.token
+      token
     )
+    ElMessage.success('注册成功')
     await router.push('/user/profile')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '注册失败，请稍后重试')

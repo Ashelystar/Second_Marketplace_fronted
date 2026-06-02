@@ -104,6 +104,58 @@ export const useChatStore = defineStore('chat', () => {
     })
     conversations.value = Array.isArray(data.conversations) ? data.conversations : []
     messages.value = Array.isArray(data.messages) ? data.messages : []
+    dedupeConversations()
+  }
+
+  /** 合并同一对用户之间的重复会话（历史 bug 可能用商品 id 误建会话） */
+  const dedupeConversations = () => {
+    const canonicalMap = new Map<string, ChatConversation>()
+    const idRemap = new Map<string, string>()
+
+    for (const conv of conversations.value) {
+      const [left, right] = [...conv.participantIds].sort((a, b) => a - b)
+      const canonicalId = toConversationId(left, right)
+      idRemap.set(conv.id, canonicalId)
+
+      const existing = canonicalMap.get(canonicalId)
+      if (!existing) {
+        canonicalMap.set(canonicalId, {
+          ...conv,
+          id: canonicalId,
+          participantIds: [left, right],
+        })
+        continue
+      }
+
+      existing.participants = { ...existing.participants, ...conv.participants }
+      if (conv.updatedAt >= existing.updatedAt) {
+        existing.updatedAt = conv.updatedAt
+        existing.lastMessagePreview = conv.lastMessagePreview || existing.lastMessagePreview
+      }
+      if (conv.linkedProduct) existing.linkedProduct = conv.linkedProduct
+      existing.createdAt = Math.min(existing.createdAt, conv.createdAt)
+      for (const [uid, ts] of Object.entries(conv.readCursor)) {
+        existing.readCursor[uid] = Math.max(existing.readCursor[uid] ?? 0, ts)
+      }
+    }
+
+    let messagesChanged = false
+    for (const msg of messages.value) {
+      const canonicalId = idRemap.get(msg.conversationId)
+      if (canonicalId && canonicalId !== msg.conversationId) {
+        msg.conversationId = canonicalId
+        messagesChanged = true
+      }
+    }
+
+    const merged = Array.from(canonicalMap.values())
+    const changed =
+      merged.length !== conversations.value.length ||
+      messagesChanged ||
+      merged.some((c, i) => c.id !== conversations.value[i]?.id)
+
+    conversations.value = merged
+    if (changed) persist()
   }
 
   const initialize = () => {
@@ -226,7 +278,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const getConversationsForUser = (userId: number) => {
-    return conversations.value
+    const mapped = conversations.value
       .filter((conversation) => conversation.participantIds.includes(userId))
       .map((conversation) => {
         const partnerId = conversation.participantIds[0] === userId
@@ -243,6 +295,7 @@ export const useChatStore = defineStore('chat', () => {
         return {
           conversationId: conversation.id,
           partner,
+          partnerId,
           unread,
           updatedAt: conversation.updatedAt,
           lastMessagePreview: conversation.lastMessagePreview,
@@ -250,10 +303,33 @@ export const useChatStore = defineStore('chat', () => {
         }
       })
       .sort((a, b) => b.updatedAt - a.updatedAt)
+
+    const byPartner = new Map<number, (typeof mapped)[number]>()
+    for (const thread of mapped) {
+      if (!thread.partnerId) continue
+      const prev = byPartner.get(thread.partnerId)
+      if (!prev || thread.updatedAt >= prev.updatedAt) {
+        byPartner.set(thread.partnerId, thread)
+      }
+    }
+    return Array.from(byPartner.values()).sort((a, b) => b.updatedAt - a.updatedAt)
   }
 
   const getUnreadCountForUser = (userId: number) => {
     return getConversationsForUser(userId).reduce((sum, item) => sum + item.unread, 0)
+  }
+
+  const updateParticipantProfile = (userId: number, patch: Partial<ChatUserProfile>) => {
+    let changed = false
+    for (const conv of conversations.value) {
+      if (!conv.participantIds.includes(userId)) continue
+      const key = String(userId)
+      const current = conv.participants[key]
+      if (!current) continue
+      conv.participants[key] = { ...current, ...patch, id: userId }
+      changed = true
+    }
+    if (changed) persist()
   }
 
   return {
@@ -261,6 +337,7 @@ export const useChatStore = defineStore('chat', () => {
     messages,
     initialize,
     ensureConversation,
+    updateParticipantProfile,
     sendMessage,
     clearConversation,
     markConversationRead,

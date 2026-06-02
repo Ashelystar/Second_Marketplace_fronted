@@ -387,6 +387,7 @@ import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
 import {
   getSellerReputationSnapshotApi,
+  resolveUserDisplayProfile,
   type SellerReputationSnapshot,
 } from '@/api/user'
 
@@ -868,6 +869,16 @@ const loadDetails = async () => {
 
     const data = await getProductDetail(id)
 
+    let sellerName = data.sellerName
+    let sellerAvatar = data.sellerAvatar || ''
+    if (data.sellerId) {
+      const profile = await resolveUserDisplayProfile(data.sellerId, data as unknown as Record<string, unknown>)
+      sellerName = profile.nickname
+      sellerAvatar = profile.avatarUrl || sellerAvatar
+    } else {
+      sellerName = sellerName || '用户'
+    }
+
     // API 字段映射：后端字段 → 前端 Product 接口
     product.value = {
       ...data,
@@ -879,9 +890,9 @@ const loadDetails = async () => {
       image: data.image || (Array.isArray(data.images) && data.images.length > 0
         ? extractFirstImageUrl(data.images[0])
         : ''),
-      // 卖家信息兜底
-      sellerName: data.sellerName || `用户${data.sellerId || ''}`,
-      sellerAvatar: data.sellerAvatar || '',
+      // 卖家信息
+      sellerName,
+      sellerAvatar,
       sellerOnSale: data.sellerOnSale ?? 0,
       sellerSold: data.sellerSold ?? 0,
       location: data.pickupCity || data.location || '未知',

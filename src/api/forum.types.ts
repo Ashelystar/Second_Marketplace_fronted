@@ -48,6 +48,91 @@ export interface ForumPostDto {
   reject_reason?: string | null
 }
 
+/** POST /api/forum/post/list 请求体（与 OpenAPI PostSearchRequest 一致） */
+export type PostAuditStatus = 'pending' | 'approved' | 'rejected'
+export type PostDisplayStatus = 'normal' | 'hidden' | 'featured' | 'top'
+export type PostSortBy = 'created_at' | 'published_at' | 'like_count' | 'view_count' | 'comment_count'
+export type PostSortOrder = 'ASC' | 'DESC'
+
+export interface PostSearchRequest {
+  pageNum?: number
+  pageSize?: number
+  keyword?: string
+  categoryId?: number
+  status?: PostAuditStatus | ''
+  displayStatus?: PostDisplayStatus
+  sortBy?: PostSortBy
+  order?: PostSortOrder
+}
+
+/** POST /api/forum/post/list 列表项（与 OpenAPI PostListItem 一致） */
+export interface PostListItem {
+  id: number
+  title: string
+  content: string
+  authorId: number
+  authorName: string
+  categoryId: number
+  categoryName: string
+  status: string
+  isTop: boolean
+  isFeatured: boolean
+  viewCount: number
+  commentCount: number
+  likeCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** GET /api/forum/post/{postId} 响应（PostListItem + 详情扩展字段） */
+export interface PostDetail extends PostListItem {
+  auditStatus?: string
+  displayStatus?: string
+  publishedAt?: string
+  shareCount?: number
+  collectCount?: number
+  isLiked?: boolean
+  isCollected?: boolean
+}
+
+export interface PostPage {
+  total: number
+  pageNum: number
+  pageSize: number
+  totalPages: number
+  list: PostListItem[]
+}
+
+export interface ForumApiResult<T> {
+  code: number
+  message: string
+  data: T
+}
+
+/** GET /api/forum/category/list 响应项（与 OpenAPI ForumCategory 一致） */
+export interface ForumCategory {
+  id: number
+  name: string
+  icon?: string
+  parentId?: number
+  sortOrder: number
+  isEnabled: 0 | 1
+  children?: ForumCategory[]
+}
+
+/** 展平后的板块（供下拉框、Tab 筛选等使用） */
+export interface ForumCategoryFlat {
+  id: number
+  name: string
+  icon?: string
+  parentId?: number
+  sortOrder: number
+  isEnabled: 0 | 1
+  /** 层级深度，0 为顶级 */
+  depth: number
+}
+
+/** @deprecated 旧查询参数，请使用 PostSearchRequest */
 export interface ForumPostListQuery {
   page?: number
   page_size?: number

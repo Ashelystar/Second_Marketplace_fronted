@@ -459,6 +459,81 @@ export async function getUserCreditScoreApi(): Promise<UserCreditScoreData> {
   return json.data
 }
 
+export interface PublicUserBrief {
+  nickname: string
+  avatarUrl: string | null
+}
+
+/** 获取其他用户的公开昵称/头像（信用分接口含 nickname） */
+export async function getPublicUserBriefApi(userId: number | string): Promise<PublicUserBrief> {
+  const response = await fetch(`/api/user/credit-score/${encodeURIComponent(String(userId))}`, {
+    method: 'GET',
+    headers: getAuthHeader(),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `网络错误：${response.status}`)
+  }
+  const json = await parseResponse<ApiResponse<UserCreditScoreData>>(response)
+  if (json.code !== 200) {
+    throw new Error(json.message || '获取用户信息失败')
+  }
+  return {
+    nickname: json.data.nickname,
+    avatarUrl: json.data.avatarUrl ?? null,
+  }
+}
+
+function pickStringField(source: Record<string, unknown> | null | undefined, keys: string[]): string | null {
+  if (!source) return null
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    const nested = source[key]
+    if (nested && typeof nested === 'object') {
+      const obj = nested as Record<string, unknown>
+      for (const nestedKey of ['nickname', 'name', 'sellerName', 'sellerNickname']) {
+        const nestedValue = obj[nestedKey]
+        if (typeof nestedValue === 'string' && nestedValue.trim()) return nestedValue.trim()
+      }
+    }
+  }
+  return null
+}
+
+export function isFallbackUserLabel(name: string | null | undefined, userId?: number | null): boolean {
+  if (!name?.trim()) return true
+  if (userId && name.trim() === `用户${userId}`) return true
+  return /^用户\d+$/.test(name.trim())
+}
+
+/** 从商品/路由字段或信用分接口解析用户展示昵称 */
+export async function resolveUserDisplayProfile(
+  userId: number,
+  hints?: Record<string, unknown> | null,
+): Promise<PublicUserBrief> {
+  let nickname =
+    pickStringField(hints, ['sellerName', 'sellerNickname', 'nickname', 'name', 'username']) ||
+    null
+  let avatarUrl =
+    pickStringField(hints, ['sellerAvatar', 'avatarUrl', 'avatar']) || null
+
+  if (isFallbackUserLabel(nickname, userId)) {
+    try {
+      const brief = await getPublicUserBriefApi(userId)
+      if (brief.nickname?.trim()) nickname = brief.nickname.trim()
+      if (brief.avatarUrl) avatarUrl = brief.avatarUrl
+    } catch {
+      // 接口不可用时保留 hints 或兜底文案
+    }
+  }
+
+  return {
+    nickname: nickname?.trim() || `用户${userId}`,
+    avatarUrl: avatarUrl || null,
+  }
+}
+
 export async function getSellerReputationSnapshotApi(
   sellerId: number | string
 ): Promise<SellerReputationSnapshot> {

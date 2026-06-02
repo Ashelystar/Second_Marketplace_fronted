@@ -26,22 +26,66 @@ import type {
   ForumPostListQuery,
   ForumReactionUserDto,
   ForumTagDto,
+  ForumApiResult,
+  ForumCategory,
+  ForumCategoryFlat,
   Paginated,
+  PostListItem,
+  PostDetail,
+  PostPage,
+  PostSearchRequest,
 } from './forum.types'
+import type { ForumPost, ForumPostStatus } from '../types/forum'
 
 export function forumBaseUrl(): string {
   return (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 }
 
-/** 对接时取消注释以携带 token */
+/** 携带 JWT；对接后端论坛接口时使用 */
 export function forumHeaders(json = true): HeadersInit {
   const h: Record<string, string> = {}
   if (json) h['Content-Type'] = 'application/json'
-  // const userId = localStorage.getItem('userId') ?? '10001'
-  // h['X-User-Id'] = userId
-  // const token = localStorage.getItem('token') ?? sessionStorage.getItem('token')
-  // if (token) h.Authorization = `Bearer ${token}`
+  const token = localStorage.getItem('token') ?? sessionStorage.getItem('token')
+  if (token) h.Authorization = `Bearer ${token}`
   return h
+}
+
+async function handleForumRequest<T>(url: string, options: RequestInit, errorMsg: string): Promise<T> {
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...forumHeaders(), ...(options.headers as Record<string, string> | undefined) },
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `${errorMsg}: HTTP ${response.status}`)
+  }
+
+  const json = await parseJson<ForumApiResult<T>>(response)
+  if (json.code !== 200 && json.code !== 0) {
+    throw new Error(json.message || errorMsg)
+  }
+  if (json.data == null) {
+    throw new Error(json.message || errorMsg)
+  }
+  return json.data
+}
+
+async function handleForumVoidRequest(url: string, options: RequestInit, errorMsg: string): Promise<void> {
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...forumHeaders(), ...(options.headers as Record<string, string> | undefined) },
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `${errorMsg}: HTTP ${response.status}`)
+  }
+
+  const json = await parseJson<ForumApiResult<unknown>>(response)
+  if (json.code !== 200 && json.code !== 0) {
+    throw new Error(json.message || errorMsg)
+  }
 }
 
 async function parseJson<T>(res: Response): Promise<T> {
@@ -331,17 +375,13 @@ export async function createForumPost(body: ForumPostCreateBody): Promise<ForumP
   return forumApiDisabled()
 }
 
-/** GET /api/forum/post/{id} */
-export async function getForumPostById(id: number | string): Promise<ForumPostDto> {
-  /*
-  const base = forumBaseUrl()
-  const res = await fetch(`${base}/api/forum/post/${encodeURIComponent(String(id))}`, {
-    headers: forumHeaders(),
-  })
-  if (!res.ok) throw new Error(`getForumPostById: ${res.status}`)
-  return parseJson<ForumPostDto>(res)
-  */
-  return forumApiDisabled()
+/** GET /api/forum/post/{postId} — 帖子详情 */
+export async function getForumPostById(id: number | string): Promise<PostDetail> {
+  return handleForumRequest<PostDetail>(
+    `/api/forum/post/${encodeURIComponent(String(id))}`,
+    { method: 'GET' },
+    '获取帖子详情失败',
+  )
 }
 
 /** PUT /api/forum/post/update */
@@ -362,36 +402,72 @@ export async function updateForumPost(
   return forumApiDisabled()
 }
 
-/** DELETE /api/forum/post/{postId} */
+/** DELETE /api/forum/post/{postId} — 删除帖子 */
 export async function deleteForumPost(id: number | string): Promise<void> {
-  /*
-  const base = forumBaseUrl()
-  const res = await fetch(`${base}/api/forum/post/${encodeURIComponent(String(id))}`, {
-    method: 'DELETE',
-    headers: forumHeaders(),
-  })
-  if (!res.ok) throw new Error(`deleteForumPost: ${res.status}`)
-  */
-  return forumApiDisabled()
+  return handleForumVoidRequest(
+    `/api/forum/post/${encodeURIComponent(String(id))}`,
+    { method: 'DELETE' },
+    '删除帖子失败',
+  )
 }
 
 /** POST /api/forum/post/list — 分页、筛选、排序 */
-export async function getForumPostList(query?: ForumPostListQuery): Promise<Paginated<ForumPostDto>> {
-  /*
-  const base = forumBaseUrl()
-  const q = new URLSearchParams()
-  if (query?.page != null) q.set('page', String(query.page))
-  if (query?.page_size != null) q.set('page_size', String(query.page_size))
-  if (query?.sort) q.set('sort', query.sort)
-  if (query?.tag_id != null) q.set('tag_id', String(query.tag_id))
-  if (query?.post_type) q.set('post_type', query.post_type)
-  if (query?.keyword) q.set('keyword', query.keyword)
-  const qs = q.toString()
-  const res = await fetch(`${base}/api/forum/post/list${qs ? `?${qs}` : ''}`, { headers: forumHeaders() })
-  if (!res.ok) throw new Error(`getForumPostList: ${res.status}`)
-  return parseJson<Paginated<ForumPostDto>>(res)
-  */
-  return forumApiDisabled()
+export async function getForumPostList(query?: PostSearchRequest): Promise<PostPage> {
+  const body: PostSearchRequest = {
+    pageNum: query?.pageNum ?? 1,
+    pageSize: query?.pageSize ?? 10,
+  }
+  if (query?.keyword) body.keyword = query.keyword
+  if (query?.categoryId != null) body.categoryId = query.categoryId
+  if (query?.status) body.status = query.status
+  if (query?.displayStatus) body.displayStatus = query.displayStatus
+  if (query?.sortBy) body.sortBy = query.sortBy
+  if (query?.order) body.order = query.order
+
+  return handleForumRequest<PostPage>(
+    '/api/forum/post/list',
+    { method: 'POST', body: JSON.stringify(body) },
+    '获取帖子列表失败',
+  )
+}
+
+/** GET /api/forum/category/list — 论坛板块树 */
+export async function getForumCategoryList(): Promise<ForumCategory[]> {
+  return handleForumRequest<ForumCategory[]>(
+    '/api/forum/category/list',
+    { method: 'GET' },
+    '获取论坛板块列表失败',
+  )
+}
+
+export function isForumCategoryEnabled(c: Pick<ForumCategory, 'isEnabled'>): boolean {
+  return c.isEnabled === 1
+}
+
+/** 将树形板块展平，默认只保留 isEnabled=1 的项 */
+export function flattenForumCategories(
+  categories: ForumCategory[],
+  depth = 0,
+  onlyEnabled = true,
+): ForumCategoryFlat[] {
+  const result: ForumCategoryFlat[] = []
+  const sorted = [...categories].sort((a, b) => a.sortOrder - b.sortOrder)
+  for (const c of sorted) {
+    if (onlyEnabled && !isForumCategoryEnabled(c)) continue
+    result.push({
+      id: c.id,
+      name: c.name,
+      icon: c.icon,
+      parentId: c.parentId,
+      sortOrder: c.sortOrder,
+      isEnabled: c.isEnabled,
+      depth,
+    })
+    if (c.children?.length) {
+      result.push(...flattenForumCategories(c.children, depth + 1, onlyEnabled))
+    }
+  }
+  return result
 }
 
 /** GET /api/forum/post/user/{authorId} — 用户发布的帖子 */
@@ -412,6 +488,27 @@ export async function getForumMyPosts(query?: Pick<ForumPostListQuery, 'page' | 
 }
 
 /** PUT /api/forum/post/admin/audit/{postId}?approved=true&rejectReason=... */
+export async function auditForumPost(
+  postId: number | string,
+  approved: boolean,
+  rejectReason?: string,
+): Promise<void> {
+  if (!approved && !rejectReason?.trim()) {
+    throw new Error('驳回时必须填写驳回原因')
+  }
+
+  const q = new URLSearchParams()
+  q.set('approved', String(approved))
+  if (rejectReason?.trim()) q.set('rejectReason', rejectReason.trim())
+
+  return handleForumVoidRequest(
+    `/api/forum/post/admin/audit/${encodeURIComponent(String(postId))}?${q}`,
+    { method: 'PUT' },
+    approved ? '审核通过失败' : '审核驳回失败',
+  )
+}
+
+/** PUT /api/forum/post/{id}/publish — 发布帖子（待对接） */
 export async function publishForumPost(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -425,6 +522,18 @@ export async function publishForumPost(id: number | string): Promise<void> {
 }
 
 /** PUT /api/forum/post/admin/top/{postId}?top=true */
+export async function toggleForumPostTop(postId: number | string, top: boolean): Promise<void> {
+  const q = new URLSearchParams()
+  q.set('top', String(top))
+
+  return handleForumVoidRequest(
+    `/api/forum/post/admin/top/${encodeURIComponent(String(postId))}?${q}`,
+    { method: 'PUT' },
+    top ? '置顶帖子失败' : '取消置顶失败',
+  )
+}
+
+/** PUT /api/forum/post/{id}/hide — 隐藏帖子（待对接） */
 export async function hideForumPost(id: number | string): Promise<void> {
   /*
   const base = forumBaseUrl()
@@ -438,6 +547,18 @@ export async function hideForumPost(id: number | string): Promise<void> {
 }
 
 /** PUT /api/forum/post/admin/feature/{postId}?featured=true */
+export async function toggleForumPostFeature(postId: number | string, featured: boolean): Promise<void> {
+  const q = new URLSearchParams()
+  q.set('featured', String(featured))
+
+  return handleForumVoidRequest(
+    `/api/forum/post/admin/feature/${encodeURIComponent(String(postId))}?${q}`,
+    { method: 'PUT' },
+    featured ? '设为精华失败' : '取消精华失败',
+  )
+}
+
+/** POST /api/forum/post/{id}/tags — 设置标签（待对接） */
 export async function setForumPostTags(
   id: number | string,
   body: { tag_ids: Array<number | string> },
@@ -844,45 +965,52 @@ export async function recordForumPostView(id: number | string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// 映射示例（对接时在 store 或 composable 中使用，取消注释后实现）
+// 映射：OpenAPI PostListItem → 前端展示模型
 // ---------------------------------------------------------------------------
-/*
-import type { ForumPost, ForumMedia, ForumAuthor } from '../types/forum'
-import type { ForumPostDto, ForumMediaDto } from './forum.types'
 
-export function mapApiPostToForumPost(dto: ForumPostDto): ForumPost {
-  const author: ForumAuthor = {
-    id: String(dto.author?.id ?? dto.author_id ?? ''),
-    name: dto.author?.nickname ?? dto.author?.name ?? '用户',
-    avatarUrl: dto.author?.avatar_url ?? dto.author?.avatar ?? '',
+function mapApiStatusToForumPostStatus(status: string): ForumPostStatus {
+  switch (status) {
+    case 'pending':
+      return 'pending_review'
+    case 'approved':
+      return 'published'
+    case 'rejected':
+      return 'rejected'
+    case 'hidden':
+      return 'hidden'
+    default:
+      return 'published'
   }
-  const tags = (dto.tags ?? [])
-    .map((t) => (typeof t === 'string' ? t : t.tag_name ?? ''))
-    .filter(Boolean)
+}
+
+export function mapPostListItemToForumPost(item: PostListItem): ForumPost {
   return {
-    id: String(dto.id),
-    title: dto.title,
-    content: dto.content ?? '',
-    tags,
-    author,
+    id: String(item.id),
+    title: item.title,
+    content: item.content,
+    tags: item.categoryName ? [item.categoryName] : [],
+    author: {
+      id: String(item.authorId),
+      name: item.authorName,
+      avatarUrl: '',
+    },
     media: [],
-    createdAt: dto.created_at ?? dto.published_at ?? new Date().toISOString(),
-    viewCount: dto.view_count ?? 0,
-    likeCount: dto.like_count ?? 0,
-    commentCount: dto.comment_count ?? 0,
+    postStatus: mapApiStatusToForumPostStatus(item.status),
+    isFeatured: item.isFeatured,
+    createdAt: item.createdAt,
+    viewCount: item.viewCount,
+    likeCount: item.likeCount,
+    commentCount: item.commentCount,
   }
 }
 
-export function mapApiMediaToForumMedia(m: ForumMediaDto): ForumMedia {
-  return {
-    id: String(m.id),
-    type: m.media_type === 'video' ? 'video' : 'image',
-    url: m.media_url,
-    width: undefined,
-    height: undefined,
+export function mapPostDetailToForumPost(detail: PostDetail): ForumPost {
+  const post = mapPostListItemToForumPost(detail)
+  if (detail.publishedAt) {
+    post.createdAt = detail.publishedAt
   }
+  return post
 }
-*/
 
-export type { ForumPostDto, ForumCommentDto, ForumTagDto } from './forum.types'
+export type { ForumPostDto, ForumCommentDto, ForumTagDto, PostSearchRequest, PostListItem, PostDetail, PostPage, ForumCategory, ForumCategoryFlat } from './forum.types'
 export type { ForumPost, ForumComment } from '../types/forum'
