@@ -1,16 +1,12 @@
 /**
- * 论坛状态：当前默认使用 `mocks` 本地数据。
- *
- * 与《论坛1.0》PDF 对接时：
- * - 在 `src/api/forum.ts` 中取消各函数内 fetch 注释，并配置 `VITE_API_BASE_URL`。
- * - 将下方 actions 改为 `await` 对应 API（如 `getForumPostList`、`getForumPostById`、`createForumPost`、
- *   `likeForumPost` / `unlikeForumPost`、`getForumPostComments`、`createForumPostComment` 等），
- *   响应体用 `src/api/forum.ts` 底部映射示例转为 `ForumPost` / `ForumComment` 再写入 state。
- * - 点赞态可与 `GET .../reactions` 或后端返回的 `liked` 字段同步。
+ * 论坛状态：帖子列表对接 POST /api/forum/post/list。
+ * 评论、点赞等交互仍使用本地 mock，待后续接口对接。
  */
 import { defineStore } from 'pinia'
 import type { ForumComment, ForumPost } from '../types/forum'
 import { forumMockComments, forumMockPosts } from '../mocks/forum'
+import { getForumPostList, getForumCategoryList, getForumPostById, flattenForumCategories, mapPostListItemToForumPost, mapPostDetailToForumPost } from '../api/forum'
+import type { ForumCategoryFlat, PostSearchRequest } from '../api/forum.types'
 
 function uid(prefix: string) {
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`
@@ -18,10 +14,17 @@ function uid(prefix: string) {
 
 export const useForumStore = defineStore('forum', {
   state: () => ({
-    posts: [...forumMockPosts] as ForumPost[],
+    posts: [] as ForumPost[],
     comments: [...forumMockComments] as ForumComment[],
     /** 社区广场列表：顶栏提交的帖子搜索关键词（仅首页筛选使用） */
     squareSearchQuery: '',
+    categories: [] as ForumCategoryFlat[],
+    categoriesLoading: false,
+    categoriesLoadError: '',
+    postsLoading: false,
+    postsLoadError: '',
+    currentPostLoading: false,
+    currentPostError: '',
     currentUserId: 'me',
     currentUserName: 'XMQ',
     currentUserAvatarUrl: forumMockPosts[0]?.author.avatarUrl ?? '',
@@ -52,6 +55,67 @@ export const useForumStore = defineStore('forum', {
     isCommentLiked: (s) => (commentId: string) => s.likedCommentIds.has(commentId),
   },
   actions: {
+    async loadCategories() {
+      this.categoriesLoading = true
+      this.categoriesLoadError = ''
+      try {
+        const tree = await getForumCategoryList()
+        this.categories = flattenForumCategories(tree)
+      } catch (e) {
+        console.error('加载论坛板块失败:', e)
+        this.categoriesLoadError = e instanceof Error ? e.message : '加载论坛板块失败'
+        this.categories = []
+      } finally {
+        this.categoriesLoading = false
+      }
+    },
+    async loadPosts(query?: Pick<PostSearchRequest, 'pageNum' | 'pageSize' | 'keyword' | 'categoryId' | 'sortBy' | 'order'>) {
+      this.postsLoading = true
+      this.postsLoadError = ''
+      try {
+        const page = await getForumPostList({
+          pageNum: query?.pageNum ?? 1,
+          pageSize: query?.pageSize ?? 50,
+          keyword: query?.keyword,
+          categoryId: query?.categoryId,
+          sortBy: query?.sortBy ?? 'created_at',
+          order: query?.order ?? 'DESC',
+        })
+        this.posts = page.list.map(mapPostListItemToForumPost)
+      } catch (e) {
+        console.error('加载帖子列表失败:', e)
+        this.postsLoadError = e instanceof Error ? e.message : '加载帖子列表失败'
+        this.posts = [...forumMockPosts]
+      } finally {
+        this.postsLoading = false
+      }
+    },
+    async loadPostDetail(postId: string) {
+      this.currentPostLoading = true
+      this.currentPostError = ''
+      try {
+        const detail = await getForumPostById(postId)
+        const mapped = mapPostDetailToForumPost(detail)
+        const idx = this.posts.findIndex((p) => p.id === mapped.id)
+        if (idx >= 0) {
+          this.posts[idx] = mapped
+        } else {
+          this.posts.push(mapped)
+        }
+        if (detail.isLiked) {
+          this.likedPostIds.add(mapped.id)
+        } else {
+          this.likedPostIds.delete(mapped.id)
+        }
+        return mapped
+      } catch (e) {
+        console.error('加载帖子详情失败:', e)
+        this.currentPostError = e instanceof Error ? e.message : '加载帖子详情失败'
+        return null
+      } finally {
+        this.currentPostLoading = false
+      }
+    },
     setSquareSearchQuery(q: string) {
       this.squareSearchQuery = q
     },

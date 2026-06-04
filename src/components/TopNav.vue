@@ -42,9 +42,10 @@
           <i class="fa fa-shopping-cart"></i>
           购物车
         </a>
-        <a href="#" @click.prevent="goToMessage">
+        <a href="#" class="message-link" @click.prevent="goToMessage">
           <i class="fa fa-bell"></i>
           消息
+          <span v-if="unreadCount > 0" class="msg-badge">{{ unreadDisplay }}</span>
         </a>
         <template v-if="userStore.isLoggedIn">
           <UserDropdown />
@@ -69,9 +70,10 @@
 
 <script setup lang="ts">
 // 导入Vue组合式API和状态管理
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { useChatStore } from '@/stores/chatStore'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 const floatingTools = [
@@ -108,12 +110,21 @@ const goToChat = () => {
 // 初始化路由和状态管理
 const router = useRouter()
 const userStore = useUserStore()
+const chatStore = useChatStore()
 
 // 搜索输入框的响应式数据
 const searchInput = ref('')
 
 // 热门标签数据
 const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+
+const unreadCount = computed(() => {
+  const uid = Number(userStore.userInfo?.id || 0)
+  if (!uid) return 0
+  return chatStore.getUnreadCountForUser(uid)
+})
+
+const unreadDisplay = computed(() => (unreadCount.value > 99 ? '99+' : String(unreadCount.value)))
 
 /**
  * 处理搜索功能
@@ -172,6 +183,10 @@ const goToMessage = () => {
 const goToLogin = () => {
   router.push('/user/login')
 }
+
+onMounted(() => {
+  chatStore.initialize()
+})
 </script>
 
 <style scoped>
@@ -309,6 +324,25 @@ const goToLogin = () => {
   color: #374151;
   text-decoration: none;
   transition: color 200ms;
+}
+
+.message-link {
+  position: relative;
+}
+
+.msg-badge {
+  position: absolute;
+  top: -7px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #f97316;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  padding: 0 5px;
 }
 
 .navLinks a:hover {

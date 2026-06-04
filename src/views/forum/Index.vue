@@ -8,21 +8,26 @@
     </section>
 
     <div class="filters">
-      <button class="chip" :class="{ active: activeTag === '' }" type="button" @click="activeTag = ''">全部</button>
+      <button class="chip" :class="{ active: activeCategoryId === null }" type="button" @click="selectCategory(null)">全部</button>
       <button
-        v-for="t in hotTags"
-        :key="t"
+        v-for="c in store.categories"
+        :key="c.id"
         class="chip"
-        :class="{ active: activeTag === t }"
+        :class="{ active: activeCategoryId === c.id }"
         type="button"
-        @click="activeTag = t"
+        @click="selectCategory(c.id)"
       >
-        #{{ t }}
+        {{ c.name }}
       </button>
     </div>
 
-    <div class="masonry">
-      <PostCard v-for="p in filtered" :key="p.id" :post="p" />
+    <div v-if="store.categoriesLoading || store.postsLoading" class="status">加载中...</div>
+    <div v-else-if="store.categoriesLoadError && store.categories.length === 0" class="status error">{{ store.categoriesLoadError }}</div>
+    <div v-else-if="store.postsLoadError" class="status error">{{ store.postsLoadError }}</div>
+    <div v-else-if="store.posts.length === 0" class="status">暂无帖子</div>
+
+    <div v-else class="masonry">
+      <PostCard v-for="p in store.posts" :key="p.id" :post="p" />
     </div>
 
     <div class="fabStack">
@@ -37,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PostCard from '../../components/forum/PostCard.vue'
 import { useForumStore } from '../../stores/forum'
@@ -46,26 +51,31 @@ import { useUserStore } from '@/stores/userStore'
 const router = useRouter()
 const store = useForumStore()
 const userStore = useUserStore()
-const activeTag = ref('')
+const activeCategoryId = ref<number | null>(null)
 
-const hotTags = computed(() => {
-  const m = new Map<string, number>()
-  for (const p of store.posts) for (const t of p.tags) m.set(t, (m.get(t) ?? 0) + 1)
-  return [...m.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map((x) => x[0])
-})
-
-const filtered = computed(() => {
-  return store.posts.filter((p) => {
-    const tagMatch = !activeTag.value || p.tags.includes(activeTag.value)
-    const k = store.squareSearchQuery.trim().toLowerCase()
-    if (!k) return tagMatch
-    const text = `${p.title} ${p.tags.join(' ')} ${p.author.name}`.toLowerCase()
-    return tagMatch && text.includes(k)
+function reloadPosts() {
+  store.loadPosts({
+    categoryId: activeCategoryId.value ?? undefined,
+    keyword: store.squareSearchQuery.trim() || undefined,
   })
+}
+
+function selectCategory(id: number | null) {
+  activeCategoryId.value = id
+  reloadPosts()
+}
+
+onMounted(async () => {
+  await store.loadCategories()
+  reloadPosts()
 })
+
+watch(
+  () => store.squareSearchQuery,
+  () => {
+    reloadPosts()
+  },
+)
 
 function goCreatePost() {
   if (!userStore.isLoggedIn) {
@@ -148,6 +158,17 @@ function goCreatePost() {
 .masonry {
   column-count: 5;
   column-gap: 14px;
+}
+
+.status {
+  padding: 48px 16px;
+  text-align: center;
+  color: #737373;
+  font-size: 14px;
+}
+
+.status.error {
+  color: #dc2626;
 }
 
 .masonry :deep(.post) {

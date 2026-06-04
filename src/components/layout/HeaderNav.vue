@@ -25,7 +25,11 @@
       <nav class="navLinks">
         <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
         <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
-        <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
+        <a href="#" class="message-link" @click.prevent="router.push('/chat')">
+          <i class="fa fa-bell"></i>
+          消息
+          <span v-if="unreadCount > 0" class="msg-badge">{{ unreadDisplay }}</span>
+        </a>
         <template v-if="userStore.isLoggedIn">
           <UserDropdown />
         </template>
@@ -38,15 +42,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { useChatStore } from '@/stores/chatStore'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
+const chatStore = useChatStore()
 const searchInput = ref('')
 const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+
+const unreadCount = computed(() => {
+  const uid = Number(userStore.userInfo?.id || 0)
+  if (!uid) return 0
+  return chatStore.getUnreadCountForUser(uid)
+})
+
+const unreadDisplay = computed(() => (unreadCount.value > 99 ? '99+' : String(unreadCount.value)))
 
 const handleSearch = () => {
   const keyword = searchInput.value.trim()
@@ -58,6 +72,10 @@ const searchTag = (tag: string) => {
   searchInput.value = tag
   handleSearch()
 }
+
+onMounted(() => {
+  chatStore.initialize()
+})
 </script>
 
 <style scoped>
@@ -137,6 +155,25 @@ const searchTag = (tag: string) => {
   color: #374151;
   text-decoration: none;
   transition: color 200ms;
+}
+
+.message-link {
+  position: relative;
+}
+
+.msg-badge {
+  position: absolute;
+  top: -7px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #f97316;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  padding: 0 5px;
 }
 
 .navLinks a:hover {

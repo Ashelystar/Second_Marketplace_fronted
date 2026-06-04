@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { getForumPostList, getForumCategoryList, getForumPostById, auditForumPost, toggleForumPostTop, toggleForumPostFeature, deleteForumPost, flattenForumCategories } from '@/api/forum'
+import type { ForumCategoryFlat, PostAuditStatus, PostDetail } from '@/api/forum.types'
 
 // 用户管理相关类型
 export interface AdminUser {
@@ -111,16 +113,8 @@ export interface AdminStats {
   weeklyOrders: number[]
 }
 
-// 论坛板块相关类型
-export interface AdminForumSection {
-  id: number
-  name: string
-  description: string
-  sortOrder: number
-  isEnabled: boolean
-  createdAt: string
-  updatedAt: string
-}
+// 论坛板块（展平后，供管理端筛选下拉使用）
+export type AdminForumSection = ForumCategoryFlat
 
 // 管理员操作日志相关类型
 export interface AdminLog {
@@ -240,7 +234,7 @@ export const useAdminStore = defineStore('admin', () => {
   const currentForumPage = ref(1)
   const forumPageSize = ref(10)
   const totalForumPosts = ref(0)
-  const selectedPost = ref<any>(null)
+  const selectedPost = ref<PostDetail | null>(null)
   const postDetailLoading = ref(false)
 
   // 操作日志管理
@@ -444,33 +438,9 @@ export const useAdminStore = defineStore('admin', () => {
 
     // 模拟论坛板块数据
     forumSections.value = [
-      {
-        id: 1,
-        name: '二手交易',
-        description: '买卖二手商品的板块',
-        sortOrder: 1,
-        isEnabled: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 2,
-        name: '验机交流',
-        description: '讨论验机技巧和经验',
-        sortOrder: 2,
-        isEnabled: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 3,
-        name: '避坑指南',
-        description: '分享交易避坑经验',
-        sortOrder: 3,
-        isEnabled: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
+      { id: 1, name: '二手交易', sortOrder: 1, isEnabled: 1, depth: 0 },
+      { id: 2, name: '验机交流', sortOrder: 2, isEnabled: 1, depth: 0 },
+      { id: 3, name: '避坑指南', sortOrder: 3, isEnabled: 1, depth: 0 },
     ]
 
     // 模拟论坛帖子数据
@@ -1143,51 +1113,21 @@ export const useAdminStore = defineStore('admin', () => {
   }) => {
     try {
       forumLoading.value = true
-      const token = localStorage.getItem('token')
 
-      let url = '/api/forum/post/list'
-      const queryParams = new URLSearchParams()
-      if (params?.page) queryParams.append('pageNum', params.page.toString())
-      if (params?.size) queryParams.append('pageSize', params.size.toString())
-      if (params?.keyword) queryParams.append('keyword', params.keyword)
-      if (params?.categoryId) queryParams.append('categoryId', params.categoryId.toString())
-      if (queryParams.toString()) url += `?${queryParams.toString()}`
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          pageNum: params?.page || 1,
-          pageSize: params?.size || 10,
-          keyword: params?.keyword,
-          categoryId: params?.categoryId
-        })
+      const page = await getForumPostList({
+        pageNum: params?.page ?? 1,
+        pageSize: params?.size ?? 10,
+        keyword: params?.keyword,
+        categoryId: params?.categoryId,
+        status: params?.status as PostAuditStatus | undefined,
       })
 
-      if (!response.ok) {
-        throw new Error(`加载论坛帖子失败: HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.code !== 200) {
-        throw new Error(`加载论坛帖子失败: ${data.message || data.code}`)
-      }
-
-      if (data.data?.list) {
-        forumPosts.value = data.data.list
-        totalForumPosts.value = data.data.total || data.data.list.length
-      } else {
-        // 开发模式下使用模拟数据
-      }
+      forumPosts.value = page.list
+      totalForumPosts.value = page.total
 
       return true
     } catch (error) {
       console.error('加载论坛帖子失败:', error)
-      // 开发模式下不抛出错误，继续使用模拟数据
       return false
     } finally {
       forumLoading.value = false
@@ -1198,28 +1138,8 @@ export const useAdminStore = defineStore('admin', () => {
   const loadForumSections = async () => {
     try {
       forumLoading.value = true
-      const token = localStorage.getItem('token')
-
-      const response = await fetch('/api/forum/category/list', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error(`加载论坛板块失败: HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.code !== 200) {
-        throw new Error(`加载论坛板块失败: ${data.message || data.code}`)
-      }
-
-      if (data.data) {
-        forumSections.value = data.data
-      }
-
+      const tree = await getForumCategoryList()
+      forumSections.value = flattenForumCategories(tree)
       return true
     } catch (error) {
       console.error('加载论坛板块失败:', error)
@@ -1234,26 +1154,9 @@ export const useAdminStore = defineStore('admin', () => {
     try {
       postDetailLoading.value = true
       selectedPost.value = null
-      const token = localStorage.getItem('token')
-
-      const response = await fetch(`/api/forum/post/${postId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error(`加载帖子详情失败: HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.code !== 200) {
-        throw new Error(`加载帖子详情失败: ${data.message || data.code}`)
-      }
-
-      selectedPost.value = data.data
-      return data.data
+      const detail = await getForumPostById(postId)
+      selectedPost.value = detail
+      return detail
     } catch (error) {
       console.error('加载帖子详情失败:', error)
       throw error
@@ -1265,32 +1168,18 @@ export const useAdminStore = defineStore('admin', () => {
   // 审核帖子
   const auditPost = async (postId: number, approved: boolean, rejectReason?: string) => {
     try {
-      const token = localStorage.getItem('token')
-      const queryParams = new URLSearchParams()
-      queryParams.append('approved', approved.toString())
-      if (rejectReason) queryParams.append('rejectReason', rejectReason)
+      await auditForumPost(postId, approved, rejectReason)
 
-      const response = await fetch(`/api/forum/post/admin/audit/${postId}?${queryParams.toString()}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error(`审核帖子失败: HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.code !== 200) {
-        throw new Error(`审核帖子失败: ${data.message || data.code}`)
-      }
-
-      // 更新本地数据
       const post = forumPosts.value.find(p => p.id === postId)
       if (post) {
         post.status = approved ? 'approved' : 'rejected'
+      }
+
+      if (selectedPost.value?.id === postId) {
+        selectedPost.value = {
+          ...selectedPost.value,
+          status: approved ? 'approved' : 'rejected',
+        }
       }
 
       return true
@@ -1303,31 +1192,15 @@ export const useAdminStore = defineStore('admin', () => {
   // 置顶/取消置顶帖子
   const toggleTopPost = async (postId: number, top: boolean) => {
     try {
-      const token = localStorage.getItem('token')
-      const queryParams = new URLSearchParams()
-      queryParams.append('top', top.toString())
+      await toggleForumPostTop(postId, top)
 
-      const response = await fetch(`/api/forum/post/admin/top/${postId}?${queryParams.toString()}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error(`置顶帖子失败: HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.code !== 200) {
-        throw new Error(`置顶帖子失败: ${data.message || data.code}`)
-      }
-
-      // 更新本地数据
       const post = forumPosts.value.find(p => p.id === postId)
       if (post) {
         post.isTop = top
+      }
+
+      if (selectedPost.value?.id === postId) {
+        selectedPost.value = { ...selectedPost.value, isTop: top }
       }
 
       return true
@@ -1340,31 +1213,15 @@ export const useAdminStore = defineStore('admin', () => {
   // 设为/取消精华帖
   const toggleFeaturePost = async (postId: number, featured: boolean) => {
     try {
-      const token = localStorage.getItem('token')
-      const queryParams = new URLSearchParams()
-      queryParams.append('featured', featured.toString())
+      await toggleForumPostFeature(postId, featured)
 
-      const response = await fetch(`/api/forum/post/admin/feature/${postId}?${queryParams.toString()}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error(`设置精华帖失败: HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.code !== 200) {
-        throw new Error(`设置精华帖失败: ${data.message || data.code}`)
-      }
-
-      // 更新本地数据
       const post = forumPosts.value.find(p => p.id === postId)
       if (post) {
         post.isFeatured = featured
+      }
+
+      if (selectedPost.value?.id === postId) {
+        selectedPost.value = { ...selectedPost.value, isFeatured: featured }
       }
 
       return true
@@ -1377,35 +1234,21 @@ export const useAdminStore = defineStore('admin', () => {
   // 删除帖子
   const deletePost = async (postId: number) => {
     try {
-      const token = localStorage.getItem('token')
+      await deleteForumPost(postId)
 
-      const response = await fetch(`/api/forum/post/${postId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error(`删除帖子失败: HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.code !== 200) {
-        throw new Error(`删除帖子失败: ${data.message || data.code}`)
-      }
-
-      // 更新本地数据
       forumPosts.value = forumPosts.value.filter(p => p.id !== postId)
-      totalForumPosts.value--
+      totalForumPosts.value = Math.max(0, totalForumPosts.value - 1)
+
+      if (selectedPost.value?.id === postId) {
+        selectedPost.value = null
+      }
 
       return true
-  } catch (error) {
-    console.error('删除帖子失败:', error)
-    return false
+    } catch (error) {
+      console.error('删除帖子失败:', error)
+      return false
+    }
   }
-}
 
 // 加载操作日志列表
 const loadAdminLogs = async (params?: {
