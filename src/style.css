@@ -17,6 +17,8 @@
   --radius: 14px;
   --radius-sm: 10px;
   --container: 1160px;
+  --page-font-size: clamp(12px, 0.3vw + 11px, 16px);
+  --page-gutter: clamp(12px, 3vw, 24px);
 }
 
 * {
@@ -28,12 +30,18 @@ body {
   height: 100%;
 }
 
+html {
+  min-width: 320px;
+  font-size: var(--page-font-size);
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+  font: 1rem/1.5 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
     "Segoe UI Emoji";
+  overflow-x: hidden;
 }
 
 a {
@@ -49,8 +57,21 @@ select {
 }
 
 .container {
-  width: min(var(--container), calc(100% - 32px));
+  width: min(var(--container), calc(100% - (var(--page-gutter) * 2)));
   margin: 0 auto;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --page-font-size: clamp(12px, 0.8vw + 10px, 14px);
+  }
 }
 
 .card {

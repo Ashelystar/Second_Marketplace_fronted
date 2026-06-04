@@ -68,6 +68,11 @@ export const useUserStore = defineStore('user', () => {
   )
   const favoriteIds = ref<number[]>([])
   const followIds = ref<number[]>([])
+  const localFollowIds = ref<number[]>(
+    JSON.parse(localStorage.getItem('localFollowIds') || '[]')
+      .map((id: unknown) => Number(id))
+      .filter((id: number) => Number.isFinite(id) && id > 0)
+  )
   const followerIds = ref<number[]>([])
   const userStatus = ref<string>(userInfo.value?.userStatus || '')
   const userPermissions = ref<UserPermissions>({
@@ -83,7 +88,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   const isFollowing = (targetUserId: number) => {
-    return followIds.value.includes(targetUserId)
+    return followIds.value.includes(targetUserId) || localFollowIds.value.includes(targetUserId)
   }
 
   const getErrorMessage = (error: unknown) => {
@@ -103,12 +108,28 @@ export const useUserStore = defineStore('user', () => {
 
   const isAlreadyFollowedError = (error: unknown) => {
     const msg = getErrorMessage(error)
-    return /已经关注|已关注|already\s*followed?|follow\s*exists|数据验证约束|对象循环引用/i.test(msg)
+    return /已经关注|已关注|already\s*followed?|follow\s*exists|duplicate|unique|唯一约束|对象循环引用/i.test(msg)
   }
 
   const isNotFollowedError = (error: unknown) => {
     const msg = getErrorMessage(error)
-    return /未关注|not\s*followed?|follow\s*not\s*found/i.test(msg)
+    return /未关注|not\s*followed?|follow\s*not\s*found|不存在关注关系/i.test(msg)
+  }
+
+  const saveLocalFollowIds = () => {
+    localStorage.setItem('localFollowIds', JSON.stringify(localFollowIds.value))
+  }
+
+  const toggleLocalFollow = (targetUserId: number) => {
+    if (isFollowing(targetUserId)) {
+      localFollowIds.value = localFollowIds.value.filter((id) => id !== targetUserId)
+      saveLocalFollowIds()
+      return
+    }
+    if (!localFollowIds.value.includes(targetUserId)) {
+      localFollowIds.value.push(targetUserId)
+      saveLocalFollowIds()
+    }
   }
 
   const addFavorite = (product: FavoriteItem) => {
@@ -203,7 +224,7 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  const toggleFollow = async (targetUserId: number) => {
+  const toggleFollow = async (targetUserId: number, options?: { localOnly?: boolean }) => {
     if (targetUserId <= 0) {
       throw new Error('用户ID无效')
     }
@@ -213,13 +234,19 @@ export const useUserStore = defineStore('user', () => {
     if (userInfo.value?.id && Number(userInfo.value.id) === targetUserId) {
       throw new Error('不能关注自己')
     }
+    if (options?.localOnly) {
+      toggleLocalFollow(targetUserId)
+      return
+    }
 
     if (isFollowing(targetUserId)) {
       followIds.value = followIds.value.filter((id) => id !== targetUserId)
       try {
         await unfollowUserApi(targetUserId)
+        await loadFollowIds()
       } catch (error) {
         if (isNotFollowedError(error)) {
+          await loadFollowIds()
           return
         }
         followIds.value.push(targetUserId)
@@ -231,11 +258,13 @@ export const useUserStore = defineStore('user', () => {
     followIds.value.push(targetUserId)
     try {
       await followUserApi(targetUserId)
+      await loadFollowIds()
     } catch (error) {
       if (isAlreadyFollowedError(error)) {
         if (!followIds.value.includes(targetUserId)) {
           followIds.value.push(targetUserId)
         }
+        await loadFollowIds()
         return
       }
       followIds.value = followIds.value.filter((id) => id !== targetUserId)
@@ -360,6 +389,8 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('token')
     favoriteIds.value = favorites.value.map(item => item.id)
     followIds.value = []
+    localFollowIds.value = []
+    localStorage.removeItem('localFollowIds')
     followerIds.value = []
   }
 
@@ -375,6 +406,7 @@ export const useUserStore = defineStore('user', () => {
     favorites,
     favoriteIds,
     followIds,
+    localFollowIds,
     followerIds,
     userStatus,
     userPermissions,

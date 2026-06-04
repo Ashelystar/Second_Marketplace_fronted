@@ -192,21 +192,31 @@ onMounted(() => {
 /* 筛选栏 */
 .filterBar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   background: #fff;
   border-radius: 12px;
   padding: 12px 16px;
   margin-bottom: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
 }
 
 .filterTabs {
   display: flex;
   gap: 8px;
+  flex-wrap: nowrap;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
 }
 
 .filterTab {
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 8px 16px;
   background: none;
   border: 1px solid #e5e7eb;

@@ -124,6 +124,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import Topnav from '@/components/TopNav.vue'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
@@ -131,6 +132,7 @@ import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import {
   getSellerReputationSnapshotApi,
   getSellerReputationHistoryApi,
+  resolveUserDisplayProfile,
   type SellerReputationSnapshot,
   type SellerReputationHistoryItem,
 } from '@/api/user'
@@ -154,13 +156,15 @@ const productStore = useProductStore()
 const userStore = useUserStore()
 
 const sellerId = computed(() => Number(route.params.id))
-const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
+const isVirtualProfile = computed(() => String(route.query.virtualUser || '') === '1')
 const followPending = ref(false)
 const sellerReputation = ref<SellerReputationSnapshot | null>(null)
 const sellerReputationHistory = ref<SellerReputationHistoryItem[]>([])
 const sellerProductVOList = ref<ProductVO[]>([])
 const sellerProductTotal = ref(0)
 const sellerProductLoading = ref(true)
+const resolvedSellerName = ref('')
+const resolvedSellerAvatar = ref('')
 
 /** 显示用的卖家商品列表 */
 const sellerProducts = computed(() =>
@@ -214,12 +218,31 @@ const sellerFromQuery = computed(() => {
 const seller = computed(() => {
   const querySeller = sellerFromQuery.value
   const base = sellerProducts.value[0]
-  if (!base) return querySeller
+  const displayName = resolvedSellerName.value || querySeller?.name || `用户${sellerId.value}`
+  const displayAvatar = resolvedSellerAvatar.value || querySeller?.avatar || ''
+  if (!base) {
+    return querySeller
+      ? { ...querySeller, name: displayName, avatar: displayAvatar }
+      : {
+          id: sellerId.value,
+          name: displayName,
+          avatar: displayAvatar,
+          location: '未知',
+          rating: 0,
+          verified: false,
+          goodRate: 0,
+          onSale: 0,
+          sold: 0,
+          creditScore: 0,
+          totalOrders: 0,
+          totalReviewCount: 0,
+        }
+  }
 
   return {
-    id: base.id,
-    name: querySeller?.name || `用户${sellerId.value}`,
-    avatar: querySeller?.avatar || '',
+    id: sellerId.value,
+    name: displayName,
+    avatar: displayAvatar,
     location: querySeller?.location || base.location || '未知',
     rating: 0,
     verified: false,
@@ -315,36 +338,20 @@ const goToDetail = (id: number) => {
 }
 
 const goToChat = () => {
-  if (!seller.value) return
-  const currentFriends = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Array<{
-    id: number
-    name: string
-    avatar: string
-    lastMessage: string
-    lastTime: string
-    unread?: number
-    rating: number
-    location: string
-  }>
-
-  const exists = currentFriends.some(friend => friend.id === seller.value?.id)
-  if (!exists) {
-    currentFriends.unshift({
-      id: seller.value.id,
-      name: seller.value.name,
-      avatar: seller.value.avatar,
-      lastMessage: '你好，我对你的商品感兴趣',
-      lastTime: '刚刚',
-      unread: 1,
-      rating: seller.value.rating,
-      location: seller.value.location,
-    })
-    localStorage.setItem(CHAT_FRIENDS_STORAGE_KEY, JSON.stringify(currentFriends))
+  if (!Number.isFinite(sellerId.value) || sellerId.value <= 0) return
+  if (!userStore.isLoggedIn) {
+    ElMessage.info('请先登录后再沟通')
+    void router.push('/user/login')
+    return
   }
 
   router.push({
     path: '/chat',
-    query: { friendId: String(seller.value.id) },
+    query: {
+      friendId: String(sellerId.value),
+      sellerName: seller.value?.name || `用户${sellerId.value}`,
+      sellerAvatar: seller.value?.avatar || '',
+    },
   })
 }
 
@@ -352,19 +359,25 @@ const handleToggleFollow = async () => {
   if (!canFollowSeller.value) return
   if (followPending.value) return
   if (!userStore.isLoggedIn) {
-    alert('请先登录后再关注')
+    ElMessage.info('请先登录后再关注')
     await router.push('/user/login')
     return
   }
   try {
     followPending.value = true
-    await userStore.toggleFollow(sellerId.value)
+    const wasFollowing = isFollowingSeller.value
+    await userStore.toggleFollow(sellerId.value, { localOnly: isVirtualProfile.value })
+    if (isVirtualProfile.value) {
+      ElMessage.success(wasFollowing ? '已取消关注（社区用户）' : '已关注（社区用户）')
+    } else {
+      ElMessage.success(wasFollowing ? '已取消关注' : '已关注')
+    }
   } catch (error) {
     if (error instanceof Error) {
-      alert(error.message || '操作失败，请稍后重试')
+      ElMessage.error(error.message || '操作失败，请稍后重试')
       return
     }
-    alert('操作失败，请稍后重试')
+    ElMessage.error('操作失败，请稍后重试')
   } finally {
     followPending.value = false
   }
@@ -383,8 +396,31 @@ const goBackToProduct = () => {
   router.push('/')
 }
 
+const fetchSellerDisplayProfile = async () => {
+  if (!Number.isFinite(sellerId.value) || sellerId.value <= 0 || isVirtualProfile.value) {
+    resolvedSellerName.value = sellerFromQuery.value?.name || ''
+    resolvedSellerAvatar.value = sellerFromQuery.value?.avatar || ''
+    return
+  }
+  try {
+    const profile = await resolveUserDisplayProfile(sellerId.value, {
+      name: route.query.name,
+      nickname: route.query.name,
+      avatarUrl: route.query.avatar,
+      avatar: route.query.avatar,
+    })
+    resolvedSellerName.value = profile.nickname
+    resolvedSellerAvatar.value = profile.avatarUrl || ''
+  } catch (error) {
+    console.error('获取用户昵称失败:', error)
+    resolvedSellerName.value = sellerFromQuery.value?.name || `用户${sellerId.value}`
+    resolvedSellerAvatar.value = sellerFromQuery.value?.avatar || ''
+  }
+}
+
 onMounted(() => {
   productStore.initialize()
+  void fetchSellerDisplayProfile()
   void fetchSellerProducts()
   void fetchSellerReputation()
   void fetchSellerReputationHistory()
@@ -396,6 +432,7 @@ onMounted(() => {
 watch(
   () => sellerId.value,
   () => {
+    void fetchSellerDisplayProfile()
     void fetchSellerProducts()
     void fetchSellerReputation()
     void fetchSellerReputationHistory()
