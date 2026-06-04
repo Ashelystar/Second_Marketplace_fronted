@@ -124,6 +124,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import Topnav from '@/components/TopNav.vue'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
@@ -131,6 +132,7 @@ import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import {
   getSellerReputationSnapshotApi,
   getSellerReputationHistoryApi,
+  resolveUserDisplayProfile,
   type SellerReputationSnapshot,
   type SellerReputationHistoryItem,
 } from '@/api/user'
@@ -155,12 +157,15 @@ const productStore = useProductStore()
 const userStore = useUserStore()
 
 const sellerId = computed(() => Number(route.params.id))
+const isVirtualProfile = computed(() => String(route.query.virtualUser || '') === '1')
 const followPending = ref(false)
 const sellerReputation = ref<SellerReputationSnapshot | null>(null)
 const sellerReputationHistory = ref<SellerReputationHistoryItem[]>([])
 const sellerProductVOList = ref<ProductVO[]>([])
 const sellerProductTotal = ref(0)
 const sellerProductLoading = ref(true)
+const resolvedSellerName = ref('')
+const resolvedSellerAvatar = ref('')
 
 /** 显示用的卖家商品列表 */
 const sellerProducts = computed(() =>
@@ -214,12 +219,31 @@ const sellerFromQuery = computed(() => {
 const seller = computed(() => {
   const querySeller = sellerFromQuery.value
   const base = sellerProducts.value[0]
-  if (!base) return querySeller
+  const displayName = resolvedSellerName.value || querySeller?.name || `用户${sellerId.value}`
+  const displayAvatar = resolvedSellerAvatar.value || querySeller?.avatar || ''
+  if (!base) {
+    return querySeller
+      ? { ...querySeller, name: displayName, avatar: displayAvatar }
+      : {
+          id: sellerId.value,
+          name: displayName,
+          avatar: displayAvatar,
+          location: '未知',
+          rating: 0,
+          verified: false,
+          goodRate: 0,
+          onSale: 0,
+          sold: 0,
+          creditScore: 0,
+          totalOrders: 0,
+          totalReviewCount: 0,
+        }
+  }
 
   return {
-    id: base.id,
-    name: querySeller?.name || `用户${sellerId.value}`,
-    avatar: querySeller?.avatar || '',
+    id: sellerId.value,
+    name: displayName,
+    avatar: displayAvatar,
     location: querySeller?.location || base.location || '未知',
     rating: 0,
     verified: false,
@@ -314,44 +338,47 @@ const goToDetail = (id: number) => {
   router.push({ path: '/detail', query: { id: id.toString() } })
 }
 
-const goToChat = async () => {
-  if (!seller.value) return
-  try {
-    const conv = await createConversation({
-      conversationType: 'product_consult',
-      userId: sellerId.value,
-    })
-    router.push({ path: '/chat', query: { conversationId: String(conv.id) } })
-  } catch (err) {
-    console.error('创建会话失败:', err)
-    router.push({
-      path: '/chat',
-      query: {
-        sellerId: String(sellerId.value),
-        sellerName: seller.value.name || '',
-        sellerAvatar: seller.value.avatar || '',
-      },
-    })
+const goToChat = () => {
+  if (!Number.isFinite(sellerId.value) || sellerId.value <= 0) return
+  if (!userStore.isLoggedIn) {
+    ElMessage.info('请先登录后再沟通')
+    void router.push('/user/login')
+    return
   }
+
+  router.push({
+    path: '/chat',
+    query: {
+      friendId: String(sellerId.value),
+      sellerName: seller.value?.name || `用户${sellerId.value}`,
+      sellerAvatar: seller.value?.avatar || '',
+    },
+  })
 }
 
 const handleToggleFollow = async () => {
   if (!canFollowSeller.value) return
   if (followPending.value) return
   if (!userStore.isLoggedIn) {
-    alert('请先登录后再关注')
+    ElMessage.info('请先登录后再关注')
     await router.push('/user/login')
     return
   }
   try {
     followPending.value = true
-    await userStore.toggleFollow(sellerId.value)
+    const wasFollowing = isFollowingSeller.value
+    await userStore.toggleFollow(sellerId.value, { localOnly: isVirtualProfile.value })
+    if (isVirtualProfile.value) {
+      ElMessage.success(wasFollowing ? '已取消关注（社区用户）' : '已关注（社区用户）')
+    } else {
+      ElMessage.success(wasFollowing ? '已取消关注' : '已关注')
+    }
   } catch (error) {
     if (error instanceof Error) {
-      alert(error.message || '操作失败，请稍后重试')
+      ElMessage.error(error.message || '操作失败，请稍后重试')
       return
     }
-    alert('操作失败，请稍后重试')
+    ElMessage.error('操作失败，请稍后重试')
   } finally {
     followPending.value = false
   }
@@ -377,8 +404,31 @@ const backLabel = computed(() => {
   return '返回'
 })
 
+const fetchSellerDisplayProfile = async () => {
+  if (!Number.isFinite(sellerId.value) || sellerId.value <= 0 || isVirtualProfile.value) {
+    resolvedSellerName.value = sellerFromQuery.value?.name || ''
+    resolvedSellerAvatar.value = sellerFromQuery.value?.avatar || ''
+    return
+  }
+  try {
+    const profile = await resolveUserDisplayProfile(sellerId.value, {
+      name: route.query.name,
+      nickname: route.query.name,
+      avatarUrl: route.query.avatar,
+      avatar: route.query.avatar,
+    })
+    resolvedSellerName.value = profile.nickname
+    resolvedSellerAvatar.value = profile.avatarUrl || ''
+  } catch (error) {
+    console.error('获取用户昵称失败:', error)
+    resolvedSellerName.value = sellerFromQuery.value?.name || `用户${sellerId.value}`
+    resolvedSellerAvatar.value = sellerFromQuery.value?.avatar || ''
+  }
+}
+
 onMounted(() => {
   productStore.initialize()
+  void fetchSellerDisplayProfile()
   void fetchSellerProducts()
   void fetchSellerReputation()
   void fetchSellerReputationHistory()
@@ -390,6 +440,7 @@ onMounted(() => {
 watch(
   () => sellerId.value,
   () => {
+    void fetchSellerDisplayProfile()
     void fetchSellerProducts()
     void fetchSellerReputation()
     void fetchSellerReputationHistory()

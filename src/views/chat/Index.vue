@@ -1,62 +1,64 @@
 <template>
   <div class="chat-page">
-    <!-- 好友列表侧边栏 -->
-    <aside class="friend-sidebar">
+    <aside class="friend-sidebar" :class="{ open: sidebarOpen }">
       <div class="friend-header">
         <h3>消息</h3>
         <span v-if="totalUnreadCount > 0" class="friend-count">{{ unreadCountDisplay }}</span>
       </div>
 
-      <div class="friend-list">
-        <div
-          v-for="friend in friends"
-          :key="friend.id"
-          class="friend-item"
-          :class="{ active: friend.id === seller.id }"
-          @click="switchFriend(friend)"
-        >
-          <div class="friend-avatar">
-            <img v-if="friend.avatar" :src="friend.avatar" :alt="friend.name">
-            <div v-else class="avatar-placeholder small">
-              {{ friend.name.charAt(0) }}
+      <div v-if="threads.length === 0" class="friend-empty">
+        暂无会话，去商品页点击“咨询卖家”开始聊天
+      </div>
+
+      <div v-else class="friend-list">
+        <transition-group name="list-fade" tag="div">
+          <div
+            v-for="thread in threads"
+            :key="thread.conversationId"
+            class="friend-item"
+            :class="{ active: thread.conversationId === activeConversationId }"
+            @click="switchThread(thread.conversationId)"
+          >
+            <div class="friend-avatar">
+              <img v-if="thread.partner.avatar" :src="thread.partner.avatar" :alt="thread.partner.name">
+              <div v-else class="avatar-placeholder small">
+                {{ thread.partner.name.charAt(0) }}
+              </div>
+            </div>
+            <div class="friend-info">
+              <p class="friend-name">{{ thread.partner.name }}</p>
+              <p class="last-message">{{ thread.lastMessagePreview || '开始聊天吧' }}</p>
+            </div>
+            <div class="friend-meta">
+              <span class="last-time">{{ formatTime(thread.updatedAt) }}</span>
+              <span v-if="thread.unread > 0" class="unread-badge">{{ thread.unread > 99 ? '99+' : thread.unread }}</span>
             </div>
           </div>
-          <div class="friend-info">
-            <p class="friend-name">{{ friend.name }}</p>
-            <p class="last-message">
-              {{ friend.lastMessage }}
-            </p>
-          </div>
-          <div class="friend-meta">
-            <span class="last-time">{{ friend.lastTime }}</span>
-            <span v-if="friend.unread" class="unread-badge">
-              {{ friend.unread }}
-            </span>
-          </div>
-        </div>
+        </transition-group>
       </div>
     </aside>
 
-    <!-- 主聊天区域 -->
-    <div class="chat-main">
-      <!-- 顶部导航 -->
+    <section class="chat-main">
       <div class="chat-header">
         <div class="header-inner">
+          <button class="action-btn only-mobile" @click="sidebarOpen = !sidebarOpen">
+            <i class="fa fa-bars"></i>
+          </button>
           <button class="back-btn" @click="goBack">
             <i class="fa fa-arrow-left"></i>
           </button>
           <div class="seller-info">
             <div class="seller-avatar">
-              <img v-if="seller.avatar" :src="seller.avatar" :alt="seller.name">
+              <img v-if="activePartner.avatar" :src="activePartner.avatar" :alt="activePartner.name">
               <div v-else class="avatar-placeholder">
-                {{ seller.name?.charAt(0) || '卖' }}
+                {{ activePartner.name.charAt(0) }}
               </div>
             </div>
             <div class="seller-details">
-              <h3 class="seller-name">{{ seller.name }}</h3>
+              <h3 class="seller-name">{{ activePartner.name }}</h3>
               <p class="seller-status">
                 <span class="online-dot"></span>
-                在线 · 信用分 {{ seller.rating }}
+                在线
               </p>
             </div>
           </div>
@@ -71,91 +73,96 @@
         </div>
       </div>
 
-      <!-- 商品信息卡片 -->
-      <div class="product-card" v-if="product" @click="viewProductDetail()">
+      <div v-if="activeProductCard" class="product-card" @click="viewProductDetail">
         <div class="product-image">
-          <img :src="product.image" :alt="product.title" @error="(e: Event) => { const t = e.target as HTMLImageElement; if (t) t.src = PLACEHOLDER_IMG }">
+          <img :src="activeProductCard.image || PLACEHOLDER_IMG" :alt="activeProductCard.title">
         </div>
         <div class="product-info">
-          <h4 class="product-title">{{ product.title }}</h4>
-          <p class="product-price">¥{{ product.price }}</p>
+          <h4 class="product-title">{{ activeProductCard.title }}</h4>
+          <div class="product-price-row">
+            <span class="product-price">¥{{ activeProductCard.price }}</span>
+            <span v-if="activeProductCard.originalPrice && activeProductCard.originalPrice > activeProductCard.price" class="product-original-price">¥{{ activeProductCard.originalPrice }}</span>
+          </div>
         </div>
         <button class="btn-view-product" title="查看商品详情">
           <i class="fa fa-chevron-right"></i>
         </button>
       </div>
 
-      <!-- 聊天消息区域 -->
       <div class="chat-messages" ref="messagesContainer">
         <div class="message-list">
           <div class="system-message">
-            <span class="system-text">你们已成为好友，开始聊天吧</span>
+            <span class="system-text">消息会按登录用户分账号保存</span>
+          </div>
+
+          <div v-if="displayMessages.length === 0" class="messages-empty">
+            还没有消息，发一句问候开始对话吧
           </div>
 
           <template
-            v-for="(msg, index) in messages"
+            v-for="(msg, index) in displayMessages"
             :key="msg.id"
           >
-            <!-- 动态时间分隔线：当前消息与前一条不在同一天时显示 -->
+            <!-- 动态时间分隔线 -->
             <div
-              v-if="showDateDivider(index, msg.timestamp)"
+              v-if="showDateDivider(index, msg.createdAt)"
               class="time-divider"
             >
-              <span class="time-text">{{ formatDateLabel(msg.timestamp) }}</span>
+              <span class="time-text">{{ formatDateLabel(msg.createdAt) }}</span>
             </div>
-            <!-- 已撤回消息：居中提示 -->
+
+            <!-- 撤回消息：居中系统提示 -->
             <div v-if="msg.recalled" class="recall-notice">
-              <span class="recall-notice-text">
-                {{ msg.senderId !== conversationOtherUserId ? '你' : '对方' }}撤回了一条消息
-              </span>
+              <span class="recall-text">{{ msg.content }}</span>
             </div>
 
             <!-- 正常消息 -->
-            <div v-else :class="['message-item', msg.type === 'sent' ? 'sent' : 'received']">
+            <div
+              v-else
+              :class="['message-item', msg.type === 'sent' ? 'sent' : 'received']"
+              @contextmenu.prevent="handleContextMenu($event, msg)"
+            >
               <div v-if="msg.type === 'received'" class="message-avatar">
-                <img v-if="seller.avatar" :src="seller.avatar" :alt="seller.name">
+                <img v-if="activePartner.avatar" :src="activePartner.avatar" :alt="activePartner.name">
                 <div v-else class="avatar-placeholder small">
-                  {{ seller.name?.charAt(0) || '卖' }}
+                  {{ activePartner.name.charAt(0) }}
                 </div>
               </div>
 
-              <div
-                class="message-bubble"
-                @contextmenu.prevent="onMessageContextMenu($event, msg)"
-              >
-                <div v-if="msg.contentType === 'text'" class="text-content">
-                  {{ msg.content }}
-                </div>
-
-                <div v-else-if="msg.contentType === 'image'" class="image-content">
-                  <img :src="msg.content" alt="图片消息">
-                </div>
-
-                <div v-else-if="msg.contentType === 'product'" class="product-content">
-                  <div class="product-mini" @click.stop="viewProductDetail(msg.productId)">
-                    <img :src="msg.productImage || PLACEHOLDER_IMG" :alt="msg.productTitle" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG">
-                    <div class="product-mini-info">
-                      <p class="product-mini-title">{{ msg.productTitle }}</p>
-                      <p class="product-mini-price">¥{{ msg.productPrice }}</p>
+              <div class="message-main">
+                <div class="message-bubble">
+                  <div v-if="msg.contentType === 'text'" class="text-content">
+                    {{ msg.content }}
+                  </div>
+                  <div v-else-if="msg.contentType === 'image'" class="image-content">
+                    <img :src="msg.content" alt="图片消息">
+                  </div>
+                  <div v-else-if="msg.contentType === 'product'" class="product-content" @click="viewProductDetail">
+                    <div class="product-mini">
+                      <img :src="msg.product?.image || PLACEHOLDER_IMG" :alt="msg.product?.title || '商品'">
+                      <div class="product-mini-info">
+                        <p class="product-mini-title">{{ msg.product?.title || '商品卡片' }}</p>
+                        <div class="product-mini-price-row">
+                          <span class="product-mini-price">¥{{ msg.product?.price ?? 0 }}</span>
+                          <span v-if="msg.product?.originalPrice && msg.product.originalPrice > (msg.product.price ?? 0)" class="product-mini-original-price">¥{{ msg.product.originalPrice }}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
+                <p class="message-time">{{ formatMsgTime(msg.createdAt) }}</p>
               </div>
 
               <div v-if="msg.type === 'sent'" class="message-status">
-                <i v-if="msg.status === 'sending'" class="fa fa-clock-o sending"></i>
-                <i v-else-if="msg.status === 'sent'" class="fa fa-check sent"></i>
-                <i v-else-if="msg.status === 'delivered'" class="fa fa-check-double delivered"></i>
-                <i v-else-if="msg.status === 'failed'" class="fa fa-exclamation-circle failed"></i>
+                <i v-if="(msg as any).status === 'sending'" class="fa fa-clock-o sending"></i>
+                <i v-else-if="(msg as any).status === 'failed'" class="fa fa-exclamation-circle failed"></i>
+                <i v-else class="fa fa-check delivered"></i>
               </div>
             </div>
           </template>
         </div>
       </div>
 
-      <!-- 快捷回复 -->
       <div class="quick-replies" v-if="showQuickReplies">
         <div class="quick-reply-list">
           <button
@@ -169,14 +176,14 @@
         </div>
       </div>
 
-      <!-- 输入区域 -->
       <div class="chat-input-area">
         <div class="input-toolbar">
           <button class="toolbar-btn" @click="toggleQuickReplies">
             <i class="fa fa-bolt"></i>
           </button>
-          <button class="toolbar-btn" @click="openImagePicker">
-            <i class="fa fa-image"></i>
+          <button class="toolbar-btn" @click="openImagePicker" :disabled="imageUploading" :title="imageUploading ? '图片上传中...' : '发送图片'">
+            <i v-if="imageUploading" class="fa fa-spinner fa-pulse"></i>
+            <i v-else class="fa fa-image"></i>
           </button>
           <button class="toolbar-btn" @click="sendProductCard">
             <i class="fa fa-tag"></i>
@@ -189,23 +196,22 @@
             class="message-input"
             placeholder="输入消息..."
             rows="1"
-            @keydown.enter.prevent="sendMessage"
+            @keydown.enter.exact.prevent="sendTextMessage"
             @input="autoResize"
             ref="textareaRef"
           ></textarea>
           <button
             class="send-btn"
             :class="{ active: inputMessage.trim().length > 0 }"
-            @click="sendMessage"
+            @click="sendTextMessage"
             :disabled="inputMessage.trim().length === 0"
           >
             <i class="fa fa-paper-plane"></i>
           </button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 更多选项弹窗 -->
     <div v-if="showMoreOptions" class="modal-overlay" @click="showMoreOptions = false">
       <div class="more-options-modal" @click.stop>
         <button class="option-item" @click="clearChat">
@@ -223,26 +229,18 @@
       </div>
     </div>
 
-    <!-- 右键撤回菜单 -->
-    <Teleport to="body">
-      <div
-        v-if="recallMenu.visible"
-        class="recall-overlay"
-        @click="hideRecallMenu"
-        @contextmenu.prevent="hideRecallMenu"
-      >
-        <div
-          class="recall-menu"
-          :style="{ left: recallMenu.x + 'px', top: recallMenu.y + 'px' }"
-          @click.stop
-        >
-          <button class="recall-item" @click="handleRecall">
-            <i class="fa fa-undo"></i>
-            <span>撤回消息</span>
-          </button>
-        </div>
-      </div>
-    </Teleport>
+    <!-- 消息右键菜单 -->
+    <div
+      v-if="contextMenuVisible"
+      class="context-menu"
+      :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
+      @click.stop
+    >
+      <button class="context-menu-item" @click="handleRecall">
+        <i class="fa fa-undo"></i>
+        <span>撤回消息</span>
+      </button>
+    </div>
 
     <input
       ref="imageInput"
@@ -255,330 +253,144 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { getProductDetail } from '@/api/goods'
-import { getConversationList, getConversationDetail, markConversationRead, createConversation, uploadChatImage, sendMessage as sendMessageApi, getMessageList, recallMessage, type Conversation, type MessageVO } from '@/api/chat'
-import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
+import { resolveUserDisplayProfile, isFallbackUserLabel } from '@/api/user'
 import { useUserStore } from '@/stores/userStore'
+import { useChatStore, type ChatProductCard, type ChatUserProfile } from '@/stores/chatStore'
+import { uploadChatImage } from '@/api/chat'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'ChatPage' })
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const chatStore = useChatStore()
+
 const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
-
-interface Friend {
-  id: number
-  name: string
-  avatar: string
-  lastMessage: string
-  lastTime: string
-  unread?: number
-  rating: number
-  location: string
-  /** 扩展：会话关联的商品ID */
-  _productId?: number
-  /** 扩展：会话关联的订单ID */
-  _orderId?: number
-  /** 扩展：会话类型 */
-  _conversationType?: string
-  /** 扩展：对方用户ID */
-  _userId?: number
-}
-
-interface Message {
-  id: number
-  type: 'sent' | 'received'
-  contentType: 'text' | 'image' | 'product'
-  content: string
-  productTitle?: string
-  productPrice?: number
-  productImage?: string
-  /** 关联的商品ID（product_card 类型的消息） */
-  productId?: number
-  timestamp: string
-  status: 'sending' | 'sent' | 'delivered' | 'failed'
-  senderId?: number
-  /** 消息是否已被撤回 */
-  recalled?: boolean
-}
-
-/** 当前会话中对方的用户ID，由加载会话时设置，用于精确判定消息方向 */
-const conversationOtherUserId = ref<number>(0)
-
-/** 将 API 返回的 MessageVO 转为本地 Message */
-const toMessage = (vo: MessageVO): Message => {
-  const otherId = conversationOtherUserId.value
-  let isMine: boolean
-
-  if (otherId > 0) {
-    // ★ 优选：用会话上下文判定 —— 非对方发的就是我发的
-    isMine = Number(vo.senderId) !== Number(otherId)
-    console.debug('[toMessage] 会话上下文判定: senderId=', vo.senderId,
-      '| otherUserId=', otherId,
-      '| isMine=', isMine,
-      '| content=', (vo.content || '').slice(0, 30))
-  } else {
-    // 兜底：localStorage 猜测（此分支不应在正常流程触发）
-    const myId = getMyUserId()
-    isMine = myId > 0 && Number(vo.senderId) === myId
-    console.debug('[toMessage] localStorage 兜底: senderId=', vo.senderId,
-      '| myId=', myId,
-      '| isMine=', isMine,
-      '| content=', (vo.content || '').slice(0, 30))
-  }
-
-  // 被撤回的消息：保留原始方向用于判断"你"/"对方"
-  if (vo.recalled) {
-    return {
-      id: vo.id,
-      type: isMine ? 'sent' : 'received',
-      contentType: 'text',
-      content: '',
-      timestamp: vo.sentAt,
-      status: 'delivered',
-      senderId: vo.senderId,
-      recalled: true,
-    }
-  }
-  return {
-    id: vo.id,
-    type: isMine ? 'sent' : 'received',
-    contentType: vo.messageType === 'product_card' ? 'product' : vo.messageType === 'image' ? 'image' : 'text',
-    content: vo.content || '',
-    timestamp: vo.sentAt,
-    status: 'delivered',
-    senderId: vo.senderId,
-    // 尝试从 extJson 中解析商品信息
-    ...(vo.messageType === 'product_card' && vo.extJson
-      ? (() => {
-          const p = parseProductExtJson(vo.extJson)
-          if (p.productImage) p.productImage = getImageUrl(p.productImage)
-          return p
-        })()
-      : {}),
-  }
-}
-
-/** 从 extJson 中解析商品ID等信息 */
-const parseProductExtJson = (extJson: string): { productId?: number; productTitle?: string; productPrice?: number; productImage?: string } => {
-  try {
-    const parsed = JSON.parse(extJson)
-    return {
-      productId: parsed.productId ?? parsed.id ?? undefined,
-      productTitle: parsed.title ?? parsed.productTitle ?? undefined,
-      productPrice: parsed.price ?? parsed.productPrice ?? undefined,
-      productImage: parsed.image ?? parsed.productImage ?? undefined,
-    }
-  } catch {
-    return {}
-  }
-}
-
-interface Product {
-  id: number
-  title: string
-  price: number
-  image: string
-}
+const quickReplies = ['你好，在吗？', '这个还有货吗？', '可以小刀吗？', '支持面交吗？', '什么时候方便？']
 
 const messagesContainer = ref<HTMLElement>()
 const textareaRef = ref<HTMLTextAreaElement>()
 const imageInput = ref<HTMLInputElement>()
-const productLoading = ref(false)
+const inputMessage = ref('')
+const showQuickReplies = ref(false)
+const showMoreOptions = ref(false)
+const sidebarOpen = ref(false)
 
-/** 
- * 从 localStorage 直接读取当前登录用户ID。
- * 不使用 computed/Pinia ref，避免 async 上下文里的响应式时序问题。
- */
-const getMyUserId = (): number => {
-  try {
-    const raw = localStorage.getItem('userInfo')
-    if (raw) {
-      const parsed = JSON.parse(raw) as { id?: number | string }
-      if (parsed?.id != null) return Number(parsed.id)
-    }
-  } catch { /* ignore */ }
-  // 兜底：再试试 Pinia store
-  const storeId = userStore.userInfo?.id
-  return storeId != null ? Number(storeId) : 0
-}
+const activeConversationId = ref<number>(0)
+const pendingProduct = ref<ChatProductCard | null>(null)
 
-// 单击撤回菜单
-const recallMenu = ref<{ visible: boolean; x: number; y: number; messageId: number }>({
-  visible: false,
-  x: 0,
-  y: 0,
-  messageId: 0,
+// 上传状态
+const imageUploading = ref(false)
+
+// 右键菜单
+const contextMenuVisible = ref(false)
+const contextMenuPos = ref({ x: 0, y: 0 })
+const contextMenuMessage = ref<{ id: number; type: string; senderId: number; createdAt: number } | null>(null)
+
+const currentUserProfile = computed<ChatUserProfile>(() => ({
+  id: Number(userStore.userInfo?.id || 0),
+  name: userStore.userInfo?.nickname || userStore.userInfo?.username || '当前用户',
+  avatar: userStore.userInfo?.avatarUrl || userStore.userInfo?.avatar || '',
+}))
+
+const threads = computed(() => {
+  if (!currentUserProfile.value.id) return []
+  return chatStore.getConversationsForUser(currentUserProfile.value.id)
 })
 
-// 从路由参数初始化商品信息
-const initProduct = () => {
-  const productId = route.query.productId
-  const sellerId = route.query.sellerId
-  const sellerName = route.query.sellerName
-  const sellerAvatar = route.query.sellerAvatar
-  if (productId) {
-    productLoading.value = true
-    getProductDetail(Number(productId))
-      .then(data => {
-        let imageUrl = ''
-        if (data.image) {
-          imageUrl = getImageUrl(data.image)
-        } else if (Array.isArray(data.images) && data.images.length > 0) {
-          const firstImg = data.images[0]
-          if (firstImg) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            imageUrl = getImageUrl((firstImg as any).url || (firstImg as any).imageUrl || '')
-          }
-        }
-        product.value = {
-          id: data.id,
-          title: data.title || '',
-          price: Number(data.sellingPrice ?? data.price ?? 0),
-          image: imageUrl || PLACEHOLDER_IMG,
-        }
-      })
-      .catch(err => {
-        console.error('获取商品详情失败:', err)
-        // 回退：从 localStorage 读取缓存的商品信息
-        const cached = localStorage.getItem(`chat_product_${productId}`)
-        if (cached) {
-          try {
-            const info = JSON.parse(cached)
-            product.value = {
-              id: info.id,
-              title: info.title || '',
-              price: Number(info.price ?? 0),
-              image: info.image || PLACEHOLDER_IMG,
-            }
-          } catch { /* ignore */ }
-        }
-      })
-      .finally(() => {
-        productLoading.value = false
-      })
-  }
-  // 如果没有卖家信息但有 sellerId，也设置一下
-  if (sellerId && sellerName && !seller.value.id) {
-    seller.value = {
-      id: Number(sellerId),
-      name: String(sellerName),
-      avatar: String(sellerAvatar || ''),
-      lastMessage: '',
-      lastTime: '',
-      rating: 0,
-      location: '',
-    }
-  }
-}
+const totalUnreadCount = computed(() => {
+  if (!currentUserProfile.value.id) return 0
+  return chatStore.getUnreadCountForUser(currentUserProfile.value.id)
+})
 
-const friends = ref<Friend[]>([])
+const unreadCountDisplay = computed(() =>
+  totalUnreadCount.value > 99 ? '99+' : String(totalUnreadCount.value)
+)
 
-/** 从 API 拉取真实会话列表，映射为 Friend */
-const fetchConversations = async () => {
-  try {
-    const list = await getConversationList({ pageNum: 1, pageSize: 50 })
-    const apiFriends: Friend[] = list.map((c: Conversation) => ({
-      id: c.id,
-      name: c.userNickname || '对方用户',
-      avatar: '',
-      lastMessage: c.lastMessageContent || '暂无消息',
-      lastTime: formatLastTime(c.lastMessageAt),
-      unread: c.unreadCount ?? 0,
-      rating: 5,
-      location: '',
-      _conversationType: c.conversationType,
-      _productId: c.productId ?? undefined,
-      _orderId: c.orderId ?? undefined,
-      _userId: c.userId,
-    }))
-    // 合并 localStorage 中的兜底好友（如果 API 返回为空时仍有兜底）
-    // 过滤掉旧版缓存：没有 _conversationType 的条目是错误缓存（存的是 userId 而非 conversationId）
-    const stored = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Friend[]
-    const existingIds = new Set(apiFriends.map(f => f.id))
-    for (const sf of stored) {
-      if (!existingIds.has(sf.id) && sf._conversationType) {
-        apiFriends.push(sf)
-      }
-    }
-    friends.value = apiFriends
-    // 如果有路由参数 conversationId，自动选中
-    const convId = Number(route.query.conversationId)
-    if (Number.isFinite(convId)) {
-      const target = friends.value.find(f => f.id === convId)
-      if (target) {
-        seller.value = target
-        if (target.unread) {
-          target.unread = 0
-          markConversationRead(target.id).catch(err =>
-            console.error('标记会话已读失败:', err),
-          )
-        }
-        // 加载该会话关联的商品
-        if (target._productId) {
-          loadProductForConversation(target._productId)
-        }
-      }
-    }
-  } catch (err) {
-    console.error('获取会话列表失败:', err)
-    // 回退到 localStorage
-    mergeStoredFriends()
+const activeThread = computed(() =>
+  threads.value.find((thread) => thread.conversationId === activeConversationId.value) || null
+)
+
+const activePartner = computed<ChatUserProfile>(() => {
+  return activeThread.value?.partner || {
+    id: 0,
+    name: '请选择会话',
+    avatar: '',
+    location: '',
+    rating: 0,
   }
-}
+})
 
-/** 消息气泡时间：只显示具体钟点，日期由分隔线提供 */
-const formatTime = (iso?: string | null): string => {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ''
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${hh}:${mm}`
-}
+const activeProductCard = computed<ChatProductCard | null>(() => {
+  return pendingProduct.value
+})
+
+const displayMessages = computed(() => {
+  if (!activeConversationId.value || !currentUserProfile.value.id) return []
+  return chatStore.getConversationMessages(activeConversationId.value).map((message) => {
+    // 商品卡片消息如果缺少数据，用当前会话顶部商品兜底
+    let product = message.product
+    if (message.contentType === 'product' && (!product || !product.title || product.price === 0)) {
+      product = activeProductCard.value || undefined
+    }
+    return {
+      ...message,
+      product,
+      type: message.senderId === currentUserProfile.value.id ? 'sent' : 'received',
+    }
+  })
+})
 
 /** 会话列表最后消息时间：今天显示时间，昨天显示"昨天"，其余显示月日 */
-const formatLastTime = (iso?: string | null): string => {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ''
+const formatTime = (timestamp: number) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return ''
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const yesterday = new Date(today.getTime() - 86400000)
-  const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
   if (msgDay.getTime() >= today.getTime()) {
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
   }
   if (msgDay.getTime() >= yesterday.getTime()) return '昨天'
-  return `${d.getMonth() + 1}月${d.getDate()}日`
+  return `${date.getMonth() + 1}月${date.getDate()}日`
+}
+
+/** 消息气泡时间：只显示具体钟点 */
+const formatMsgTime = (timestamp: number) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return ''
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
 /** 判断是否需要在当前消息前插入日期/时间分隔线（第一条、跨天、或间隔>5分钟） */
-const showDateDivider = (index: number, iso?: string | null): boolean => {
-  if (!iso) return false
+const showDateDivider = (index: number, ts: number): boolean => {
+  if (!ts) return false
   if (index === 0) return true
-  const prevMsg = messages.value[index - 1]
-  if (!prevMsg?.timestamp) return false
+  const prevMsg = displayMessages.value[index - 1]
+  if (!prevMsg?.createdAt) return false
   try {
-    const cur = new Date(iso)
-    const prev = new Date(prevMsg.timestamp)
+    const cur = new Date(ts)
+    const prev = new Date(prevMsg.createdAt)
     if (isNaN(cur.getTime()) || isNaN(prev.getTime())) return false
-    // 跨天
     if (cur.toDateString() !== prev.toDateString()) return true
-    // 同天内间隔超过 5 分钟
     return cur.getTime() - prev.getTime() > 5 * 60 * 1000
   } catch {
     return false
   }
 }
 
-/** 日期分隔线文案：包含具体时间 */
-const formatDateLabel = (iso?: string | null): string => {
-  if (!iso) return ''
-  const d = new Date(iso)
+/** 日期分隔线文案：今天只显示时间，昨天/更早显示日期+时间 */
+const formatDateLabel = (ts: number): string => {
+  if (!ts) return ''
+  const d = new Date(ts)
   if (isNaN(d.getTime())) return ''
   const today = new Date()
   const yesterday = new Date(today)
@@ -591,157 +403,169 @@ const formatDateLabel = (iso?: string | null): string => {
   return `${d.getMonth() + 1}月${d.getDate()}日 ${timeStr}`
 }
 
-const mergeStoredFriends = () => {
-  const stored = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Friend[]
-  if (!Array.isArray(stored) || stored.length === 0) return
-
-  const friendMap = new Map<number, Friend>()
-  for (const friend of friends.value) {
-    friendMap.set(friend.id, friend)
-  }
-  for (const friend of stored) {
-    if (typeof friend.id === 'number' && friend.id > 0 && friend._conversationType) {
-      friendMap.set(friend.id, friend)
-    }
-  }
-  friends.value = Array.from(friendMap.values())
+const getLegacyFriend = (targetId: number) => {
+  const legacy = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as ChatUserProfile[]
+  return legacy.find((friend) => Number(friend.id) === targetId) || null
 }
 
-const defaultSeller: Friend = {
-  id: 0,
-  name: '默认卖家',
-  avatar: '',
-  lastMessage: '',
-  lastTime: '',
-  rating: 5,
-  location: ''
-}
-const seller = ref<Friend>(friends.value[0] ?? defaultSeller)
+const createConversationFromRoute = async () => {
+  const current = currentUserProfile.value
+  if (!current.id) return
 
-const product = ref<Product | null>(null)
-
-const messages = ref<Message[]>([])
-
-const inputMessage = ref('')
-const showQuickReplies = ref(false)
-const showMoreOptions = ref(false)
-
-const quickReplies = [
-  '还在的',
-  '最低价了',
-  '可以面交',
-  '包邮',
-  '支持验机',
-  '可以小刀'
-]
-
-const totalUnreadCount = computed(() =>
-  friends.value.reduce((sum, friend) => sum + Math.max(friend.unread ?? 0, 0), 0)
-)
-
-const unreadCountDisplay = computed(() =>
-  totalUnreadCount.value > 99 ? '99+' : String(totalUnreadCount.value)
-)
-
-const switchFriend = async (friend: Friend) => {
-  seller.value = friend
-  // ★ 先设置对方用户ID，确保 toMessage 能正确判断方向
-  conversationOtherUserId.value = friend._userId ?? 0
-  if (friend.unread) {
-    friend.unread = 0
-    // 调用后端标记已读
-    markConversationRead(friend.id).catch(err =>
-      console.error('标记会话已读失败:', err),
-    )
+  // 1. 商品详情页已创建会话，直接用 conversationId
+  const routeConversationId = Number(route.query.conversationId || 0)
+  if (routeConversationId > 0) {
+    activeConversationId.value = routeConversationId
+    await chatStore.fetchMessages(routeConversationId)
+    return
   }
-  // 从后端加载会话详情（含消息列表），一次请求获取全部数据
+
+  // 2. 商家主页/其他页面传来 friendId/sellerId，创建新会话
+  const routeFriendId = Number(route.query.friendId || route.query.sellerId || 0)
+  if (!routeFriendId || routeFriendId === current.id) return
+
+  const legacy = getLegacyFriend(routeFriendId)
+  const profile = await resolveUserDisplayProfile(routeFriendId, {
+    sellerName: route.query.sellerName,
+    name: route.query.sellerName || route.query.name,
+    sellerAvatar: route.query.sellerAvatar,
+    avatar: route.query.sellerAvatar || legacy?.avatar,
+    nickname: legacy?.name,
+  })
+  const target: ChatUserProfile = {
+    id: routeFriendId,
+    name: profile.nickname,
+    avatar: profile.avatarUrl || String(route.query.sellerAvatar || legacy?.avatar || ''),
+    location: String(legacy?.location || ''),
+    rating: Number(legacy?.rating || 5),
+  }
+  const conversation = await chatStore.ensureConversation(current, target, activeProductCard.value || undefined)
+  if (conversation) {
+    activeConversationId.value = conversation.id
+    await chatStore.fetchMessages(conversation.id)
+  }
+}
+
+const initProductFromQuery = async () => {
+  const productId = Number(route.query.productId || 0)
+  if (!productId) return
   try {
-    const detail = await getConversationDetail(friend.id)
-    // ★ API 返回的 userId 是对方ID，覆盖为更权威的值
-    conversationOtherUserId.value = detail.userId
-    messages.value = detail.messages.map(toMessage)
-    console.debug('[switchFriend] 已加载会话', detail.id,
-      '| otherUserId=', conversationOtherUserId.value,
-      '| 消息数=', messages.value.length,
-      '| sent数=', messages.value.filter(m => m.type === 'sent').length,
-      '| received数=', messages.value.filter(m => m.type === 'received').length)
-    // 同步更新好友信息（昵称、头像等可能变更）
-    friend.name = detail.userNickname || friend.name
-    friend._userId = detail.userId
-    if (detail.productId) {
-      friend._productId = detail.productId
-      loadProductForConversation(detail.productId)
+    const detail = await getProductDetail(productId)
+    const image = detail.image
+      ? getImageUrl(detail.image)
+      : Array.isArray(detail.images) && detail.images[0]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? getImageUrl(((detail.images[0] as any).url || (detail.images[0] as any).imageUrl || ''))
+        : PLACEHOLDER_IMG
+    pendingProduct.value = {
+      id: detail.id,
+      title: detail.title || `商品${detail.id}`,
+      price: Number(detail.sellingPrice ?? detail.price ?? 0),
+      originalPrice: detail.originalPrice ? Number(detail.originalPrice) : undefined,
+      image,
     }
-  } catch (err) {
-    console.error('加载会话详情失败，回退到消息列表接口:', err)
-    // 回退：用独立消息列表接口兜底（otherUserId 已在上面设置）
-    try {
-      const msgList = await getMessageList({ conversationId: friend.id })
-      messages.value = msgList.map(toMessage)
-    } catch (err2) {
-      console.error('加载消息列表也失败:', err2)
-      messages.value = []
-    }
-    // 回退时也加载商品信息
-    if (friend._productId) {
-      loadProductForConversation(friend._productId)
-    }
+  } catch (error) {
+    console.error('加载咨询商品失败', error)
   }
-  scrollToBottom()
 }
 
-const goBack = () => {
-  router.back()
+/** 根据当前会话的 productId 加载商品详情到顶部卡片 */
+const fetchActiveProduct = async () => {
+  const thread = activeThread.value
+  const pid = thread?.productId
+  if (!pid) {
+    pendingProduct.value = null
+    return
+  }
+  // 已经是同一个商品就不重复请求
+  if (pendingProduct.value?.id === pid) return
+  try {
+    const detail = await getProductDetail(pid)
+    const image = detail.image
+      ? getImageUrl(detail.image)
+      : Array.isArray(detail.images) && detail.images[0]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? getImageUrl(((detail.images[0] as any).url || (detail.images[0] as any).imageUrl || ''))
+        : PLACEHOLDER_IMG
+    pendingProduct.value = {
+      id: detail.id,
+      title: detail.title || `商品${detail.id}`,
+      price: Number(detail.sellingPrice ?? detail.price ?? 0),
+      originalPrice: detail.originalPrice ? Number(detail.originalPrice) : undefined,
+      image,
+    }
+  } catch (error) {
+    console.error('加载会话商品失败', error)
+  }
 }
 
-const sendMessage = async () => {
+const syncActiveConversation = () => {
+  if (!threads.value.length) {
+    activeConversationId.value = 0
+    return
+  }
+  const stillExists = threads.value.some((thread) => thread.conversationId === activeConversationId.value)
+  if (!stillExists) {
+    activeConversationId.value = threads.value[0]?.conversationId || 0
+  }
+}
+
+const scrollToBottom = async () => {
+  await nextTick()
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
+
+const switchThread = async (conversationId: number) => {
+  activeConversationId.value = conversationId
+  sidebarOpen.value = false
+  // 确保消息缓存已加载
+  await chatStore.fetchMessages(conversationId)
+  // 加载顶部商品卡片
+  await fetchActiveProduct()
+  if (currentUserProfile.value.id) {
+    chatStore.markConversationRead(conversationId, currentUserProfile.value.id)
+  }
+}
+
+const sendMessagePayload = async (payload: { contentType: 'text' | 'image' | 'product'; content: string; product?: ChatProductCard }) => {
+  if (!activeConversationId.value || !currentUserProfile.value.id) {
+    ElMessage.info('请先选择会话')
+    return
+  }
+  try {
+    await chatStore.sendMessage({
+      conversationId: activeConversationId.value,
+      senderId: currentUserProfile.value.id,
+      contentType: payload.contentType,
+      content: payload.content,
+      product: payload.product,
+    })
+    chatStore.markConversationRead(activeConversationId.value, currentUserProfile.value.id)
+    scrollToBottom()
+  } catch (e) {
+    ElMessage.error('发送消息失败，请重试')
+    console.error('发送消息失败:', e)
+  }
+}
+
+const sendTextMessage = () => {
   const text = inputMessage.value.trim()
-  if (!text || !seller.value?.id) return
-
-  // 插入一条"sending"占位
-  const placeholderId = Date.now()
-  messages.value.push({
-    id: placeholderId,
-    type: 'sent',
+  if (!text) return
+  sendMessagePayload({
     contentType: 'text',
     content: text,
-    timestamp: new Date().toISOString(),
-    status: 'sending',
   })
   inputMessage.value = ''
-  if (textareaRef.value) textareaRef.value.style.height = 'auto'
-  scrollToBottom()
-
-  try {
-    const result = await sendMessageApi({
-      conversationId: seller.value.id,
-      messageType: 'text',
-      content: text,
-    })
-    // 替换占位消息
-    const idx = messages.value.findIndex(m => m.id === placeholderId)
-    if (idx !== -1) {
-      const msg = toMessage(result)
-      msg.type = 'sent' // 确保自己发的消息在右侧
-      messages.value[idx] = msg
-    }
-    // 更新好友列表最后消息
-    const friend = friends.value.find(f => f.id === seller.value.id)
-    if (friend) {
-      friend.lastMessage = text
-      friend.lastTime = formatLastTime(result.sentAt)
-    }
-  } catch (err) {
-    console.error('发送消息失败:', err)
-    const idx = messages.value.findIndex(m => m.id === placeholderId)
-    if (idx !== -1) messages.value[idx]!.status = 'failed'
-    alert(err instanceof Error ? err.message : '发送消息失败')
+  if (textareaRef.value) {
+    textareaRef.value.style.height = 'auto'
   }
 }
 
 const sendQuickReply = (reply: string) => {
   inputMessage.value = reply
-  sendMessage()
+  sendTextMessage()
   showQuickReplies.value = false
 }
 
@@ -755,386 +579,214 @@ const openImagePicker = () => {
 
 const handleImageSelect = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file || !seller.value?.id) return
-
-  // 先展示一个"上传中"的占位消息
-  const placeholderId = Date.now()
-  messages.value.push({
-    id: placeholderId,
-    type: 'sent',
-    contentType: 'image',
-    content: '',
-    timestamp: new Date().toISOString(),
-    status: 'sending',
-  })
-  scrollToBottom()
-
+  if (!file) return
   try {
-    const uploadResult = await uploadChatImage(file)
-    // 上传成功后，发送图片消息
-    const result = await sendMessageApi({
-      conversationId: seller.value.id,
-      messageType: 'image',
-      content: uploadResult.url,
-      extJson: JSON.stringify(uploadResult.extJson),
+    imageUploading.value = true
+    ElMessage.info('图片上传中...')
+    const result = await uploadChatImage(file)
+    // 上传成功后发送图片消息（content 为服务端返回的 URL）
+    await sendMessagePayload({
+      contentType: 'image',
+      content: result.url,
     })
-    // 替换占位
-    const idx = messages.value.findIndex(m => m.id === placeholderId)
-    if (idx !== -1) {
-      const msg = toMessage(result)
-      msg.type = 'sent' // 确保自己发的消息在右侧
-      messages.value[idx] = msg
+    ElMessage.success('图片发送成功')
+  } catch (e) {
+    ElMessage.error('图片上传失败，请重试')
+    console.error('图片上传失败:', e)
+  } finally {
+    imageUploading.value = false
+    // 清空 input 以便重复选择同一文件
+    if (imageInput.value) {
+      imageInput.value.value = ''
     }
-  } catch (err) {
-    console.error('发送图片失败:', err)
-    const idx = messages.value.findIndex(m => m.id === placeholderId)
-    if (idx !== -1) messages.value[idx]!.status = 'failed'
-    alert('图片发送失败，请重试')
   }
 }
 
-const sendProductCard = async () => {
-  if (!product.value || !seller.value?.id) return
-
-  const placeholderId = Date.now()
-  messages.value.push({
-    id: placeholderId,
-    type: 'sent',
+const sendProductCard = () => {
+  const card = activeProductCard.value
+  if (!card) {
+    ElMessage.info('当前没有可发送的商品卡片')
+    return
+  }
+  sendMessagePayload({
     contentType: 'product',
     content: '',
-    productTitle: product.value.title,
-    productPrice: product.value.price,
-    productImage: product.value.image,
-    productId: product.value.id,
-    timestamp: new Date().toISOString(),
-    status: 'sending',
+    product: card,
   })
-  scrollToBottom()
-
-  try {
-    const result = await sendMessageApi({
-      conversationId: seller.value.id,
-      messageType: 'product_card',
-      productId: product.value.id,
-      // ★ 把商品图片/标题/价格写入 extJson，确保后端存下的数据完整
-      extJson: JSON.stringify({
-        image: product.value.image,
-        title: product.value.title,
-        price: product.value.price,
-        productId: product.value.id,
-      }),
-    })
-    const idx = messages.value.findIndex(m => m.id === placeholderId)
-    if (idx !== -1) {
-      const msg = toMessage(result)
-      msg.type = 'sent' // 确保自己发的消息在右侧
-      // ★ 以占位消息为权威源，保证和上方商品链接完全同步
-      const pimg = messages.value[idx]!.productImage
-      const ptitle = messages.value[idx]!.productTitle
-      const pprice = messages.value[idx]!.productPrice
-      msg.productImage = pimg || msg.productImage
-      msg.productTitle = ptitle || msg.productTitle
-      msg.productPrice = pprice ?? msg.productPrice
-      messages.value[idx] = msg
-    }
-  } catch (err) {
-    console.error('发送商品卡片失败:', err)
-    const idx = messages.value.findIndex(m => m.id === placeholderId)
-    if (idx !== -1) messages.value[idx]!.status = 'failed'
-    alert('发送商品卡片失败，请重试')
-  }
 }
 
 const autoResize = () => {
   if (textareaRef.value) {
     textareaRef.value.style.height = 'auto'
-    textareaRef.value.style.height = textareaRef.value.scrollHeight + 'px'
+    textareaRef.value.style.height = `${textareaRef.value.scrollHeight}px`
   }
 }
 
-const scrollToBottom = async () => {
-  await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+const goBack = () => {
+  router.back()
 }
 
 const viewSellerProfile = () => {
-  const userId = seller.value?._userId
-  if (!userId) return
+  if (!activePartner.value.id) return
   // 保存当前会话上下文，返回时恢复
-  if (seller.value.id) {
+  if (activeConversationId.value) {
     sessionStorage.setItem('chat_return_conv', JSON.stringify({
-      id: seller.value.id,
-      name: seller.value.name,
-      avatar: seller.value.avatar,
-      _userId: seller.value._userId,
-      _productId: seller.value._productId,
-      _conversationType: seller.value._conversationType,
+      conversationId: activeConversationId.value,
     }))
   }
   router.push({
-    path: `/user/home/${userId}`,
+    path: `/user/home/${activePartner.value.id}`,
     query: {
-      name: seller.value!.name || '',
-      avatar: seller.value!.avatar || '',
-      location: seller.value!.location || '未知',
+      name: activePartner.value.name,
+      avatar: activePartner.value.avatar,
+      location: activePartner.value.location || '未知',
     },
   })
 }
 
-/** 根据商品ID加载并设置当前会话的商品信息 */
-const loadProductForConversation = (productId: number) => {
-  productLoading.value = true
-  getProductDetail(productId)
-    .then(data => {
-      let imageUrl = ''
-      if (data.image) {
-        imageUrl = getImageUrl(data.image)
-      } else if (Array.isArray(data.images) && data.images.length > 0) {
-        const firstImg = data.images[0]
-        if (firstImg) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          imageUrl = getImageUrl((firstImg as any).url || (firstImg as any).imageUrl || '')
-        }
-      }
-      product.value = {
-        id: data.id,
-        title: data.title || '',
-        price: Number(data.sellingPrice ?? data.price ?? 0),
-        image: imageUrl || PLACEHOLDER_IMG,
-      }
-      // ★ 无条件同步：上方商品链接更新后，消息列表中同 productId 的卡片全部同步
-      for (const m of messages.value) {
-        if (m.contentType === 'product' && m.productId === productId) {
-          m.productImage = imageUrl || PLACEHOLDER_IMG
-          m.productTitle = data.title || m.productTitle || ''
-          m.productPrice = product.value.price ?? m.productPrice
-        }
-      }
-    })
-    .catch(err => {
-      console.error('加载会话商品失败:', err)
-      // API 失败时保留现有值（模拟数据兜底）
-    })
-    .finally(() => {
-      productLoading.value = false
-    })
-}
-
-const viewProductDetail = (pId?: number) => {
-  const targetId = pId ?? product.value?.id
-  if (targetId) {
-    // 保存当前会话上下文，返回时恢复
-    if (seller.value.id) {
-      sessionStorage.setItem('chat_return_conv', JSON.stringify({
-        id: seller.value.id,
-        name: seller.value.name,
-        avatar: seller.value.avatar,
-        _userId: seller.value._userId,
-        _productId: seller.value._productId,
-        _conversationType: seller.value._conversationType,
-      }))
-    }
-    router.push({ name: 'goods-detail', params: { id: targetId } })
+const viewProductDetail = () => {
+  if (!activeProductCard.value?.id) return
+  // 保存当前会话上下文，返回时恢复
+  if (activeConversationId.value) {
+    sessionStorage.setItem('chat_return_conv', JSON.stringify({
+      conversationId: activeConversationId.value,
+    }))
   }
+  router.push({ name: 'goods-detail', params: { id: activeProductCard.value.id } })
 }
 
 const clearChat = () => {
-  if (confirm('确定要清空聊天记录吗？')) {
-    messages.value = []
-    showMoreOptions.value = false
-  }
+  if (!activeConversationId.value) return
+  if (!window.confirm('确定要清空聊天记录吗？')) return
+  chatStore.clearConversation(activeConversationId.value)
+  showMoreOptions.value = false
 }
 
 const reportUser = () => {
-  alert('举报功能开发中...')
+  ElMessage.success('举报已提交，我们会尽快处理')
   showMoreOptions.value = false
 }
 
 const blockUser = () => {
-  if (confirm('确定要拉黑该用户吗？')) {
-    alert('已拉黑该用户')
-    showMoreOptions.value = false
-  }
+  ElMessage.info('拉黑功能开发中')
+  showMoreOptions.value = false
 }
 
-// ===== 右键撤回菜单 =====
-const onMessageContextMenu = (e: MouseEvent, msg: Message) => {
-  // 只对自己发送的、未撤回、非发送中的消息显示撤回菜单
-  if (msg.type !== 'sent' || msg.recalled || msg.status === 'sending') return
-  showRecallMenu(e, msg)
+/** 右键菜单：显示 */
+const handleContextMenu = (event: MouseEvent, msg: { id: number; type: string; senderId: number; createdAt: number }) => {
+  // 只能撤回自己 5 分钟内发送的消息
+  const fiveMin = 5 * 60 * 1000
+  const isOwn = msg.senderId === currentUserProfile.value.id
+  const isWithin5Min = Date.now() - msg.createdAt < fiveMin
+  if (!isOwn || !isWithin5Min) return
+
+  contextMenuPos.value = { x: event.clientX, y: event.clientY }
+  contextMenuMessage.value = msg
+  contextMenuVisible.value = true
 }
 
-const showRecallMenu = (e: MouseEvent, msg: Message) => {
-  recallMenu.value = {
-    visible: true,
-    x: e.clientX,
-    y: e.clientY,
-    messageId: msg.id,
-  }
+/** 右键菜单：隐藏 */
+const hideContextMenu = () => {
+  contextMenuVisible.value = false
+  contextMenuMessage.value = null
 }
 
-const hideRecallMenu = () => {
-  recallMenu.value.visible = false
-}
-
+/** 撤回消息 */
 const handleRecall = async () => {
-  const msgId = recallMenu.value.messageId
-  hideRecallMenu()
+  if (!contextMenuMessage.value || !activeConversationId.value) return
   try {
-    await recallMessage(msgId)
-    // 更新本地消息状态
-    const msg = messages.value.find(m => m.id === msgId)
-    if (msg) {
-      msg.recalled = true
-      msg.content = '消息已被撤回'
-      msg.contentType = 'text'
+    await chatStore.recallMessage(contextMenuMessage.value.id, activeConversationId.value, currentUserProfile.value.id)
+    ElMessage.success('消息已撤回')
+  } catch (e) {
+    ElMessage.error('撤回失败，可能已超过5分钟')
+    console.error('撤回失败:', e)
+  }
+  hideContextMenu()
+}
+
+// 点击页面任意位置关闭右键菜单
+window.addEventListener('click', hideContextMenu)
+
+watch(
+  () => activeConversationId.value,
+  (conversationId) => {
+    if (!conversationId || !currentUserProfile.value.id) return
+    chatStore.markConversationRead(conversationId, currentUserProfile.value.id)
+    fetchActiveProduct()
+    scrollToBottom()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => displayMessages.value.length,
+  () => {
+    scrollToBottom()
+  }
+)
+
+const refreshFallbackPartnerNames = async () => {
+  const userId = currentUserProfile.value.id
+  if (!userId) return
+
+  const partnerIds = new Set<number>()
+  for (const conv of chatStore.conversations) {
+    const partnerId = conv.userId
+    const partnerName = conv.userNickname
+    if (partnerId && isFallbackUserLabel(partnerName, partnerId)) {
+      partnerIds.add(partnerId)
     }
-  } catch (err) {
-    console.error('撤回失败:', err)
-    // 后端返回的具体错误（如"超过5分钟"），尝试解析
-    let errText = '撤回失败，请重试'
-    if (err instanceof Error) {
-      try {
-        const parsed = JSON.parse(err.message)
-        errText = parsed.message || errText
-      } catch { errText = err.message || errText }
+  }
+
+  for (const partnerId of partnerIds) {
+    try {
+      const profile = await resolveUserDisplayProfile(partnerId)
+      chatStore.updateParticipantProfile(partnerId, {
+        name: profile.nickname,
+        avatar: profile.avatarUrl || '',
+      })
+    } catch (error) {
+      console.error('刷新会话昵称失败:', error)
     }
-    alert(errText)
   }
 }
 
 onMounted(async () => {
-  await fetchConversations()
-  // 初始化商品信息（从商品详情页跳转过来时）
-  initProduct()
-  // 如果没有通过 productId 跳转过来，直接给默认商品卡片，避免异步等待期间空白
-  if (!route.query.productId && !product.value) {
-    product.value = {
-      id: 1,
-      title: '九成新iPhone 13 Pro 256G',
-      price: 4599,
-      image: 'https://via.placeholder.com/300x300?text=iPhone+13+Pro',
-    }
+  // 先检查登录状态，未登录就重定向，避免 initialize() 在未登录时拉取空数据
+  if (!currentUserProfile.value.id) {
+    ElMessage.info('请先登录再使用消息功能')
+    router.push('/user/login')
+    return
   }
-  const selectedFriendId = Number(route.query.friendId)
-  if (Number.isFinite(selectedFriendId) && selectedFriendId > 0) {
-    const target = friends.value.find(friend => friend.id === selectedFriendId)
-    // 只接受来自 API 的有效会话（有 _conversationType 标记），忽略旧版错误缓存
-    if (target && target._conversationType) {
-      seller.value = target
-      if (target.unread) {
-        target.unread = 0
-        markConversationRead(target.id).catch(err =>
-          console.error('标记会话已读失败:', err),
-        )
-      }
-      // 加载该会话关联的商品（兜底：localStorage 中可能缓存了 _productId）
-      if (target._productId) {
-        loadProductForConversation(target._productId)
-      }
-    }
-  }
-  // 兜底：如果是从其他页面跳转过来但 createConversation 失败了，
-  // 此时只有 route.sellerId（userId）没有 conversationId，需要在此补建会话
-  const routeSellerId = Number(route.query.sellerId)
-  const routeProductId = Number(route.query.productId)
-  if (!route.query.conversationId && Number.isFinite(routeSellerId) && routeSellerId > 0) {
-    const hasProductId = Number.isFinite(routeProductId) && routeProductId > 0
-    const existing = friends.value.find(f => {
-      if (f._userId !== routeSellerId) return false
-      return hasProductId ? f._productId === routeProductId : true
-    })
-    if (existing) {
-      seller.value = existing
-      if (existing.unread) {
-        existing.unread = 0
-        markConversationRead(existing.id).catch(err => console.error('标记已读失败:', err))
-      }
-      if (existing._productId) {
-        loadProductForConversation(existing._productId)
-      }
-    } else {
-      try {
-        const conv = await createConversation({
-          conversationType: 'product_consult',
-          ...(hasProductId ? { productId: routeProductId } : {}),
-          userId: routeSellerId,
-        })
-        seller.value = {
-          id: conv.id,
-          name: conv.userNickname || seller.value.name,
-          avatar: seller.value.avatar,
-          lastMessage: '',
-          lastTime: '',
-          unread: 0,
-          rating: 5,
-          location: '',
-          _conversationType: conv.conversationType,
-          _productId: conv.productId ?? undefined,
-          _orderId: conv.orderId ?? undefined,
-          _userId: conv.userId,
-        }
-        friends.value.unshift(seller.value)
-      } catch (convErr) {
-        console.error('自动创建会话失败:', convErr)
-        alert('创建会话失败，请稍后重试')
-        seller.value.id = 0
-      }
-    }
-  }
-  // 如果以上都没有找到会话，尝试从 sessionStorage 恢复（从商品详情页返回时）
-  if (!seller.value.id) {
+  // 登录后再初始化会话列表
+  await chatStore.initialize()
+  await refreshFallbackPartnerNames()
+  await initProductFromQuery()
+  await createConversationFromRoute()
+  // 如果没有加载到会话，尝试从 sessionStorage 恢复
+  if (!activeConversationId.value) {
     try {
       const savedConv = sessionStorage.getItem('chat_return_conv')
       if (savedConv) {
-        const ctx = JSON.parse(savedConv) as Friend
-        const existing = friends.value.find(f => f.id === ctx.id)
-        if (existing) {
-          seller.value = existing
-        } else {
-          // 会话还在列表中找不到，直接用保存的上下文
-          seller.value = ctx
-          friends.value.unshift(ctx)
-        }
-        if (ctx._productId) {
-          loadProductForConversation(ctx._productId)
+        const ctx = JSON.parse(savedConv)
+        if (ctx.conversationId) {
+          activeConversationId.value = Number(ctx.conversationId)
+          // 恢复后拉取消息缓存
+          await chatStore.fetchMessages(Number(ctx.conversationId))
         }
       }
     } catch { /* ignore */ }
   }
-  // 如果有选中的会话，通过详情接口加载消息列表
-  if (seller.value.id) {
-    // ★ 先设置对方用户ID，确保 toMessage 能正确判断消息方向
-    conversationOtherUserId.value = seller.value._userId ?? 0
-    try {
-      const detail = await getConversationDetail(seller.value.id)
-      // ★ API 返回的 userId 是对方ID，覆盖为权威值
-      conversationOtherUserId.value = detail.userId
-      seller.value._userId = detail.userId
-      messages.value = detail.messages.map(toMessage)
-      console.debug('[onMounted] 已加载会话', detail.id,
-        '| otherUserId=', conversationOtherUserId.value,
-        '| 消息数=', messages.value.length,
-        '| sent数=', messages.value.filter(m => m.type === 'sent').length,
-        '| received数=', messages.value.filter(m => m.type === 'received').length)
-      // 同步商品信息
-      if (detail.productId) {
-        seller.value._productId = detail.productId
-        loadProductForConversation(detail.productId)
-      }
-    } catch (err) {
-      console.error('加载会话详情失败，回退到消息列表接口:', err)
-      try {
-        const msgList = await getMessageList({ conversationId: seller.value.id })
-        messages.value = msgList.map(toMessage)
-      } catch (err2) {
-        console.error('加载消息列表也失败:', err2)
-      }
-    }
+  syncActiveConversation()
+  if (activeConversationId.value) {
+    chatStore.markConversationRead(activeConversationId.value, currentUserProfile.value.id)
   }
+  sidebarOpen.value = false
   scrollToBottom()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('click', hideContextMenu)
 })
 </script>
 
@@ -1143,19 +795,17 @@ onMounted(async () => {
   height: 100vh;
   max-height: 100vh;
   overflow: hidden;
-  background: #f5f5f5;
+  background: linear-gradient(180deg, #f5f7fb 0%, #f9fafc 100%);
   display: flex;
-  animation: pageEnter 260ms ease both;
 }
 
-/* 好友列表 */
 .friend-sidebar {
-  width: 260px;
-  background: #fff;
+  width: 280px;
+  background: rgba(255, 255, 255, 0.95);
   border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
-  box-shadow: 6px 0 20px rgba(17, 24, 39, 0.06);
+  backdrop-filter: blur(8px);
 }
 
 .friend-header {
@@ -1163,26 +813,33 @@ onMounted(async () => {
   border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
-  align-items: center;
 }
 
 .friend-header h3 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
 }
 
-.friend-count {
+.friend-count,
+.unread-badge {
   background: #f97316;
   color: #fff;
+  border-radius: 999px;
   font-size: 12px;
   padding: 2px 8px;
-  border-radius: 10px;
 }
 
 .friend-list {
   flex: 1;
   overflow-y: auto;
+}
+
+.friend-empty {
+  margin: 24px 16px;
+  padding: 16px;
+  border-radius: 12px;
+  color: #6b7280;
+  background: #f9fafb;
+  font-size: 13px;
 }
 
 .friend-item {
@@ -1191,14 +848,12 @@ onMounted(async () => {
   gap: 10px;
   padding: 12px 16px;
   cursor: pointer;
-  transition: background 180ms, transform 180ms;
   border-bottom: 1px solid #f3f4f6;
-  animation: listItemEnter 320ms ease both;
+  transition: background 180ms ease, transform 180ms ease;
 }
 
 .friend-item:hover {
   background: #f9fafb;
-  transform: translateX(2px);
 }
 
 .friend-item.active {
@@ -1206,7 +861,8 @@ onMounted(async () => {
   border-left: 3px solid #f97316;
 }
 
-.friend-avatar {
+.friend-avatar,
+.seller-avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -1215,104 +871,7 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.friend-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.friend-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.friend-name {
-  font-size: 14px;
-  font-weight: 500;
-  margin: 0 0 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.last-message {
-  font-size: 12px;
-  color: #6b7280;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.friend-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.last-time {
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.unread-badge {
-  background: #f97316;
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 10px;
-}
-
-/* 主聊天区域 */
-.chat-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-/* 原有样式保持不变 */
-.chat-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
-  backdrop-filter: blur(6px);
-}
-
-.header-inner {
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.back-btn {
-  padding: 8px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #374151;
-  font-size: 18px;
-}
-
-.seller-info {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.seller-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #e5e7eb;
-}
-
+.friend-avatar img,
 .seller-avatar img {
   width: 100%;
   height: 100%;
@@ -1322,43 +881,100 @@ onMounted(async () => {
 .avatar-placeholder {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   background: #f97316;
   color: #fff;
-  font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .avatar-placeholder.small {
   font-size: 12px;
 }
 
-.seller-details {
+.friend-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.friend-name {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.last-message {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.friend-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.last-time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid #e5e7eb;
+  backdrop-filter: blur(6px);
+}
+
+.header-inner {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.seller-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
   min-width: 0;
 }
 
 .seller-name {
+  margin: 0;
   font-size: 15px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .seller-status {
+  margin: 2px 0 0;
   font-size: 12px;
   color: #6b7280;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .online-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
   background: #10b981;
 }
 
@@ -1367,73 +983,73 @@ onMounted(async () => {
   gap: 8px;
 }
 
-.action-btn {
+.action-btn,
+.back-btn,
+.toolbar-btn {
   width: 36px;
   height: 36px;
   border: none;
-  background: #f3f4f6;
   border-radius: 50%;
+  background: #f3f4f6;
   color: #6b7280;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 150ms;
-  position: relative;
+  display: grid;
+  place-items: center;
+  transition: all 140ms ease;
 }
 
-.action-btn:hover {
+.back-btn:hover,
+.action-btn:hover,
+.toolbar-btn:hover {
   background: #e5e7eb;
   transform: translateY(-1px);
+}
+
+.tip-btn {
+  position: relative;
 }
 
 .tip-btn::after {
   content: attr(data-tip);
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   left: 50%;
-  transform: translateX(-50%) translateY(-2px);
-  background: rgba(17, 24, 39, 0.88);
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.86);
   color: #fff;
   font-size: 12px;
-  line-height: 1;
-  white-space: nowrap;
-  border-radius: 999px;
-  padding: 6px 10px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition: opacity 120ms ease;
+  white-space: nowrap;
 }
 
 .tip-btn:hover::after {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
 }
 
 .product-card {
-  background: #fff;
   padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
-  transition: background 150ms, box-shadow 180ms, transform 180ms;
-  position: relative;
+  background: #fff;
+  transition: box-shadow 180ms ease;
 }
 
 .product-card:hover {
-  background: #f9fafb;
-  transform: translateY(-1px);
   box-shadow: 0 8px 18px rgba(249, 115, 22, 0.12);
 }
 
 .product-image {
   width: 50px;
   height: 50px;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
-  flex-shrink: 0;
 }
 
 .product-image img {
@@ -1448,114 +1064,94 @@ onMounted(async () => {
 }
 
 .product-title {
+  margin: 0 0 3px;
   font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-  margin: 0 0 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.product-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
 .product-price {
-  font-size: 14px;
-  font-weight: 600;
-  color: #f97316;
   margin: 0;
+  color: #f97316;
+  font-weight: 700;
+}
+
+.product-original-price {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+  text-decoration: line-through;
 }
 
 .btn-view-product {
-  background: none;
   border: none;
+  background: transparent;
   color: #9ca3af;
-  cursor: pointer;
-  padding: 4px;
-  position: relative;
-}
-
-.btn-view-product::after {
-  content: attr(title);
-  position: absolute;
-  right: calc(100% + 8px);
-  top: 50%;
-  transform: translateY(-50%) translateX(4px);
-  background: rgba(17, 24, 39, 0.88);
-  color: #fff;
-  font-size: 12px;
-  line-height: 1;
-  padding: 6px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 160ms ease, transform 160ms ease;
-}
-
-.btn-view-product:hover::after {
-  opacity: 1;
-  transform: translateY(-50%) translateX(0);
 }
 
 .chat-messages {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px;
-  scroll-behavior: smooth;
+  padding: 14px 16px;
 }
 
 .message-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-.system-message {
-  display: flex;
-  justify-content: center;
-  margin: 8px 0;
-}
-
-.system-text {
-  background: #e5e7eb;
-  color: #6b7280;
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 12px;
-}
-
-/* 消息撤回居中提示 */
-.recall-notice {
-  display: flex;
-  justify-content: center;
-  margin: 12px 0;
-}
-
-.recall-notice-text {
-  color: #9ca3af;
-  font-size: 12px;
-  padding: 4px 0;
+  gap: 14px;
 }
 
 .time-divider {
   display: flex;
   justify-content: center;
-  margin: 12px 0;
+  margin: 4px 0;
 }
 
 .time-text {
   background: #f3f4f6;
-  color: #9ca3af;
+  color: #6b7280;
   font-size: 12px;
   padding: 4px 12px;
-  border-radius: 10px;
+  border-radius: 999px;
+}
+
+.system-message {
+  display: flex;
+  justify-content: center;
+}
+
+.system-text {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 5px 10px;
+  border-radius: 12px;
+  background: #eef2ff;
+}
+
+.messages-empty {
+  margin: 20px auto;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.msg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .message-item {
   display: flex;
   gap: 8px;
-  max-width: 80%;
-  animation: bubbleIn 220ms ease both;
+  max-width: 86%;
 }
 
 .message-item.sent {
@@ -1563,8 +1159,13 @@ onMounted(async () => {
   flex-direction: row-reverse;
 }
 
-.message-item.received {
-  margin-right: auto;
+.message-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.message-item.sent .message-main {
+  align-items: flex-end;
 }
 
 .message-avatar {
@@ -1572,7 +1173,6 @@ onMounted(async () => {
   height: 32px;
   border-radius: 50%;
   overflow: hidden;
-  flex-shrink: 0;
   background: #e5e7eb;
 }
 
@@ -1584,40 +1184,26 @@ onMounted(async () => {
 
 .message-bubble {
   background: #fff;
-  border-radius: 12px;
-  padding: 10px 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: transform 150ms, box-shadow 150ms;
-}
-
-.message-bubble:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.1);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 2px 10px rgba(30, 41, 59, 0.08);
+  max-width: min(480px, 75vw);
 }
 
 .message-item.sent .message-bubble {
-  background: #f97316;
+  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
   color: #fff;
 }
 
 .text-content {
-  font-size: 14px;
   line-height: 1.5;
   word-break: break-word;
 }
 
-.message-time {
-  display: block;
-  font-size: 11px;
-  margin-top: 4px;
-  opacity: 0.65;
-  text-align: right;
-}
-
 .image-content img {
-  max-width: 200px;
-  max-height: 200px;
-  border-radius: 8px;
+  max-width: min(220px, 55vw);
+  max-height: 220px;
+  border-radius: 10px;
   display: block;
 }
 
@@ -1628,50 +1214,59 @@ onMounted(async () => {
 .product-mini {
   display: flex;
   gap: 8px;
-  background: #f9fafb;
+  border-radius: 10px;
   padding: 8px;
-  border-radius: 8px;
-  min-width: 200px;
+  background: #f9fafb;
+  min-width: 220px;
 }
 
 .message-item.sent .product-mini {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .product-mini img {
-  width: 50px;
-  height: 50px;
-  border-radius: 6px;
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
   object-fit: cover;
 }
 
-.product-mini-info {
-  flex: 1;
-  min-width: 0;
-}
-
 .product-mini-title {
-  font-size: 13px;
-  font-weight: 500;
   margin: 0 0 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 13px;
 }
 
-.message-item.sent .product-mini-title {
-  color: #fff;
+.product-mini-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
 }
 
 .product-mini-price {
-  font-size: 14px;
-  font-weight: 600;
-  color: #f97316;
   margin: 0;
+  font-weight: 700;
+  color: #f97316;
+}
+
+.product-mini-original-price {
+  margin: 0;
+  font-size: 11px;
+  color: #9ca3af;
+  text-decoration: line-through;
 }
 
 .message-item.sent .product-mini-price {
   color: #fff;
+}
+
+.message-item.sent .product-mini-original-price {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.message-time {
+  margin: 4px 2px 0;
+  font-size: 11px;
+  color: #9ca3af;
 }
 
 .message-status {
@@ -1680,38 +1275,29 @@ onMounted(async () => {
   padding-bottom: 4px;
 }
 
-.message-status i {
-  font-size: 12px;
-}
-
-.message-status .sending {
+.sending,
+.sent {
   color: #9ca3af;
 }
 
-.message-status .sent {
-  color: #9ca3af;
-}
-
-.message-status .delivered {
+.delivered {
   color: #3b82f6;
 }
 
-.message-status .failed {
+.failed {
   color: #ef4444;
 }
 
 .quick-replies {
-  background: #fff;
   border-top: 1px solid #e5e7eb;
-  padding: 12px 16px;
-  animation: quickRepliesEnter 180ms ease both;
+  background: #fff;
+  padding: 10px 16px;
 }
 
 .quick-reply-list {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 4px;
 }
 
 .quick-reply-list::-webkit-scrollbar {
@@ -1719,71 +1305,47 @@ onMounted(async () => {
 }
 
 .quick-reply-btn {
+  border: none;
+  border-radius: 999px;
   padding: 6px 12px;
   background: #f3f4f6;
-  border: none;
-  border-radius: 16px;
-  font-size: 13px;
   color: #374151;
   white-space: nowrap;
-  cursor: pointer;
-  transition: background 150ms;
+  transition: background 120ms ease;
 }
 
 .quick-reply-btn:hover {
   background: #e5e7eb;
-  transform: translateY(-1px);
 }
 
 .chat-input-area {
-  background: #fff;
   border-top: 1px solid #e5e7eb;
+  background: #fff;
   padding: 12px 16px;
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
 }
 
 .input-toolbar {
   display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.toolbar-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: #f3f4f6;
-  border-radius: 50%;
-  color: #6b7280;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 150ms;
-}
-
-.toolbar-btn:hover {
-  background: #e5e7eb;
-  transform: translateY(-1px);
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .input-wrapper {
   display: flex;
+  gap: 10px;
   align-items: flex-end;
-  gap: 12px;
 }
 
 .message-input {
   flex: 1;
-  border: 1px solid #e5e7eb;
   border-radius: 20px;
-  padding: 10px 16px;
-  font-size: 14px;
+  border: 1px solid #e5e7eb;
+  padding: 10px 14px;
+  max-height: 130px;
   resize: none;
-  outline: none;
-  max-height: 120px;
-  line-height: 1.5;
   background: #f9fafb;
+  outline: none;
 }
 
 .message-input:focus {
@@ -1799,10 +1361,6 @@ onMounted(async () => {
   background: #e5e7eb;
   color: #9ca3af;
   cursor: not-allowed;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 150ms;
 }
 
 .send-btn.active {
@@ -1811,75 +1369,66 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-.send-btn.active:hover {
-  background: #ea580c;
-}
-
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 200;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.36);
   display: flex;
   align-items: flex-end;
+  z-index: 50;
 }
 
 .more-options-modal {
+  width: 100%;
   background: #fff;
   border-radius: 16px 16px 0 0;
-  width: 100%;
-  padding: 16px;
+  padding: 12px;
+  animation: modal-slide-in 180ms ease both;
 }
 
 .option-item {
   width: 100%;
-  padding: 16px;
   border: none;
-  background: none;
+  background: transparent;
+  padding: 14px;
+  border-radius: 10px;
   display: flex;
+  gap: 10px;
   align-items: center;
-  gap: 12px;
-  font-size: 15px;
-  color: #374151;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background 150ms;
 }
 
 .option-item:hover {
   background: #f3f4f6;
 }
 
-.option-item i {
-  width: 24px;
-  text-align: center;
-  color: #6b7280;
-}
-
 .hidden {
   display: none;
 }
 
-/* 响应式 */
+.only-mobile {
+  display: none;
+}
+
 @media (max-width: 900px) {
+  .only-mobile {
+    display: grid;
+  }
+
   .friend-sidebar {
-    display: none;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 220ms ease;
+    width: min(86vw, 320px);
   }
 
-  .chat-main {
-    width: 100%;
-  }
-
-  .chat-header {
-    position: sticky;
-    top: 0;
+  .friend-sidebar.open {
+    transform: translateX(0);
   }
 
   .message-item {
-    max-width: 92%;
+    max-width: 96%;
   }
 }
 
@@ -1889,19 +1438,22 @@ onMounted(async () => {
   }
 
   .chat-messages {
-    padding: 12px;
+    padding: 10px 12px;
   }
 
   .chat-input-area {
     padding: 10px 12px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .product-mini {
+    min-width: 180px;
   }
 }
 
-@keyframes bubbleIn {
+@keyframes modal-slide-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -1909,96 +1461,74 @@ onMounted(async () => {
   }
 }
 
-@keyframes listItemEnter {
-  from {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+.list-fade-enter-active,
+.list-fade-leave-active,
+.message-pop-enter-active,
+.message-pop-leave-active {
+  transition: all 180ms ease;
 }
 
-@keyframes quickRepliesEnter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.list-fade-enter-from,
+.list-fade-leave-to,
+.message-pop-enter-from,
+.message-pop-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
-@keyframes pageEnter {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+/* 撤回提示 — 居中显示 */
+.recall-notice {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
 }
 
-/* 右键撤回菜单 */
-.recall-overlay {
+.recall-text {
+  font-size: 12px;
+  color: #9ca3af;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #f3f4f6;
+}
+
+/* 右键菜单 */
+.context-menu {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 999;
-}
-
-.recall-menu {
-  position: fixed;
+  z-index: 100;
   background: #fff;
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   padding: 4px;
-  min-width: 140px;
-  animation: recallMenuIn 120ms ease both;
-  z-index: 1000;
+  min-width: 120px;
+  animation: modal-slide-in 120ms ease both;
 }
 
-.recall-item {
+.context-menu-item {
   width: 100%;
-  padding: 10px 14px;
   border: none;
-  background: none;
+  background: transparent;
+  padding: 10px 14px;
+  border-radius: 6px;
   display: flex;
+  gap: 8px;
   align-items: center;
-  gap: 10px;
   font-size: 14px;
   color: #374151;
   cursor: pointer;
-  border-radius: 6px;
-  transition: background 120ms;
+  white-space: nowrap;
 }
 
-.recall-item:hover {
-  background: #fef2f2;
-  color: #ef4444;
+.context-menu-item:hover {
+  background: #f3f4f6;
 }
 
-.recall-item i {
-  width: 16px;
-  text-align: center;
-  color: #9ca3af;
-}
-
-.recall-item:hover i {
-  color: #ef4444;
-}
-
-@keyframes recallMenuIn {
-  from {
-    opacity: 0;
-    transform: scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
   }
 }
 </style>

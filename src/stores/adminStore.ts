@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { getForumPostList, getForumCategoryList, getForumPostById, auditForumPost, toggleForumPostTop, toggleForumPostFeature, deleteForumPost, flattenForumCategories } from '@/api/forum'
+import type { ForumCategoryFlat, PostAuditStatus, PostDetail } from '@/api/forum.types'
 
 // 用户管理相关类型
 export interface AdminUser {
@@ -29,7 +31,7 @@ export interface AdminProduct {
   originalPrice: number
   sellingPrice: number
   tradeMode: string
-  images: string[]
+  images: any[]
   sellerId: number
   sellerName: string
   publishStatus: string
@@ -39,85 +41,114 @@ export interface AdminProduct {
 // 纠纷仲裁相关类型
 export interface AdminDispute {
   id: number
+  disputeNo: string
   orderId: number
+  afterSaleId: number
   buyerId: number
-  buyerName: string
   sellerId: number
-  sellerName: string
-  disputeReason: string
-  disputeStatus: string
+  currentStatus: string
+  responsibility?: string
+  resolutionResult?: string
+  resolutionAmount?: number
+  resolvedBy?: number
+  resolvedAt?: string
   createdAt: string
   updatedAt: string
+  actions: {
+    id: number
+    disputeId: number
+    actionBy: number
+    actionType: string
+    actionDesc: string
+    createdAt: string
+  }[]
 }
 
 // 运营数据相关类型
 export interface AdminStats {
   // 用户相关
-  totalUsers: number // 总用户数
-  activeUsers: number // 活跃用户数
-  bannedUsers: number // 封禁用户数
-  newUsersToday: number // 今日新用户
-  
+  totalUsers: number
+  activeUsers: number
+  bannedUsers: number
+  newUsersToday: number
+
   // 商品相关
-  totalProducts: number // 总商品数
-  onSaleProducts: number // 上架商品数
-  pendingReviewProducts: number // 待审核商品数
-  soldProducts: number // 已售出商品数
-  productViews: number // 商品总浏览量
-  
+  totalProducts: number
+  onSaleProducts: number
+  pendingReviewProducts: number
+  soldProducts: number
+  productViews: number
+
   // 订单相关
-  totalOrders: number // 总订单数
-  pendingPaymentOrders: number // 待支付订单数
-  completedOrders: number // 已完成订单数
-  cancelledOrders: number // 已取消订单数
-  totalSales: number // 总销售额
-  averageOrderAmount: number // 平均订单金额
-  
+  totalOrders: number
+  pendingPaymentOrders: number
+  completedOrders: number
+  cancelledOrders: number
+  totalSales: number
+  averageOrderAmount: number
+
   // 交易相关
-  totalTransactions: number // 总成交量
-  transactionAmount: number // 成交金额
-  transactionSuccessRate: number // 交易成功率
-  disputeRate: number // 纠纷率
-  
+  totalTransactions: number
+  transactionAmount: number
+  transactionSuccessRate: number
+  disputeRate: number
+
   // 社区相关
-  totalForumPosts: number // 总帖子数
-  approvedForumPosts: number // 已审核帖子数
-  pendingForumPosts: number // 待审核帖子数
-  forumPostViews: number // 帖子总浏览量
-  totalComments: number // 总评论数
-  totalLikes: number // 总点赞数
-  
+  totalForumPosts: number
+  approvedForumPosts: number
+  pendingForumPosts: number
+  forumPostViews: number
+  totalComments: number
+  totalLikes: number
+
   // 售后相关
-  totalAfterSales: number // 售后申请数
-  pendingAfterSales: number // 待处理售后数
-  
+  totalAfterSales: number
+  pendingAfterSales: number
+
   // 趋势数据
-  dailySales: number // 今日销售额
-  weeklySales: number[] // 周销售额
-  monthlySales: number[] // 月销售额
-  dailyOrders: number // 今日订单数
-  weeklyOrders: number[] // 周订单数
+  dailySales: number
+  weeklySales: number[]
+  monthlySales: number[]
+  dailyOrders: number
+  weeklyOrders: number[]
 }
 
-// 论坛板块相关类型
-export interface AdminForumSection {
+// 论坛板块（展平后，供管理端筛选下拉使用）
+export type AdminForumSection = ForumCategoryFlat
+
+// 管理员操作日志相关类型
+export interface AdminLog {
   id: number
-  name: string
-  description: string
-  sortOrder: number
-  isEnabled: boolean
+  adminId: number
+  adminName?: string
+  targetType: 'user' | 'post' | 'comment' | 'tag' | 'product' | 'dispute' | 'order' | 'other'
+  targetId?: number
+  action: string
+  reason?: string
+  beforeData?: any
+  afterData?: any
+  ipAddress?: string
   createdAt: string
-  updatedAt: string
 }
 
-// 系统通知相关类型
-export interface AdminNotification {
+
+// 论坛帖子相关类型
+export interface AdminForumPost {
   id: number
   title: string
   content: string
-  targetUsers: string
-  publishTime: string
-  status: string
+  authorId: number
+  authorName: string
+  categoryId: number
+  categoryName: string
+  status: string // pending, approved, rejected, hidden
+  isTop: boolean
+  isFeatured: boolean
+  viewCount: number
+  likeCount: number
+  commentCount: number
+  createdAt: string
+  updatedAt: string
 }
 
 export const useAdminStore = defineStore('admin', () => {
@@ -134,6 +165,8 @@ export const useAdminStore = defineStore('admin', () => {
   const productPageSize = ref(10)
   const totalProducts = ref(0)
   const productLoading = ref(false)
+  const selectedProduct = ref<any>(null)
+  const productDetailLoading = ref(false)
 
   // 纠纷仲裁
   const disputes = ref<AdminDispute[]>([])
@@ -141,6 +174,8 @@ export const useAdminStore = defineStore('admin', () => {
   const disputePageSize = ref(10)
   const totalDisputes = ref(0)
   const disputeLoading = ref(false)
+  const selectedDispute = ref<any>(null)
+  const disputeDetailLoading = ref(false)
 
   // 运营数据
   const stats = ref<AdminStats>({
@@ -149,14 +184,14 @@ export const useAdminStore = defineStore('admin', () => {
     activeUsers: 0,
     bannedUsers: 0,
     newUsersToday: 0,
-    
+
     // 商品相关
     totalProducts: 0,
     onSaleProducts: 0,
     pendingReviewProducts: 0,
     soldProducts: 0,
     productViews: 0,
-    
+
     // 订单相关
     totalOrders: 0,
     pendingPaymentOrders: 0,
@@ -164,13 +199,13 @@ export const useAdminStore = defineStore('admin', () => {
     cancelledOrders: 0,
     totalSales: 0,
     averageOrderAmount: 0,
-    
+
     // 交易相关
     totalTransactions: 0,
     transactionAmount: 0,
     transactionSuccessRate: 0,
     disputeRate: 0,
-    
+
     // 社区相关
     totalForumPosts: 0,
     approvedForumPosts: 0,
@@ -178,11 +213,11 @@ export const useAdminStore = defineStore('admin', () => {
     forumPostViews: 0,
     totalComments: 0,
     totalLikes: 0,
-    
+
     // 售后相关
     totalAfterSales: 0,
     pendingAfterSales: 0,
-    
+
     // 趋势数据
     dailySales: 0,
     weeklySales: [0, 0, 0, 0, 0, 0, 0],
@@ -194,12 +229,24 @@ export const useAdminStore = defineStore('admin', () => {
 
   // 论坛管理
   const forumSections = ref<AdminForumSection[]>([])
-  const forumPosts = ref<any[]>([])
+  const forumPosts = ref<AdminForumPost[]>([])
   const forumLoading = ref(false)
+  const currentForumPage = ref(1)
+  const forumPageSize = ref(10)
+  const totalForumPosts = ref(0)
+  const selectedPost = ref<PostDetail | null>(null)
+  const postDetailLoading = ref(false)
 
-  // 系统通知
-  const notifications = ref<AdminNotification[]>([])
-  const notificationLoading = ref(false)
+  // 操作日志管理
+  const adminLogs = ref<AdminLog[]>([])
+  const logsLoading = ref(false)
+  const currentLogPage = ref(1)
+  const logPageSize = ref(10)
+  const totalLogs = ref(0)
+  const selectedLog = ref<any>(null)
+  const logDetailVisible = ref(false)
+  const logDetailLoading = ref(false)
+
 
   // 模拟数据
   const loadMockData = () => {
@@ -232,122 +279,168 @@ export const useAdminStore = defineStore('admin', () => {
         originalPrice: 7999,
         sellingPrice: 5999,
         tradeMode: 'both',
-        images: ['https://picsum.photos/seed/iphone13/640/480'],
+        images: [{ imageUrl: 'product/900001/554de4bf-8bf7-4da3-9dd1-54b957e9930f.gif' }],
         sellerId: 1,
         sellerName: '测试用户1',
-        publishStatus: 'pending',
+        publishStatus: 'pending_review',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 2,
+        title: 'MacBook Air M2',
+        subtitle: '全新未拆封',
+        description: '全新MacBook Air M2，未拆封，低价出售',
+        brand: 'Apple',
+        model: 'MacBook Air M2',
+        conditionLevel: 'new',
+        originalPrice: 9999,
+        sellingPrice: 8999,
+        tradeMode: 'shipping',
+        images: [{ imageUrl: 'product/900002/abc123def-4567-8901-2345-67890abcdef1.jpg' }],
+        sellerId: 10001,
+        sellerName: '张三',
+        publishStatus: 'on_sale',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 3,
+        title: 'iPad Pro 12.9',
+        subtitle: '8成新，轻微划痕',
+        description: 'iPad Pro 12.9英寸，使用痕迹明显，功能完好',
+        brand: 'Apple',
+        model: 'iPad Pro',
+        conditionLevel: 'good',
+        originalPrice: 7999,
+        sellingPrice: 5299,
+        tradeMode: 'both',
+        images: [{ imageUrl: 'product/900003/abc987def-6543-2109-8765-43210cba987.jpg' }],
+        sellerId: 10002,
+        sellerName: '李四',
+        publishStatus: 'draft',
         createdAt: new Date().toISOString()
       }
     ]
-    totalProducts.value = 1
+    totalProducts.value = 3
 
     // 模拟纠纷数据
     disputes.value = [
       {
         id: 1,
-        orderId: 1001,
-        buyerId: 1,
-        buyerName: '测试用户1',
-        sellerId: 2,
-        sellerName: '测试用户2',
-        disputeReason: '商品与描述不符',
-        disputeStatus: 'pending',
+        disputeNo: 'DP202405200001',
+        orderId: 940009,
+        afterSaleId: 1,
+        buyerId: 900001,
+        sellerId: 900002,
+        currentStatus: 'pending',
+        responsibility: undefined,
+        resolutionResult: undefined,
+        resolutionAmount: undefined,
+        resolvedBy: undefined,
+        resolvedAt: undefined,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        actions: [
+          {
+            id: 1,
+            disputeId: 1,
+            actionBy: 900001,
+            actionType: 'submit',
+            actionDesc: '双方对退款金额存在争议，申请平台介入。',
+            createdAt: new Date().toISOString()
+          }
+        ]
+      },
+      {
+        id: 2,
+        disputeNo: 'DP202405200002',
+        orderId: 940010,
+        afterSaleId: 2,
+        buyerId: 900003,
+        sellerId: 900004,
+        currentStatus: 'processing',
+        responsibility: undefined,
+        resolutionResult: undefined,
+        resolutionAmount: undefined,
+        resolvedBy: undefined,
+        resolvedAt: undefined,
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        updatedAt: new Date().toISOString(),
+        actions: [
+          {
+            id: 2,
+            disputeId: 2,
+            actionBy: 900003,
+            actionType: 'submit',
+            actionDesc: '商品有质量问题，申请平台介入处理。',
+            createdAt: new Date(Date.now() - 86400000).toISOString()
+          },
+          {
+            id: 3,
+            disputeId: 2,
+            actionBy: 1,
+            actionType: 'status_change',
+            actionDesc: '管理员已受理，正在核实相关证据',
+            createdAt: new Date().toISOString()
+          }
+        ]
       }
     ]
-    totalDisputes.value = 1
+    totalDisputes.value = 2
 
     // 基于SQL数据的模拟运营数据
     stats.value = {
       // 用户相关
-      totalUsers: 12, // 从user_account表计算
-      activeUsers: 11, // 从user_account表计算
-      bannedUsers: 1, // 从user_account表计算
+      totalUsers: 12,
+      activeUsers: 11,
+      bannedUsers: 1,
       newUsersToday: 0,
-      
+
       // 商品相关
-      totalProducts: 3, // 从product表计算
-      onSaleProducts: 3, // 从product表计算
-      pendingReviewProducts: 0, // 从product表计算
-      soldProducts: 0, // 从product表计算
-      productViews: 0, // 从product表计算
-      
+      totalProducts: 3,
+      onSaleProducts: 3,
+      pendingReviewProducts: 0,
+      soldProducts: 0,
+      productViews: 0,
+
       // 订单相关
-      totalOrders: 9, // 从trade_order表计算
-      pendingPaymentOrders: 4, // 从trade_order表计算
-      completedOrders: 1, // 从trade_order表计算
-      cancelledOrders: 4, // 从trade_order表计算
-      totalSales: 3626, // 从payment_order表计算
-      averageOrderAmount: 1813, // 从payment_order表计算
-      
+      totalOrders: 9,
+      pendingPaymentOrders: 4,
+      completedOrders: 1,
+      cancelledOrders: 4,
+      totalSales: 3626,
+      averageOrderAmount: 1813,
+
       // 交易相关
-      totalTransactions: 2, // 从payment_transaction表计算
-      transactionAmount: 3626, // 从payment_transaction表计算
-      transactionSuccessRate: 100, // 从payment_transaction表计算
-      disputeRate: 11.1, // 从dispute_case表计算
-      
+      totalTransactions: 2,
+      transactionAmount: 3626,
+      transactionSuccessRate: 100,
+      disputeRate: 11.1,
+
       // 社区相关
-      totalForumPosts: 10, // 从forum_post表计算
-      approvedForumPosts: 9, // 从forum_post表计算
-      pendingForumPosts: 1, // 从forum_post表计算
-      forumPostViews: 12170, // 从forum_post表计算
-      totalComments: 15, // 从forum_comment表计算
-      totalLikes: 14, // 从forum_reaction表计算
-      
+      totalForumPosts: 10,
+      approvedForumPosts: 9,
+      pendingForumPosts: 1,
+      forumPostViews: 12170,
+      totalComments: 15,
+      totalLikes: 14,
+
       // 售后相关
-      totalAfterSales: 2, // 从after_sale_request表计算
-      pendingAfterSales: 0, // 从after_sale_request表计算
-      
+      totalAfterSales: 2,
+      pendingAfterSales: 0,
+
       // 趋势数据
-      dailySales: 3626, // 从payment_order表计算
-      weeklySales: [0, 0, 0, 0, 0, 3626, 0], // 模拟一周数据
-      monthlySales: [0, 0, 0, 3626, 0, 0, 0, 0, 0, 0, 0, 0], // 模拟一月数据
-      dailyOrders: 2, // 从payment_order表计算
-      weeklyOrders: [0, 0, 0, 0, 0, 2, 0] // 模拟一周数据
+      dailySales: 3626,
+      weeklySales: [0, 0, 0, 0, 0, 3626, 0],
+      monthlySales: [0, 0, 0, 3626, 0, 0, 0, 0, 0, 0, 0, 0],
+      dailyOrders: 2,
+      weeklyOrders: [0, 0, 0, 0, 0, 2, 0]
     }
 
     // 模拟论坛板块数据
     forumSections.value = [
-      {
-        id: 1,
-        name: '二手交易',
-        description: '买卖二手商品的板块',
-        sortOrder: 1,
-        isEnabled: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 2,
-        name: '验机交流',
-        description: '讨论验机技巧和经验',
-        sortOrder: 2,
-        isEnabled: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 3,
-        name: '避坑指南',
-        description: '分享交易避坑经验',
-        sortOrder: 3,
-        isEnabled: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ]
-
-    // 模拟系统通知数据
-    notifications.value = [
-      {
-        id: 1,
-        title: '平台规则更新',
-        content: '平台将于下周更新交易规则，请各位用户注意查看',
-        targetUsers: 'all',
-        publishTime: new Date().toISOString(),
-        status: 'published'
-      }
+      { id: 1, name: '二手交易', sortOrder: 1, isEnabled: 1, depth: 0 },
+      { id: 2, name: '验机交流', sortOrder: 2, isEnabled: 1, depth: 0 },
+      { id: 3, name: '避坑指南', sortOrder: 3, isEnabled: 1, depth: 0 },
     ]
 
     // 模拟论坛帖子数据
@@ -355,40 +448,892 @@ export const useAdminStore = defineStore('admin', () => {
       {
         id: 1,
         title: '如何鉴别二手手机的好坏',
-        authorId: 1,
-        sectionId: 2,
+        content: '这是一篇关于如何鉴别二手手机质量的详细教程...',
+        authorId: 10001,
+        authorName: '张三',
+        categoryId: 2,
+        categoryName: '验机交流',
         status: 'approved',
-        createdAt: new Date().toISOString()
+        isTop: true,
+        isFeatured: true,
+        viewCount: 520,
+        likeCount: 32,
+        commentCount: 15,
+        createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+        updatedAt: new Date().toISOString()
       },
       {
         id: 2,
         title: '出售iPhone 12 Pro',
-        authorId: 2,
-        sectionId: 1,
-        status: 'approved',
-        createdAt: new Date().toISOString()
+        content: '九成新iPhone 12 Pro，无任何划痕，支持验机...',
+        authorId: 10002,
+        authorName: '李四',
+        categoryId: 1,
+        categoryName: '二手交易',
+        status: 'pending',
+        isTop: false,
+        isFeatured: false,
+        viewCount: 120,
+        likeCount: 8,
+        commentCount: 3,
+        createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+        updatedAt: new Date().toISOString()
       },
       {
         id: 3,
         title: '分享我的验机经验',
-        authorId: 1,
-        sectionId: 2,
+        content: '作为一个多次购买二手商品的买家，我分享一下我的验机经验...',
+        authorId: 10001,
+        authorName: '张三',
+        categoryId: 2,
+        categoryName: '验机交流',
         status: 'approved',
-        createdAt: new Date().toISOString()
+        isTop: false,
+        isFeatured: false,
+        viewCount: 280,
+        likeCount: 18,
+        commentCount: 7,
+        createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+        updatedAt: new Date().toISOString()
       },
       {
         id: 4,
         title: '警惕二手交易骗局',
-        authorId: 3,
-        sectionId: 3,
+        content: '最近遇到了一个诈骗，给大家提个醒...',
+        authorId: 10003,
+        authorName: '王五',
+        categoryId: 3,
+        categoryName: '避坑指南',
         status: 'approved',
-        createdAt: new Date().toISOString()
+        isTop: false,
+        isFeatured: true,
+        viewCount: 450,
+        likeCount: 45,
+        commentCount: 22,
+        createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 5,
+        title: '分享我的交易经验',
+        content: '作为一个多次购买二手商品的买家，我分享一下我的交易经验...',
+        authorId: 10001,
+        authorName: '张三',
+        categoryId: 1,
+        categoryName: '二手交易',
+        status: 'approved',
+        isTop: false,
+        isFeatured: false,
+        viewCount: 280,
+        likeCount: 18,
+        commentCount: 7,
+        createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+        updatedAt: new Date().toISOString()
       }
     ]
+    totalForumPosts.value = 5
+
+    // 模拟操作日志数据
+    adminLogs.value = [
+      {
+        id: 1,
+        adminId: 900003,
+        adminName: 'admin',
+        targetType: 'product',
+        targetId: 1,
+        action: 'approve_product',
+        reason: '商品信息完整，符合平台规范',
+        beforeData: { publishStatus: 'pending_review' },
+        afterData: { publishStatus: 'on_sale' },
+        ipAddress: '192.168.1.1',
+        createdAt: new Date(Date.now() - 86400000 * 7).toISOString()
+      },
+      {
+        id: 2,
+        adminId: 900003,
+        adminName: 'admin',
+        targetType: 'user',
+        targetId: 10006,
+        action: 'ban_user',
+        reason: '用户多次发布违规商品',
+        beforeData: { userStatus: 'active' },
+        afterData: { userStatus: 'banned' },
+        ipAddress: '192.168.1.2',
+        createdAt: new Date(Date.now() - 86400000 * 5).toISOString()
+      },
+      {
+        id: 3,
+        adminId: 900003,
+        adminName: 'admin',
+        targetType: 'post',
+        targetId: 2,
+        action: 'reject_post',
+        reason: '帖子内容涉嫌广告，不符合社区规范',
+        beforeData: { status: 'pending' },
+        afterData: { status: 'rejected' },
+        ipAddress: '192.168.1.1',
+        createdAt: new Date(Date.now() - 86400000 * 3).toISOString()
+      },
+      {
+        id: 4,
+        adminId: 900003,
+        adminName: 'admin',
+        targetType: 'post',
+        targetId: 4,
+        action: 'feature_post',
+        reason: '内容质量高，具有参考价值',
+        beforeData: { isFeatured: false },
+        afterData: { isFeatured: true },
+        ipAddress: '192.168.1.3',
+        createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
+      },
+      {
+        id: 5,
+        adminId: 900003,
+        adminName: 'admin',
+        targetType: 'dispute',
+        targetId: 2,
+        action: 'resolve_dispute',
+        reason: '根据平台规则进行裁决',
+        beforeData: { currentStatus: 'processing' },
+        afterData: { currentStatus: 'resolved', responsibility: 'seller', resolutionResult: 'partial_refund', resolutionAmount: 100 },
+        ipAddress: '192.168.1.1',
+        createdAt: new Date(Date.now() - 86400000).toISOString()
+      },
+      {
+        id: 6,
+        adminId: 900003,
+        adminName: 'admin',
+        targetType: 'post',
+        targetId: 4,
+        action: 'top_post',
+        reason: '内容具有时效性，置顶展示',
+        beforeData: { isTop: false },
+        afterData: { isTop: true },
+        ipAddress: '192.168.1.2',
+        createdAt: new Date(Date.now() - 3600000 * 12).toISOString()
+      },
+      {
+        id: 7,
+        adminId: 900003,
+        adminName: 'admin',
+        targetType: 'product',
+        targetId: 3,
+        action: 'reject_product',
+        reason: '商品图片质量过低，不符合平台要求',
+        beforeData: { publishStatus: 'pending_review' },
+        afterData: { publishStatus: 'rejected' },
+        ipAddress: '192.168.1.1',
+        createdAt: new Date(Date.now() - 3600000 * 8).toISOString()
+      }
+    ]
+    totalLogs.value = 7
   }
 
-  // 初始化加载数据
-  loadMockData()
+
+  // 封禁/解封用户
+  const banUser = async (userId: number, ban: boolean, reason?: string, notify?: boolean) => {
+    try {
+      const token = localStorage.getItem('token')
+      const endpoint = ban ? `/api/admin/user/ban/${userId}` : `/api/admin/user/unban/${userId}`
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason, notify })
+      })
+
+      if (!response.ok) {
+        throw new Error(`${ban ? '封禁' : '解封'}用户失败: ${response.status}`)
+      }
+
+      // 更新本地数据
+      const user = users.value.find(u => u.id === userId)
+      if (user) {
+        user.userStatus = ban ? 'banned' : 'active'
+      }
+
+      return true
+    } catch (error) {
+      console.error(`${ban ? '封禁' : '解封'}用户失败:`, error)
+      return false
+    }
+  }
+
+  // 加载统计数据
+  const loadStats = async () => {
+    try {
+      statsLoading.value = true
+      const token = localStorage.getItem('token')
+
+      const overviewResponse = await fetch('/api/admin/dashboard/overview', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!overviewResponse.ok) {
+        throw new Error(`加载仪表盘概览数据失败: HTTP ${overviewResponse.status}`)
+      }
+
+      const overviewData = await overviewResponse.json()
+
+      if (overviewData.code !== 200) {
+        throw new Error(`加载仪表盘概览数据失败: ${overviewData.message || overviewData.code}`)
+      }
+
+      const trendsResponse = await fetch('/api/admin/dashboard/trends', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!trendsResponse.ok) {
+        throw new Error(`加载趋势数据失败: HTTP ${trendsResponse.status}`)
+      }
+
+      const trendsData = await trendsResponse.json()
+
+      if (trendsData.code !== 200) {
+        throw new Error(`加载趋势数据失败: ${trendsData.message || trendsData.code}`)
+      }
+
+      if (overviewData.data) {
+        stats.value = {
+          totalUsers: overviewData.data.userStats?.totalUsers || 0,
+          activeUsers: overviewData.data.userStats?.activeUsers || 0,
+          bannedUsers: overviewData.data.userStats?.bannedUsers || 0,
+          newUsersToday: overviewData.data.userStats?.newUsersToday || 0,
+          totalProducts: overviewData.data.productStats?.totalProducts || 0,
+          onSaleProducts: overviewData.data.productStats?.onSaleProducts || 0,
+          pendingReviewProducts: overviewData.data.productStats?.pendingReviewProducts || 0,
+          soldProducts: overviewData.data.productStats?.soldProducts || 0,
+          productViews: overviewData.data.productStats?.productViews || 0,
+          totalOrders: overviewData.data.orderStats?.totalOrders || 0,
+          pendingPaymentOrders: overviewData.data.orderStats?.pendingPaymentOrders || 0,
+          completedOrders: overviewData.data.orderStats?.completedOrders || 0,
+          cancelledOrders: overviewData.data.orderStats?.cancelledOrders || 0,
+          totalSales: overviewData.data.orderStats?.totalSales || 0,
+          averageOrderAmount: overviewData.data.orderStats?.averageOrderAmount || 0,
+          totalTransactions: overviewData.data.transactionStats?.totalTransactions || 0,
+          transactionAmount: overviewData.data.transactionStats?.transactionAmount || 0,
+          transactionSuccessRate: overviewData.data.transactionStats?.transactionSuccessRate || 0,
+          disputeRate: overviewData.data.transactionStats?.disputeRate || 0,
+          totalForumPosts: overviewData.data.communityStats?.totalForumPosts || 0,
+          approvedForumPosts: overviewData.data.communityStats?.approvedForumPosts || 0,
+          pendingForumPosts: overviewData.data.communityStats?.pendingForumPosts || 0,
+          forumPostViews: overviewData.data.communityStats?.forumPostViews || 0,
+          totalComments: overviewData.data.communityStats?.totalComments || 0,
+          totalLikes: overviewData.data.communityStats?.totalLikes || 0,
+          totalAfterSales: overviewData.data.afterSalesStats?.totalAfterSales || 0,
+          pendingAfterSales: overviewData.data.afterSalesStats?.pendingAfterSales || 0,
+          dailySales: overviewData.data.dailyStats?.dailySales || 0,
+          weeklySales: trendsData.data?.weeklySales || [0, 0, 0, 0, 0, 0, 0],
+          monthlySales: trendsData.data?.monthlySales || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          dailyOrders: overviewData.data.dailyStats?.dailyOrders || 0,
+          weeklyOrders: trendsData.data?.weeklyOrders || [0, 0, 0, 0, 0, 0, 0]
+        }
+      }
+    } catch (error) {
+      console.error('加载仪表盘数据失败:', error)
+      throw error
+    } finally {
+      statsLoading.value = false
+    }
+  }
+
+  // 加载用户数据
+  const loadUsers = async (params?: {
+    isAdmin?: boolean
+    canBuy?: boolean
+    canSell?: boolean
+    status?: string
+    keyword?: string
+    searchFields?: string[]
+    page?: number
+    pageSize?: number
+  }) => {
+    try {
+      userLoading.value = true
+      const token = localStorage.getItem('token')
+
+      const queryParams = new URLSearchParams()
+      if (params) {
+        if (params.isAdmin !== undefined) queryParams.append('isAdmin', params.isAdmin.toString())
+        if (params.canBuy !== undefined) queryParams.append('canBuy', params.canBuy.toString())
+        if (params.canSell !== undefined) queryParams.append('canSell', params.canSell.toString())
+        if (params.status) queryParams.append('status', params.status)
+        if (params.keyword) queryParams.append('keyword', params.keyword)
+        if (params.searchFields && params.searchFields.length > 0) {
+          params.searchFields.forEach(field => queryParams.append('searchFields', field))
+        }
+        if (params.page) queryParams.append('page', params.page.toString())
+        if (params.pageSize) queryParams.append('pageSize', params.pageSize.toString())
+      }
+
+      const response = await fetch(`/api/admin/user/page${queryParams.toString() ? `?${queryParams.toString()}` : ''}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`加载用户数据失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.code !== 200) {
+        throw new Error(`加载用户数据失败: ${data.message || data.code}`)
+      }
+
+      if (data.data && data.data.list) {
+        users.value = data.data.list || []
+        totalUsers.value = data.data.total || 0
+        currentUserPage.value = data.data.page || 1
+        userPageSize.value = data.data.pageSize || 10
+      } else if (data.data && data.data.records) {
+        users.value = data.data.records || []
+        totalUsers.value = data.data.total || 0
+        currentUserPage.value = data.data.current || 1
+        userPageSize.value = data.data.size || 10
+      } else if (Array.isArray(data)) {
+        users.value = data
+        totalUsers.value = data.length
+      } else if (data.data && Array.isArray(data.data)) {
+        users.value = data.data
+        totalUsers.value = data.data.length
+      } else {
+        console.error('无法识别的数据结构:', data)
+        users.value = []
+        totalUsers.value = 0
+      }
+    } catch (error) {
+      console.error('加载用户数据失败:', error)
+      loadMockData()
+    } finally {
+      userLoading.value = false
+    }
+  }
+
+  // 加载商品数据
+  const loadProducts = async (params?: {
+    publishStatus?: string
+    keyword?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    try {
+      productLoading.value = true
+      const token = localStorage.getItem('token')
+
+      const response = await fetch('/api/product/list', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          current: params?.page || 1,
+          size: params?.pageSize || 10,
+          publishStatus: params?.publishStatus
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`加载商品数据失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.code !== 200) {
+        throw new Error(`加载商品数据失败: ${data.message || data.code}`)
+      }
+
+      if (data.data && data.data.records) {
+        products.value = data.data.records || []
+        totalProducts.value = data.data.total || 0
+        currentProductPage.value = data.data.current || 1
+        productPageSize.value = data.data.size || 10
+      } else if (Array.isArray(data.data)) {
+        products.value = data.data
+        totalProducts.value = data.data.length
+      }
+    } catch (error) {
+      console.error('加载商品数据失败:', error)
+      throw error
+    } finally {
+      productLoading.value = false
+    }
+  }
+
+  // 审核商品
+  const auditProduct = async (productId: number, approved: boolean, rejectReason?: string) => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/product/admin/audit/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          approved,
+          rejectReason
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`审核商品失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.code !== 200) {
+        throw new Error(`审核商品失败: ${data.message || data.code}`)
+      }
+
+      const product = products.value.find(p => p.id === productId)
+      if (product) {
+        product.publishStatus = approved ? 'on_sale' : 'off_shelf'
+      }
+
+      return true
+    } catch (error) {
+      console.error('审核商品失败:', error)
+      return false
+    }
+  }
+
+  // 加载商品详情
+  const loadProductDetail = async (productId: number) => {
+    try {
+      productDetailLoading.value = true
+      selectedProduct.value = null
+      const token = localStorage.getItem('token')
+
+      const response = await fetch(`/api/product/${productId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`加载商品详情失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.code !== 200) {
+        throw new Error(`加载商品详情失败: ${data.message || data.code}`)
+      }
+
+      selectedProduct.value = data.data
+      return data.data
+    } catch (error) {
+      console.error('加载商品详情失败:', error)
+      throw error
+    } finally {
+      productDetailLoading.value = false
+    }
+  }
+
+  // 加载纠纷列表
+  const loadDisputes = async (params?: {
+    orderId?: number
+    status?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    try {
+      disputeLoading.value = true
+      const token = localStorage.getItem('token')
+
+      // 构建查询参数
+      const queryParams = new URLSearchParams()
+      if (params?.orderId !== undefined) queryParams.append('orderId', params.orderId.toString())
+      if (params?.status) queryParams.append('status', params.status)
+      if (params?.page) queryParams.append('page', params.page.toString())
+      if (params?.pageSize) queryParams.append('pageSize', params.pageSize.toString())
+
+      const url = `/api/disputes${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`加载纠纷列表失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.code !== 200) {
+        throw new Error(`加载纠纷列表失败: ${data.message || data.code}`)
+      }
+
+      if (Array.isArray(data.data)) {
+        disputes.value = data.data
+        totalDisputes.value = data.data.length
+      } else {
+        // 处理分页数据
+        if (data.data?.records) {
+          disputes.value = data.data.records
+          totalDisputes.value = data.data.total || data.data.records.length
+        } else {
+          disputes.value = []
+          totalDisputes.value = 0
+        }
+      }
+    } catch (error) {
+      console.error('加载纠纷列表失败:', error)
+      throw error
+    } finally {
+      disputeLoading.value = false
+    }
+  }
+
+  // 加载纠纷详情
+  const loadDisputeDetail = async (disputeId: number) => {
+    try {
+      disputeDetailLoading.value = true
+      selectedDispute.value = null
+      const token = localStorage.getItem('token')
+
+      const response = await fetch(`/api/disputes/${disputeId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`加载纠纷详情失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.code !== 200) {
+        throw new Error(`加载纠纷详情失败: ${data.message || data.code}`)
+      }
+
+      selectedDispute.value = data.data
+      return data.data
+    } catch (error) {
+      console.error('加载纠纷详情失败:', error)
+      throw error
+    } finally {
+      disputeDetailLoading.value = false
+    }
+  }
+
+  // 纠纷裁决
+  const resolveDispute = async (disputeId: number, params: {
+    responsibility?: string
+    resolutionResult?: string
+    resolutionAmount?: number
+  }) => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/disputes/${disputeId}/resolve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(params)
+      })
+
+      if (!response.ok) {
+        throw new Error(`纠纷裁决失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.code !== 200) {
+        throw new Error(`纠纷裁决失败: ${data.message || data.code}`)
+      }
+
+      // 更新本地数据
+      const dispute = disputes.value.find(d => d.id === disputeId)
+      if (dispute) {
+        dispute.status = 'resolved'
+      }
+
+      return true
+    } catch (error) {
+      console.error('纠纷裁决失败:', error)
+      return false
+    }
+  }
+
+  // 添加纠纷操作
+  const addDisputeAction = async (disputeId: number, params: {
+    actionType: string
+    actionDesc: string
+    nextStatus?: string
+  }) => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/disputes/${disputeId}/actions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(params)
+      })
+
+      if (!response.ok) {
+        throw new Error(`添加纠纷操作失败: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.code !== 200) {
+        throw new Error(`添加纠纷操作失败: ${data.message || data.code}`)
+      }
+
+      return true
+    } catch (error) {
+      console.error('添加纠纷操作失败:', error)
+      return false
+    }
+  }
+
+  // 加载论坛帖子列表
+  const loadForumPosts = async (params?: {
+    page?: number
+    size?: number
+    keyword?: string
+    status?: string
+    categoryId?: number
+  }) => {
+    try {
+      forumLoading.value = true
+
+      const page = await getForumPostList({
+        pageNum: params?.page ?? 1,
+        pageSize: params?.size ?? 10,
+        keyword: params?.keyword,
+        categoryId: params?.categoryId,
+        status: params?.status as PostAuditStatus | undefined,
+      })
+
+      forumPosts.value = page.list
+      totalForumPosts.value = page.total
+
+      return true
+    } catch (error) {
+      console.error('加载论坛帖子失败:', error)
+      return false
+    } finally {
+      forumLoading.value = false
+    }
+  }
+
+  // 加载论坛板块列表
+  const loadForumSections = async () => {
+    try {
+      forumLoading.value = true
+      const tree = await getForumCategoryList()
+      forumSections.value = flattenForumCategories(tree)
+      return true
+    } catch (error) {
+      console.error('加载论坛板块失败:', error)
+      return false
+    } finally {
+      forumLoading.value = false
+    }
+  }
+
+  // 加载帖子详情
+  const loadPostDetail = async (postId: number) => {
+    try {
+      postDetailLoading.value = true
+      selectedPost.value = null
+      const detail = await getForumPostById(postId)
+      selectedPost.value = detail
+      return detail
+    } catch (error) {
+      console.error('加载帖子详情失败:', error)
+      throw error
+    } finally {
+      postDetailLoading.value = false
+    }
+  }
+
+  // 审核帖子
+  const auditPost = async (postId: number, approved: boolean, rejectReason?: string) => {
+    try {
+      await auditForumPost(postId, approved, rejectReason)
+
+      const post = forumPosts.value.find(p => p.id === postId)
+      if (post) {
+        post.status = approved ? 'approved' : 'rejected'
+      }
+
+      if (selectedPost.value?.id === postId) {
+        selectedPost.value = {
+          ...selectedPost.value,
+          status: approved ? 'approved' : 'rejected',
+        }
+      }
+
+      return true
+    } catch (error) {
+      console.error('审核帖子失败:', error)
+      return false
+    }
+  }
+
+  // 置顶/取消置顶帖子
+  const toggleTopPost = async (postId: number, top: boolean) => {
+    try {
+      await toggleForumPostTop(postId, top)
+
+      const post = forumPosts.value.find(p => p.id === postId)
+      if (post) {
+        post.isTop = top
+      }
+
+      if (selectedPost.value?.id === postId) {
+        selectedPost.value = { ...selectedPost.value, isTop: top }
+      }
+
+      return true
+    } catch (error) {
+      console.error('置顶帖子失败:', error)
+      return false
+    }
+  }
+
+  // 设为/取消精华帖
+  const toggleFeaturePost = async (postId: number, featured: boolean) => {
+    try {
+      await toggleForumPostFeature(postId, featured)
+
+      const post = forumPosts.value.find(p => p.id === postId)
+      if (post) {
+        post.isFeatured = featured
+      }
+
+      if (selectedPost.value?.id === postId) {
+        selectedPost.value = { ...selectedPost.value, isFeatured: featured }
+      }
+
+      return true
+    } catch (error) {
+      console.error('设置精华帖失败:', error)
+      return false
+    }
+  }
+
+  // 删除帖子
+  const deletePost = async (postId: number) => {
+    try {
+      await deleteForumPost(postId)
+
+      forumPosts.value = forumPosts.value.filter(p => p.id !== postId)
+      totalForumPosts.value = Math.max(0, totalForumPosts.value - 1)
+
+      if (selectedPost.value?.id === postId) {
+        selectedPost.value = null
+      }
+
+      return true
+    } catch (error) {
+      console.error('删除帖子失败:', error)
+      return false
+    }
+  }
+
+// 加载操作日志列表
+const loadAdminLogs = async (params?: {
+  page?: number
+  size?: number
+  adminId?: number
+  targetType?: string
+  action?: string
+  startTime?: string
+  endTime?: string
+}) => {
+  try {
+    logsLoading.value = true
+    const token = localStorage.getItem('token')
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('pageNum', params.page.toString())
+    if (params?.size) queryParams.append('pageSize', params.size.toString())
+    if (params?.adminId) queryParams.append('adminId', params.adminId.toString())
+    if (params?.targetType) queryParams.append('targetType', params.targetType)
+    if (params?.action) queryParams.append('action', params.action)
+    if (params?.startTime) queryParams.append('startTime', params.startTime)
+    if (params?.endTime) queryParams.append('endTime', params.endTime)
+
+    const response = await fetch(`/api/admin/log/list?${queryParams.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`加载操作日志失败: HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (data.code !== 200) {
+      throw new Error(`加载操作日志失败: ${data.message || data.code}`)
+    }
+
+    if (data.data?.list) {
+      adminLogs.value = data.data.list
+      totalLogs.value = data.data.total || data.data.list.length
+    }
+
+    return true
+  } catch (error) {
+    console.error('加载操作日志失败:', error)
+    return false
+  } finally {
+    logsLoading.value = false
+  }
+}
+
+// 加载日志详情
+const loadLogDetail = async (logId: number) => {
+  try {
+    logDetailLoading.value = true
+    selectedLog.value = null
+    const token = localStorage.getItem('token')
+
+    const response = await fetch(`/api/admin/log/${logId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`加载日志详情失败: HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (data.code !== 200) {
+      throw new Error(`加载日志详情失败: ${data.message || data.code}`)
+    }
+
+    selectedLog.value = data.data
+    return data.data
+  } catch (error) {
+    console.error('加载日志详情失败:', error)
+    throw error
+  } finally {
+    logDetailLoading.value = false
+  }
+}
 
   return {
     // 用户管理
@@ -404,6 +1349,8 @@ export const useAdminStore = defineStore('admin', () => {
     productPageSize,
     totalProducts,
     productLoading,
+    selectedProduct,
+    productDetailLoading,
 
     // 纠纷仲裁
     disputes,
@@ -411,232 +1358,53 @@ export const useAdminStore = defineStore('admin', () => {
     disputePageSize,
     totalDisputes,
     disputeLoading,
+    selectedDispute,
+    disputeDetailLoading,
 
     // 运营数据
     stats,
     statsLoading,
 
     // 论坛管理
-  forumSections,
-  forumPosts,
-  forumLoading,
+    forumSections,
+    forumPosts,
+    forumLoading,
+    currentForumPage,
+    forumPageSize,
+    totalForumPosts,
+    selectedPost,
+    postDetailLoading,
 
-    // 系统通知
-    notifications,
-    notificationLoading,
+    // 操作日志管理
+    adminLogs,
+    logsLoading,
+    currentLogPage,
+    logPageSize,
+    totalLogs,
+    selectedLog,
+    logDetailVisible,
+    logDetailLoading,
 
-    // 封禁/解封用户
-  async banUser(userId: number, ban: boolean, reason?: string, notify?: boolean) {
-    try {
-      const token = localStorage.getItem('token')
-      const endpoint = ban ? `/api/admin/user/ban/${userId}` : `/api/admin/user/unban/${userId}`
-      const response = await fetch(endpoint, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ reason, notify })
-      })
-      
-      if (!response.ok) {
-        throw new Error(`${ban ? '封禁' : '解封'}用户失败: ${response.status}`)
-      }
-      
-      // 更新本地数据
-      const user = users.value.find(u => u.id === userId)
-      if (user) {
-        user.userStatus = ban ? 'banned' : 'active'
-      }
-      
-      return true
-    } catch (error) {
-      console.error(`${ban ? '封禁' : '解封'}用户失败:`, error)
-      return false
-    }
-  },
-
-  // 方法
-  loadMockData,
-  loadStats: async () => {
-    try {
-      statsLoading.value = true;
-      const token = localStorage.getItem('token');
-      
-      // 获取概览数据
-      const overviewResponse = await fetch('/api/admin/dashboard/overview', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!overviewResponse.ok) {
-        throw new Error(`加载仪表盘概览数据失败: ${overviewResponse.status}`);
-      }
-      
-      const overviewData = await overviewResponse.json();
-      
-      // 获取趋势数据
-      const trendsResponse = await fetch('/api/admin/dashboard/trends', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!trendsResponse.ok) {
-        throw new Error(`加载趋势数据失败: ${trendsResponse.status}`);
-      }
-      
-      const trendsData = await trendsResponse.json();
-      
-      // 更新状态
-      if (overviewData.data) {
-        stats.value = {
-          // 用户相关
-          totalUsers: overviewData.data.userStats?.totalUsers || 0,
-          activeUsers: overviewData.data.userStats?.activeUsers || 0,
-          bannedUsers: overviewData.data.userStats?.bannedUsers || 0,
-          newUsersToday: overviewData.data.userStats?.newUsersToday || 0,
-          
-          // 商品相关
-          totalProducts: overviewData.data.productStats?.totalProducts || 0,
-          onSaleProducts: overviewData.data.productStats?.onSaleProducts || 0,
-          pendingReviewProducts: overviewData.data.productStats?.pendingReviewProducts || 0,
-          soldProducts: overviewData.data.productStats?.soldProducts || 0,
-          productViews: overviewData.data.productStats?.productViews || 0,
-          
-          // 订单相关
-          totalOrders: overviewData.data.orderStats?.totalOrders || 0,
-          pendingPaymentOrders: overviewData.data.orderStats?.pendingPaymentOrders || 0,
-          completedOrders: overviewData.data.orderStats?.completedOrders || 0,
-          cancelledOrders: overviewData.data.orderStats?.cancelledOrders || 0,
-          totalSales: overviewData.data.orderStats?.totalSales || 0,
-          averageOrderAmount: overviewData.data.orderStats?.averageOrderAmount || 0,
-          
-          // 交易相关
-          totalTransactions: overviewData.data.transactionStats?.totalTransactions || 0,
-          transactionAmount: overviewData.data.transactionStats?.transactionAmount || 0,
-          transactionSuccessRate: overviewData.data.transactionStats?.transactionSuccessRate || 0,
-          disputeRate: overviewData.data.transactionStats?.disputeRate || 0,
-          
-          // 社区相关
-          totalForumPosts: overviewData.data.communityStats?.totalForumPosts || 0,
-          approvedForumPosts: overviewData.data.communityStats?.approvedForumPosts || 0,
-          pendingForumPosts: overviewData.data.communityStats?.pendingForumPosts || 0,
-          forumPostViews: overviewData.data.communityStats?.forumPostViews || 0,
-          totalComments: overviewData.data.communityStats?.totalComments || 0,
-          totalLikes: overviewData.data.communityStats?.totalLikes || 0,
-          
-          // 售后相关
-          totalAfterSales: overviewData.data.afterSalesStats?.totalAfterSales || 0,
-          pendingAfterSales: overviewData.data.afterSalesStats?.pendingAfterSales || 0,
-          
-          // 趋势数据
-          dailySales: overviewData.data.dailyStats?.dailySales || 0,
-          weeklySales: trendsData.data?.weeklySales || [0, 0, 0, 0, 0, 0, 0],
-          monthlySales: trendsData.data?.monthlySales || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-          dailyOrders: overviewData.data.dailyStats?.dailyOrders || 0,
-          weeklyOrders: trendsData.data?.weeklyOrders || [0, 0, 0, 0, 0, 0, 0]
-        };
-      }
-    } catch (error) {
-      console.error('加载仪表盘数据失败:', error);
-      // 加载失败时使用模拟数据
-      loadMockData();
-    } finally {
-      statsLoading.value = false;
-    }
-  },
-  loadUsers: async (params?: {
-    isAdmin?: boolean;
-    canBuy?: boolean;
-    canSell?: boolean;
-    status?: string;
-    keyword?: string;
-    searchFields?: string[];
-    page?: number;
-    pageSize?: number;
-  }) => {
-    try {
-      userLoading.value = true;
-      const token = localStorage.getItem('token');
-      
-      // 构建查询参数
-      const queryParams = new URLSearchParams();
-      if (params) {
-        if (params.isAdmin !== undefined) queryParams.append('isAdmin', params.isAdmin.toString());
-        if (params.canBuy !== undefined) queryParams.append('canBuy', params.canBuy.toString());
-        if (params.canSell !== undefined) queryParams.append('canSell', params.canSell.toString());
-        if (params.status) queryParams.append('status', params.status);
-        if (params.keyword) queryParams.append('keyword', params.keyword);
-        if (params.searchFields && params.searchFields.length > 0) {
-          params.searchFields.forEach(field => queryParams.append('searchFields', field));
-        }
-        if (params.page) queryParams.append('page', params.page.toString());
-        if (params.pageSize) queryParams.append('pageSize', params.pageSize.toString());
-      }
-      
-      const response = await fetch(`/api/admin/user/page${queryParams.toString() ? `?${queryParams.toString()}` : ''}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`加载用户数据失败: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('后端返回的数据:', data);
-      
-      // 尝试不同的数据结构
-      if (data.data && data.data.list) {
-        // 后端实际返回的结构
-        users.value = data.data.list || [];
-        totalUsers.value = data.data.total || 0;
-        currentUserPage.value = data.data.page || 1;
-        userPageSize.value = data.data.pageSize || 10;
-      } else if (data.data && data.data.records) {
-        // 标准分页结构
-        users.value = data.data.records || [];
-        totalUsers.value = data.data.total || 0;
-        currentUserPage.value = data.data.current || 1;
-        userPageSize.value = data.data.size || 10;
-      } else if (Array.isArray(data)) {
-        // 直接返回数组
-        users.value = data;
-        totalUsers.value = data.length;
-        currentUserPage.value = 1;
-        userPageSize.value = 10;
-      } else if (data.data && Array.isArray(data.data)) {
-        // 数据在data字段中
-        users.value = data.data;
-        totalUsers.value = data.data.length;
-        currentUserPage.value = 1;
-        userPageSize.value = 10;
-      } else {
-        // 无法识别的数据结构
-        console.error('无法识别的数据结构:', data);
-        users.value = [];
-        totalUsers.value = 0;
-      }
-      
-      console.log('处理后的数据:', {
-        users: users.value,
-        totalUsers: totalUsers.value
-      });
-    } catch (error) {
-      console.error('加载用户数据失败:', error);
-      // 加载失败时使用模拟数据
-      loadMockData();
-    } finally {
-      userLoading.value = false;
-    }
-  },
-  loadProducts: loadMockData,
-  loadDisputes: loadMockData,
-  loadForumSections: loadMockData,
-  loadForumPosts: loadMockData,
-  loadNotifications: loadMockData
+    // 方法
+    loadMockData,
+    banUser,
+    loadStats,
+    loadUsers,
+    loadProducts,
+    auditProduct,
+    loadProductDetail,
+    loadDisputes,
+    loadDisputeDetail,
+    resolveDispute,
+    addDisputeAction,
+    loadForumSections,
+    loadForumPosts,
+    loadPostDetail,
+    auditPost,
+    toggleTopPost,
+    toggleFeaturePost,
+    deletePost,
+    loadAdminLogs,
+    loadLogDetail
   }
 })
