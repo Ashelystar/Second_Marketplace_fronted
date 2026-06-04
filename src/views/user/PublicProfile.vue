@@ -5,7 +5,7 @@
     <main class="container">
       <button class="back-btn" @click="goBackToProduct">
         <i class="fa fa-arrow-left"></i>
-        返回商品详情
+        {{ backLabel }}
       </button>
 
       <section v-if="seller" class="profile-card">
@@ -135,6 +135,7 @@ import {
   type SellerReputationHistoryItem,
 } from '@/api/user'
 import { getSellerProducts, type ProductVO } from '@/api/goods'
+import { createConversation } from '@/api/chat'
 
 // 成色映射（与首页、详情页保持一致）
 const conditionMap: Record<string, string> = {
@@ -154,7 +155,6 @@ const productStore = useProductStore()
 const userStore = useUserStore()
 
 const sellerId = computed(() => Number(route.params.id))
-const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
 const followPending = ref(false)
 const sellerReputation = ref<SellerReputationSnapshot | null>(null)
 const sellerReputationHistory = ref<SellerReputationHistoryItem[]>([])
@@ -314,38 +314,25 @@ const goToDetail = (id: number) => {
   router.push({ path: '/detail', query: { id: id.toString() } })
 }
 
-const goToChat = () => {
+const goToChat = async () => {
   if (!seller.value) return
-  const currentFriends = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Array<{
-    id: number
-    name: string
-    avatar: string
-    lastMessage: string
-    lastTime: string
-    unread?: number
-    rating: number
-    location: string
-  }>
-
-  const exists = currentFriends.some(friend => friend.id === seller.value?.id)
-  if (!exists) {
-    currentFriends.unshift({
-      id: seller.value.id,
-      name: seller.value.name,
-      avatar: seller.value.avatar,
-      lastMessage: '你好，我对你的商品感兴趣',
-      lastTime: '刚刚',
-      unread: 1,
-      rating: seller.value.rating,
-      location: seller.value.location,
+  try {
+    const conv = await createConversation({
+      conversationType: 'product_consult',
+      userId: sellerId.value,
     })
-    localStorage.setItem(CHAT_FRIENDS_STORAGE_KEY, JSON.stringify(currentFriends))
+    router.push({ path: '/chat', query: { conversationId: String(conv.id) } })
+  } catch (err) {
+    console.error('创建会话失败:', err)
+    router.push({
+      path: '/chat',
+      query: {
+        sellerId: String(sellerId.value),
+        sellerName: seller.value.name || '',
+        sellerAvatar: seller.value.avatar || '',
+      },
+    })
   }
-
-  router.push({
-    path: '/chat',
-    query: { friendId: String(seller.value.id) },
-  })
 }
 
 const handleToggleFollow = async () => {
@@ -371,17 +358,24 @@ const handleToggleFollow = async () => {
 }
 
 const goBackToProduct = () => {
-  const fromProductId = Number(route.query.fromProductId)
-  if (Number.isFinite(fromProductId) && fromProductId > 0) {
-    router.push({ path: '/detail', query: { id: String(fromProductId) } })
-    return
-  }
+  // 不管从哪进来的，直接返回上一页（浏览器历史栈已记录完整路径）
   if (window.history.length > 1) {
     router.back()
     return
   }
   router.push('/')
 }
+
+/** 根据来源动态显示返回按钮文案 */
+const backLabel = computed(() => {
+  const fromProductId = Number(route.query.fromProductId)
+  if (Number.isFinite(fromProductId) && fromProductId > 0) return '返回商品详情'
+  try {
+    const savedConv = sessionStorage.getItem('chat_return_conv')
+    if (savedConv) return '返回聊天'
+  } catch { /* ignore */ }
+  return '返回'
+})
 
 onMounted(() => {
   productStore.initialize()

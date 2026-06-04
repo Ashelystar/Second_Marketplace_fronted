@@ -338,8 +338,8 @@ export interface PageProductParams {
   categoryId?: number
   /** 发布状态：on_sale/offline/draft 等 */
   publishStatus?: string
-  /** 成色级别：new/almost_new/good/fair/poor */
-  conditionLevel?: string
+  /** 成色级别数组：如 ['new','almost_new','good','fair','poor'] */
+  conditionLevels?: string[]
   /** 品牌 */
   brand?: string
   /** 型号 */
@@ -349,15 +349,15 @@ export interface PageProductParams {
   /** 售价筛选（元） */
   sellingPrice?: number
   /** 价格区间-最低价 */
-  priceMin?: number
+  minPrice?: number
   /** 价格区间-最高价 */
-  priceMax?: number
+  maxPrice?: number
   /** 是否全新 */
   isNew?: boolean
-  /** 交易方式：pickup/delivery 等 */
+  /** 交易方式：pickup/shipping/both */
   tradeMode?: string
-  /** 自提城市 */
-  pickupCity?: string
+  /** 发货地数组 */
+  pickupCities?: string[]
   /** 自提地址（模糊匹配） */
   pickupAddress?: string
   /** 库存数量 */
@@ -388,16 +388,16 @@ export async function getProductPage(params: PageProductParams): Promise<PagePro
   if (params.keyword !== undefined && params.keyword !== '') body.keyword = params.keyword
   if (params.categoryId !== undefined) body.categoryId = params.categoryId
   if (params.publishStatus !== undefined && params.publishStatus !== '') body.publishStatus = params.publishStatus
-  if (params.conditionLevel !== undefined && params.conditionLevel !== '') body.conditionLevel = params.conditionLevel
+  if (params.conditionLevels !== undefined && params.conditionLevels.length > 0) body.conditionLevels = params.conditionLevels
   if (params.brand !== undefined && params.brand !== '') body.brand = params.brand
   if (params.model !== undefined && params.model !== '') body.model = params.model
   if (params.originalPrice !== undefined) body.originalPrice = params.originalPrice
   if (params.sellingPrice !== undefined) body.sellingPrice = params.sellingPrice
-  if (params.priceMin !== undefined) body.priceMin = params.priceMin
-  if (params.priceMax !== undefined) body.priceMax = params.priceMax
+  if (params.minPrice !== undefined) body.minPrice = params.minPrice
+  if (params.maxPrice !== undefined) body.maxPrice = params.maxPrice
   if (params.isNew !== undefined) body.isNew = params.isNew
   if (params.tradeMode !== undefined && params.tradeMode !== '') body.tradeMode = params.tradeMode
-  if (params.pickupCity !== undefined && params.pickupCity !== '') body.pickupCity = params.pickupCity
+  if (params.pickupCities !== undefined && params.pickupCities.length > 0) body.pickupCities = params.pickupCities
   if (params.pickupAddress !== undefined && params.pickupAddress !== '') body.pickupAddress = params.pickupAddress
   if (params.stock !== undefined) body.stock = params.stock
   if (params.sortField !== undefined && params.sortField !== '') body.sortField = params.sortField

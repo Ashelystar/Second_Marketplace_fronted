@@ -383,6 +383,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import type { Product, ProductImage } from '@/types'
 import { getProductDetail, incrementProductView, getProductStats, getProductStatus, getProductPage, getSellerProducts } from '@/api/goods'
+import { createConversation } from '@/api/chat'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
 import {
@@ -766,17 +767,31 @@ const goToCheckout = () => {
   }
   router.push({ path: '/checkout', query: { productId: String(productId) } })
 }
-const goToChat = () => {
+const goToChat = async () => {
   if (!ensureLoggedIn('和卖家聊天')) return
-  router.push({
-    path: '/chat',
-    query: {
-      productId: String(product.value?.id),
-      sellerId: String(product.value?.sellerId),
-      sellerName: product.value?.sellerName || '',
-      sellerAvatar: product.value?.sellerAvatar || '',
-    }
-  })
+  const p = product.value
+  if (!p) return
+
+  try {
+    const conv = await createConversation({
+      conversationType: 'product_consult',
+      productId: p.id,
+      userId: p.sellerId,
+    })
+    router.push({ path: '/chat', query: { conversationId: String(conv.id), productId: String(p.id) } })
+  } catch (err) {
+    console.error('创建会话失败，使用兜底流程:', err)
+    // 兜底：即使 API 失败也确保能跳转
+    router.push({
+      path: '/chat',
+      query: {
+        productId: String(p.id),
+        sellerId: String(p.sellerId),
+        sellerName: p.sellerName || '',
+        sellerAvatar: p.sellerAvatar || '',
+      },
+    })
+  }
 }
 
 const goToSellerProfile = () => {

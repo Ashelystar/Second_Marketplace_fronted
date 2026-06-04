@@ -72,7 +72,7 @@
       </div>
 
       <!-- 商品信息卡片 -->
-      <div class="product-card" v-if="product" @click="viewProductDetail">
+      <div class="product-card" v-if="product" @click="viewProductDetail()">
         <div class="product-image">
           <img :src="product.image" :alt="product.title" @error="(e: Event) => { const t = e.target as HTMLImageElement; if (t) t.src = PLACEHOLDER_IMG }">
         </div>
@@ -92,49 +92,66 @@
             <span class="system-text">你们已成为好友，开始聊天吧</span>
           </div>
 
-          <div class="time-divider">
-            <span class="time-text">今天 14:30</span>
-          </div>
-
-          <div
-            v-for="msg in messages"
+          <template
+            v-for="(msg, index) in messages"
             :key="msg.id"
-            :class="['message-item', msg.type === 'sent' ? 'sent' : 'received']"
           >
-            <div v-if="msg.type === 'received'" class="message-avatar">
-              <img v-if="seller.avatar" :src="seller.avatar" :alt="seller.name">
-              <div v-else class="avatar-placeholder small">
-                {{ seller.name?.charAt(0) || '卖' }}
-              </div>
+            <!-- 动态时间分隔线：当前消息与前一条不在同一天时显示 -->
+            <div
+              v-if="showDateDivider(index, msg.timestamp)"
+              class="time-divider"
+            >
+              <span class="time-text">{{ formatDateLabel(msg.timestamp) }}</span>
+            </div>
+            <!-- 已撤回消息：居中提示 -->
+            <div v-if="msg.recalled" class="recall-notice">
+              <span class="recall-notice-text">
+                {{ msg.senderId !== conversationOtherUserId ? '你' : '对方' }}撤回了一条消息
+              </span>
             </div>
 
-            <div class="message-bubble">
-              <div v-if="msg.contentType === 'text'" class="text-content">
-                {{ msg.content }}
-              </div>
-
-              <div v-else-if="msg.contentType === 'image'" class="image-content">
-                <img :src="msg.content" alt="图片消息">
-              </div>
-
-              <div v-else-if="msg.contentType === 'product'" class="product-content" @click="viewProductDetail">
-                <div class="product-mini">
-                  <img :src="msg.productImage" :alt="msg.productTitle">
-                  <div class="product-mini-info">
-                    <p class="product-mini-title">{{ msg.productTitle }}</p>
-                    <p class="product-mini-price">¥{{ msg.productPrice }}</p>
-                  </div>
+            <!-- 正常消息 -->
+            <div v-else :class="['message-item', msg.type === 'sent' ? 'sent' : 'received']">
+              <div v-if="msg.type === 'received'" class="message-avatar">
+                <img v-if="seller.avatar" :src="seller.avatar" :alt="seller.name">
+                <div v-else class="avatar-placeholder small">
+                  {{ seller.name?.charAt(0) || '卖' }}
                 </div>
               </div>
-            </div>
 
-            <div v-if="msg.type === 'sent'" class="message-status">
-              <i v-if="msg.status === 'sending'" class="fa fa-clock-o sending"></i>
-              <i v-else-if="msg.status === 'sent'" class="fa fa-check sent"></i>
-              <i v-else-if="msg.status === 'delivered'" class="fa fa-check-double delivered"></i>
-              <i v-else-if="msg.status === 'failed'" class="fa fa-exclamation-circle failed"></i>
+              <div
+                class="message-bubble"
+                @contextmenu.prevent="onMessageContextMenu($event, msg)"
+              >
+                <div v-if="msg.contentType === 'text'" class="text-content">
+                  {{ msg.content }}
+                </div>
+
+                <div v-else-if="msg.contentType === 'image'" class="image-content">
+                  <img :src="msg.content" alt="图片消息">
+                </div>
+
+                <div v-else-if="msg.contentType === 'product'" class="product-content">
+                  <div class="product-mini" @click.stop="viewProductDetail(msg.productId)">
+                    <img :src="msg.productImage || PLACEHOLDER_IMG" :alt="msg.productTitle" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG">
+                    <div class="product-mini-info">
+                      <p class="product-mini-title">{{ msg.productTitle }}</p>
+                      <p class="product-mini-price">¥{{ msg.productPrice }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
+              </div>
+
+              <div v-if="msg.type === 'sent'" class="message-status">
+                <i v-if="msg.status === 'sending'" class="fa fa-clock-o sending"></i>
+                <i v-else-if="msg.status === 'sent'" class="fa fa-check sent"></i>
+                <i v-else-if="msg.status === 'delivered'" class="fa fa-check-double delivered"></i>
+                <i v-else-if="msg.status === 'failed'" class="fa fa-exclamation-circle failed"></i>
+              </div>
             </div>
-          </div>
+          </template>
         </div>
       </div>
 
@@ -206,6 +223,27 @@
       </div>
     </div>
 
+    <!-- 右键撤回菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="recallMenu.visible"
+        class="recall-overlay"
+        @click="hideRecallMenu"
+        @contextmenu.prevent="hideRecallMenu"
+      >
+        <div
+          class="recall-menu"
+          :style="{ left: recallMenu.x + 'px', top: recallMenu.y + 'px' }"
+          @click.stop
+        >
+          <button class="recall-item" @click="handleRecall">
+            <i class="fa fa-undo"></i>
+            <span>撤回消息</span>
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
     <input
       ref="imageInput"
       type="file"
@@ -220,12 +258,15 @@
 import { computed, ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProductDetail } from '@/api/goods'
+import { getConversationList, getConversationDetail, markConversationRead, createConversation, uploadChatImage, sendMessage as sendMessageApi, getMessageList, recallMessage, type Conversation, type MessageVO } from '@/api/chat'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
+import { useUserStore } from '@/stores/userStore'
 
 defineOptions({ name: 'ChatPage' })
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
 const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
 
 interface Friend {
@@ -237,6 +278,14 @@ interface Friend {
   unread?: number
   rating: number
   location: string
+  /** 扩展：会话关联的商品ID */
+  _productId?: number
+  /** 扩展：会话关联的订单ID */
+  _orderId?: number
+  /** 扩展：会话类型 */
+  _conversationType?: string
+  /** 扩展：对方用户ID */
+  _userId?: number
 }
 
 interface Message {
@@ -247,8 +296,85 @@ interface Message {
   productTitle?: string
   productPrice?: number
   productImage?: string
+  /** 关联的商品ID（product_card 类型的消息） */
+  productId?: number
   timestamp: string
   status: 'sending' | 'sent' | 'delivered' | 'failed'
+  senderId?: number
+  /** 消息是否已被撤回 */
+  recalled?: boolean
+}
+
+/** 当前会话中对方的用户ID，由加载会话时设置，用于精确判定消息方向 */
+const conversationOtherUserId = ref<number>(0)
+
+/** 将 API 返回的 MessageVO 转为本地 Message */
+const toMessage = (vo: MessageVO): Message => {
+  const otherId = conversationOtherUserId.value
+  let isMine: boolean
+
+  if (otherId > 0) {
+    // ★ 优选：用会话上下文判定 —— 非对方发的就是我发的
+    isMine = Number(vo.senderId) !== Number(otherId)
+    console.debug('[toMessage] 会话上下文判定: senderId=', vo.senderId,
+      '| otherUserId=', otherId,
+      '| isMine=', isMine,
+      '| content=', (vo.content || '').slice(0, 30))
+  } else {
+    // 兜底：localStorage 猜测（此分支不应在正常流程触发）
+    const myId = getMyUserId()
+    isMine = myId > 0 && Number(vo.senderId) === myId
+    console.debug('[toMessage] localStorage 兜底: senderId=', vo.senderId,
+      '| myId=', myId,
+      '| isMine=', isMine,
+      '| content=', (vo.content || '').slice(0, 30))
+  }
+
+  // 被撤回的消息：保留原始方向用于判断"你"/"对方"
+  if (vo.recalled) {
+    return {
+      id: vo.id,
+      type: isMine ? 'sent' : 'received',
+      contentType: 'text',
+      content: '',
+      timestamp: vo.sentAt,
+      status: 'delivered',
+      senderId: vo.senderId,
+      recalled: true,
+    }
+  }
+  return {
+    id: vo.id,
+    type: isMine ? 'sent' : 'received',
+    contentType: vo.messageType === 'product_card' ? 'product' : vo.messageType === 'image' ? 'image' : 'text',
+    content: vo.content || '',
+    timestamp: vo.sentAt,
+    status: 'delivered',
+    senderId: vo.senderId,
+    // 尝试从 extJson 中解析商品信息
+    ...(vo.messageType === 'product_card' && vo.extJson
+      ? (() => {
+          const p = parseProductExtJson(vo.extJson)
+          if (p.productImage) p.productImage = getImageUrl(p.productImage)
+          return p
+        })()
+      : {}),
+  }
+}
+
+/** 从 extJson 中解析商品ID等信息 */
+const parseProductExtJson = (extJson: string): { productId?: number; productTitle?: string; productPrice?: number; productImage?: string } => {
+  try {
+    const parsed = JSON.parse(extJson)
+    return {
+      productId: parsed.productId ?? parsed.id ?? undefined,
+      productTitle: parsed.title ?? parsed.productTitle ?? undefined,
+      productPrice: parsed.price ?? parsed.productPrice ?? undefined,
+      productImage: parsed.image ?? parsed.productImage ?? undefined,
+    }
+  } catch {
+    return {}
+  }
 }
 
 interface Product {
@@ -262,6 +388,31 @@ const messagesContainer = ref<HTMLElement>()
 const textareaRef = ref<HTMLTextAreaElement>()
 const imageInput = ref<HTMLInputElement>()
 const productLoading = ref(false)
+
+/** 
+ * 从 localStorage 直接读取当前登录用户ID。
+ * 不使用 computed/Pinia ref，避免 async 上下文里的响应式时序问题。
+ */
+const getMyUserId = (): number => {
+  try {
+    const raw = localStorage.getItem('userInfo')
+    if (raw) {
+      const parsed = JSON.parse(raw) as { id?: number | string }
+      if (parsed?.id != null) return Number(parsed.id)
+    }
+  } catch { /* ignore */ }
+  // 兜底：再试试 Pinia store
+  const storeId = userStore.userInfo?.id
+  return storeId != null ? Number(storeId) : 0
+}
+
+// 单击撤回菜单
+const recallMenu = ref<{ visible: boolean; x: number; y: number; messageId: number }>({
+  visible: false,
+  x: 0,
+  y: 0,
+  messageId: 0,
+})
 
 // 从路由参数初始化商品信息
 const initProduct = () => {
@@ -292,6 +443,19 @@ const initProduct = () => {
       })
       .catch(err => {
         console.error('获取商品详情失败:', err)
+        // 回退：从 localStorage 读取缓存的商品信息
+        const cached = localStorage.getItem(`chat_product_${productId}`)
+        if (cached) {
+          try {
+            const info = JSON.parse(cached)
+            product.value = {
+              id: info.id,
+              title: info.title || '',
+              price: Number(info.price ?? 0),
+              image: info.image || PLACEHOLDER_IMG,
+            }
+          } catch { /* ignore */ }
+        }
       })
       .finally(() => {
         productLoading.value = false
@@ -311,36 +475,121 @@ const initProduct = () => {
   }
 }
 
-const friends = ref<Friend[]>([
-  {
-    id: 1,
-    name: '数码小王子',
-    avatar: '',
-    lastMessage: '还在的，成色很新',
-    lastTime: '14:33',
-    unread: 2,
-    rating: 4.8,
-    location: '北京'
-  },
-  {
-    id: 2,
-    name: '电脑专家',
-    avatar: '',
-    lastMessage: '可以面交',
-    lastTime: '昨天',
-    rating: 4.9,
-    location: '深圳'
-  },
-  {
-    id: 3,
-    name: '游戏达人',
-    avatar: '',
-    lastMessage: '支持验机',
-    lastTime: '3天前',
-    rating: 4.7,
-    location: '上海'
+const friends = ref<Friend[]>([])
+
+/** 从 API 拉取真实会话列表，映射为 Friend */
+const fetchConversations = async () => {
+  try {
+    const list = await getConversationList({ pageNum: 1, pageSize: 50 })
+    const apiFriends: Friend[] = list.map((c: Conversation) => ({
+      id: c.id,
+      name: c.userNickname || '对方用户',
+      avatar: '',
+      lastMessage: c.lastMessageContent || '暂无消息',
+      lastTime: formatLastTime(c.lastMessageAt),
+      unread: c.unreadCount ?? 0,
+      rating: 5,
+      location: '',
+      _conversationType: c.conversationType,
+      _productId: c.productId ?? undefined,
+      _orderId: c.orderId ?? undefined,
+      _userId: c.userId,
+    }))
+    // 合并 localStorage 中的兜底好友（如果 API 返回为空时仍有兜底）
+    // 过滤掉旧版缓存：没有 _conversationType 的条目是错误缓存（存的是 userId 而非 conversationId）
+    const stored = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Friend[]
+    const existingIds = new Set(apiFriends.map(f => f.id))
+    for (const sf of stored) {
+      if (!existingIds.has(sf.id) && sf._conversationType) {
+        apiFriends.push(sf)
+      }
+    }
+    friends.value = apiFriends
+    // 如果有路由参数 conversationId，自动选中
+    const convId = Number(route.query.conversationId)
+    if (Number.isFinite(convId)) {
+      const target = friends.value.find(f => f.id === convId)
+      if (target) {
+        seller.value = target
+        if (target.unread) {
+          target.unread = 0
+          markConversationRead(target.id).catch(err =>
+            console.error('标记会话已读失败:', err),
+          )
+        }
+        // 加载该会话关联的商品
+        if (target._productId) {
+          loadProductForConversation(target._productId)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('获取会话列表失败:', err)
+    // 回退到 localStorage
+    mergeStoredFriends()
   }
-])
+}
+
+/** 消息气泡时间：只显示具体钟点，日期由分隔线提供 */
+const formatTime = (iso?: string | null): string => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
+/** 会话列表最后消息时间：今天显示时间，昨天显示"昨天"，其余显示月日 */
+const formatLastTime = (iso?: string | null): string => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  if (msgDay.getTime() >= today.getTime()) {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+  if (msgDay.getTime() >= yesterday.getTime()) return '昨天'
+  return `${d.getMonth() + 1}月${d.getDate()}日`
+}
+
+/** 判断是否需要在当前消息前插入日期/时间分隔线（第一条、跨天、或间隔>5分钟） */
+const showDateDivider = (index: number, iso?: string | null): boolean => {
+  if (!iso) return false
+  if (index === 0) return true
+  const prevMsg = messages.value[index - 1]
+  if (!prevMsg?.timestamp) return false
+  try {
+    const cur = new Date(iso)
+    const prev = new Date(prevMsg.timestamp)
+    if (isNaN(cur.getTime()) || isNaN(prev.getTime())) return false
+    // 跨天
+    if (cur.toDateString() !== prev.toDateString()) return true
+    // 同天内间隔超过 5 分钟
+    return cur.getTime() - prev.getTime() > 5 * 60 * 1000
+  } catch {
+    return false
+  }
+}
+
+/** 日期分隔线文案：包含具体时间 */
+const formatDateLabel = (iso?: string | null): string => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const timeStr = `${hh}:${mm}`
+  if (d.toDateString() === today.toDateString()) return timeStr
+  if (d.toDateString() === yesterday.toDateString()) return `昨天 ${timeStr}`
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${timeStr}`
+}
 
 const mergeStoredFriends = () => {
   const stored = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Friend[]
@@ -351,7 +600,7 @@ const mergeStoredFriends = () => {
     friendMap.set(friend.id, friend)
   }
   for (const friend of stored) {
-    if (typeof friend.id === 'number' && friend.id > 0) {
+    if (typeof friend.id === 'number' && friend.id > 0 && friend._conversationType) {
       friendMap.set(friend.id, friend)
     }
   }
@@ -369,47 +618,9 @@ const defaultSeller: Friend = {
 }
 const seller = ref<Friend>(friends.value[0] ?? defaultSeller)
 
-const product = ref<Product>({
-  id: 1,
-  title: '九成新iPhone 13 Pro 256G',
-  price: 4599,
-  image: 'https://via.placeholder.com/300x300?text=iPhone+13+Pro'
-})
+const product = ref<Product | null>(null)
 
-const messages = ref<Message[]>([
-  {
-    id: 1,
-    type: 'received',
-    contentType: 'text',
-    content: '您好，这个手机还在吗？',
-    timestamp: '14:30',
-    status: 'delivered'
-  },
-  {
-    id: 2,
-    type: 'sent',
-    contentType: 'text',
-    content: '还在的，成色很新，电池健康度还有88%',
-    timestamp: '14:31',
-    status: 'delivered'
-  },
-  {
-    id: 3,
-    type: 'received',
-    contentType: 'text',
-    content: '能便宜一点吗？',
-    timestamp: '14:32',
-    status: 'delivered'
-  },
-  {
-    id: 4,
-    type: 'sent',
-    contentType: 'text',
-    content: '4500最低了，已经比市场价低很多了',
-    timestamp: '14:33',
-    status: 'delivered'
-  }
-])
+const messages = ref<Message[]>([])
 
 const inputMessage = ref('')
 const showQuickReplies = ref(false)
@@ -432,13 +643,50 @@ const unreadCountDisplay = computed(() =>
   totalUnreadCount.value > 99 ? '99+' : String(totalUnreadCount.value)
 )
 
-const switchFriend = (friend: Friend) => {
+const switchFriend = async (friend: Friend) => {
   seller.value = friend
+  // ★ 先设置对方用户ID，确保 toMessage 能正确判断方向
+  conversationOtherUserId.value = friend._userId ?? 0
   if (friend.unread) {
     friend.unread = 0
+    // 调用后端标记已读
+    markConversationRead(friend.id).catch(err =>
+      console.error('标记会话已读失败:', err),
+    )
   }
-  // 实际项目中这里应加载该好友的消息记录
-  messages.value = []
+  // 从后端加载会话详情（含消息列表），一次请求获取全部数据
+  try {
+    const detail = await getConversationDetail(friend.id)
+    // ★ API 返回的 userId 是对方ID，覆盖为更权威的值
+    conversationOtherUserId.value = detail.userId
+    messages.value = detail.messages.map(toMessage)
+    console.debug('[switchFriend] 已加载会话', detail.id,
+      '| otherUserId=', conversationOtherUserId.value,
+      '| 消息数=', messages.value.length,
+      '| sent数=', messages.value.filter(m => m.type === 'sent').length,
+      '| received数=', messages.value.filter(m => m.type === 'received').length)
+    // 同步更新好友信息（昵称、头像等可能变更）
+    friend.name = detail.userNickname || friend.name
+    friend._userId = detail.userId
+    if (detail.productId) {
+      friend._productId = detail.productId
+      loadProductForConversation(detail.productId)
+    }
+  } catch (err) {
+    console.error('加载会话详情失败，回退到消息列表接口:', err)
+    // 回退：用独立消息列表接口兜底（otherUserId 已在上面设置）
+    try {
+      const msgList = await getMessageList({ conversationId: friend.id })
+      messages.value = msgList.map(toMessage)
+    } catch (err2) {
+      console.error('加载消息列表也失败:', err2)
+      messages.value = []
+    }
+    // 回退时也加载商品信息
+    if (friend._productId) {
+      loadProductForConversation(friend._productId)
+    }
+  }
   scrollToBottom()
 }
 
@@ -446,46 +694,49 @@ const goBack = () => {
   router.back()
 }
 
-const sendMessage = () => {
-  if (inputMessage.value.trim().length === 0) return
+const sendMessage = async () => {
+  const text = inputMessage.value.trim()
+  if (!text || !seller.value?.id) return
 
-  const newMessage: Message = {
-    id: messages.value.length + 1,
+  // 插入一条"sending"占位
+  const placeholderId = Date.now()
+  messages.value.push({
+    id: placeholderId,
     type: 'sent',
     contentType: 'text',
-    content: inputMessage.value.trim(),
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    status: 'sending'
-  }
-
-  messages.value.push(newMessage)
+    content: text,
+    timestamp: new Date().toISOString(),
+    status: 'sending',
+  })
   inputMessage.value = ''
-
-  if (textareaRef.value) {
-    textareaRef.value.style.height = 'auto'
-  }
-
+  if (textareaRef.value) textareaRef.value.style.height = 'auto'
   scrollToBottom()
 
-  setTimeout(() => {
-    const msg = messages.value.find(m => m.id === newMessage.id)
-    if (msg) {
-      msg.status = 'delivered'
+  try {
+    const result = await sendMessageApi({
+      conversationId: seller.value.id,
+      messageType: 'text',
+      content: text,
+    })
+    // 替换占位消息
+    const idx = messages.value.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) {
+      const msg = toMessage(result)
+      msg.type = 'sent' // 确保自己发的消息在右侧
+      messages.value[idx] = msg
     }
-  }, 1000)
-
-  setTimeout(() => {
-    const autoReply: Message = {
-      id: messages.value.length + 1,
-      type: 'received',
-      contentType: 'text',
-      content: '好的，我考虑一下',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'delivered'
+    // 更新好友列表最后消息
+    const friend = friends.value.find(f => f.id === seller.value.id)
+    if (friend) {
+      friend.lastMessage = text
+      friend.lastTime = formatLastTime(result.sentAt)
     }
-    messages.value.push(autoReply)
-    scrollToBottom()
-  }, 2000)
+  } catch (err) {
+    console.error('发送消息失败:', err)
+    const idx = messages.value.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) messages.value[idx]!.status = 'failed'
+    alert(err instanceof Error ? err.message : '发送消息失败')
+  }
 }
 
 const sendQuickReply = (reply: string) => {
@@ -502,42 +753,96 @@ const openImagePicker = () => {
   imageInput.value?.click()
 }
 
-const handleImageSelect = (event: Event) => {
+const handleImageSelect = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
-  if (file) {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const newMessage: Message = {
-        id: messages.value.length + 1,
-        type: 'sent',
-        contentType: 'image',
-        content: e.target?.result as string,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        status: 'delivered'
-      }
-      messages.value.push(newMessage)
-      scrollToBottom()
+  if (!file || !seller.value?.id) return
+
+  // 先展示一个"上传中"的占位消息
+  const placeholderId = Date.now()
+  messages.value.push({
+    id: placeholderId,
+    type: 'sent',
+    contentType: 'image',
+    content: '',
+    timestamp: new Date().toISOString(),
+    status: 'sending',
+  })
+  scrollToBottom()
+
+  try {
+    const uploadResult = await uploadChatImage(file)
+    // 上传成功后，发送图片消息
+    const result = await sendMessageApi({
+      conversationId: seller.value.id,
+      messageType: 'image',
+      content: uploadResult.url,
+      extJson: JSON.stringify(uploadResult.extJson),
+    })
+    // 替换占位
+    const idx = messages.value.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) {
+      const msg = toMessage(result)
+      msg.type = 'sent' // 确保自己发的消息在右侧
+      messages.value[idx] = msg
     }
-    reader.readAsDataURL(file)
+  } catch (err) {
+    console.error('发送图片失败:', err)
+    const idx = messages.value.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) messages.value[idx]!.status = 'failed'
+    alert('图片发送失败，请重试')
   }
 }
 
-const sendProductCard = () => {
-  if (!product.value) return
+const sendProductCard = async () => {
+  if (!product.value || !seller.value?.id) return
 
-  const newMessage: Message = {
-    id: messages.value.length + 1,
+  const placeholderId = Date.now()
+  messages.value.push({
+    id: placeholderId,
     type: 'sent',
     contentType: 'product',
     content: '',
     productTitle: product.value.title,
     productPrice: product.value.price,
     productImage: product.value.image,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    status: 'delivered'
-  }
-  messages.value.push(newMessage)
+    productId: product.value.id,
+    timestamp: new Date().toISOString(),
+    status: 'sending',
+  })
   scrollToBottom()
+
+  try {
+    const result = await sendMessageApi({
+      conversationId: seller.value.id,
+      messageType: 'product_card',
+      productId: product.value.id,
+      // ★ 把商品图片/标题/价格写入 extJson，确保后端存下的数据完整
+      extJson: JSON.stringify({
+        image: product.value.image,
+        title: product.value.title,
+        price: product.value.price,
+        productId: product.value.id,
+      }),
+    })
+    const idx = messages.value.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) {
+      const msg = toMessage(result)
+      msg.type = 'sent' // 确保自己发的消息在右侧
+      // ★ 以占位消息为权威源，保证和上方商品链接完全同步
+      const pimg = messages.value[idx]!.productImage
+      const ptitle = messages.value[idx]!.productTitle
+      const pprice = messages.value[idx]!.productPrice
+      msg.productImage = pimg || msg.productImage
+      msg.productTitle = ptitle || msg.productTitle
+      msg.productPrice = pprice ?? msg.productPrice
+      messages.value[idx] = msg
+    }
+  } catch (err) {
+    console.error('发送商品卡片失败:', err)
+    const idx = messages.value.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) messages.value[idx]!.status = 'failed'
+    alert('发送商品卡片失败，请重试')
+  }
 }
 
 const autoResize = () => {
@@ -555,20 +860,83 @@ const scrollToBottom = async () => {
 }
 
 const viewSellerProfile = () => {
-  if (!seller.value?.id) return
+  const userId = seller.value?._userId
+  if (!userId) return
+  // 保存当前会话上下文，返回时恢复
+  if (seller.value.id) {
+    sessionStorage.setItem('chat_return_conv', JSON.stringify({
+      id: seller.value.id,
+      name: seller.value.name,
+      avatar: seller.value.avatar,
+      _userId: seller.value._userId,
+      _productId: seller.value._productId,
+      _conversationType: seller.value._conversationType,
+    }))
+  }
   router.push({
-    path: `/user/home/${seller.value.id}`,
+    path: `/user/home/${userId}`,
     query: {
-      name: seller.value.name || '',
-      avatar: seller.value.avatar || '',
-      location: seller.value.location || '未知',
+      name: seller.value!.name || '',
+      avatar: seller.value!.avatar || '',
+      location: seller.value!.location || '未知',
     },
   })
 }
 
-const viewProductDetail = () => {
-  if (product.value) {
-    router.push({ name: 'goods-detail', params: { id: product.value.id } })
+/** 根据商品ID加载并设置当前会话的商品信息 */
+const loadProductForConversation = (productId: number) => {
+  productLoading.value = true
+  getProductDetail(productId)
+    .then(data => {
+      let imageUrl = ''
+      if (data.image) {
+        imageUrl = getImageUrl(data.image)
+      } else if (Array.isArray(data.images) && data.images.length > 0) {
+        const firstImg = data.images[0]
+        if (firstImg) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          imageUrl = getImageUrl((firstImg as any).url || (firstImg as any).imageUrl || '')
+        }
+      }
+      product.value = {
+        id: data.id,
+        title: data.title || '',
+        price: Number(data.sellingPrice ?? data.price ?? 0),
+        image: imageUrl || PLACEHOLDER_IMG,
+      }
+      // ★ 无条件同步：上方商品链接更新后，消息列表中同 productId 的卡片全部同步
+      for (const m of messages.value) {
+        if (m.contentType === 'product' && m.productId === productId) {
+          m.productImage = imageUrl || PLACEHOLDER_IMG
+          m.productTitle = data.title || m.productTitle || ''
+          m.productPrice = product.value.price ?? m.productPrice
+        }
+      }
+    })
+    .catch(err => {
+      console.error('加载会话商品失败:', err)
+      // API 失败时保留现有值（模拟数据兜底）
+    })
+    .finally(() => {
+      productLoading.value = false
+    })
+}
+
+const viewProductDetail = (pId?: number) => {
+  const targetId = pId ?? product.value?.id
+  if (targetId) {
+    // 保存当前会话上下文，返回时恢复
+    if (seller.value.id) {
+      sessionStorage.setItem('chat_return_conv', JSON.stringify({
+        id: seller.value.id,
+        name: seller.value.name,
+        avatar: seller.value.avatar,
+        _userId: seller.value._userId,
+        _productId: seller.value._productId,
+        _conversationType: seller.value._conversationType,
+      }))
+    }
+    router.push({ name: 'goods-detail', params: { id: targetId } })
   }
 }
 
@@ -591,17 +959,178 @@ const blockUser = () => {
   }
 }
 
-onMounted(() => {
-  mergeStoredFriends()
+// ===== 右键撤回菜单 =====
+const onMessageContextMenu = (e: MouseEvent, msg: Message) => {
+  // 只对自己发送的、未撤回、非发送中的消息显示撤回菜单
+  if (msg.type !== 'sent' || msg.recalled || msg.status === 'sending') return
+  showRecallMenu(e, msg)
+}
+
+const showRecallMenu = (e: MouseEvent, msg: Message) => {
+  recallMenu.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    messageId: msg.id,
+  }
+}
+
+const hideRecallMenu = () => {
+  recallMenu.value.visible = false
+}
+
+const handleRecall = async () => {
+  const msgId = recallMenu.value.messageId
+  hideRecallMenu()
+  try {
+    await recallMessage(msgId)
+    // 更新本地消息状态
+    const msg = messages.value.find(m => m.id === msgId)
+    if (msg) {
+      msg.recalled = true
+      msg.content = '消息已被撤回'
+      msg.contentType = 'text'
+    }
+  } catch (err) {
+    console.error('撤回失败:', err)
+    // 后端返回的具体错误（如"超过5分钟"），尝试解析
+    let errText = '撤回失败，请重试'
+    if (err instanceof Error) {
+      try {
+        const parsed = JSON.parse(err.message)
+        errText = parsed.message || errText
+      } catch { errText = err.message || errText }
+    }
+    alert(errText)
+  }
+}
+
+onMounted(async () => {
+  await fetchConversations()
   // 初始化商品信息（从商品详情页跳转过来时）
   initProduct()
+  // 如果没有通过 productId 跳转过来，直接给默认商品卡片，避免异步等待期间空白
+  if (!route.query.productId && !product.value) {
+    product.value = {
+      id: 1,
+      title: '九成新iPhone 13 Pro 256G',
+      price: 4599,
+      image: 'https://via.placeholder.com/300x300?text=iPhone+13+Pro',
+    }
+  }
   const selectedFriendId = Number(route.query.friendId)
   if (Number.isFinite(selectedFriendId) && selectedFriendId > 0) {
     const target = friends.value.find(friend => friend.id === selectedFriendId)
-    if (target) {
+    // 只接受来自 API 的有效会话（有 _conversationType 标记），忽略旧版错误缓存
+    if (target && target._conversationType) {
       seller.value = target
       if (target.unread) {
         target.unread = 0
+        markConversationRead(target.id).catch(err =>
+          console.error('标记会话已读失败:', err),
+        )
+      }
+      // 加载该会话关联的商品（兜底：localStorage 中可能缓存了 _productId）
+      if (target._productId) {
+        loadProductForConversation(target._productId)
+      }
+    }
+  }
+  // 兜底：如果是从其他页面跳转过来但 createConversation 失败了，
+  // 此时只有 route.sellerId（userId）没有 conversationId，需要在此补建会话
+  const routeSellerId = Number(route.query.sellerId)
+  const routeProductId = Number(route.query.productId)
+  if (!route.query.conversationId && Number.isFinite(routeSellerId) && routeSellerId > 0) {
+    const hasProductId = Number.isFinite(routeProductId) && routeProductId > 0
+    const existing = friends.value.find(f => {
+      if (f._userId !== routeSellerId) return false
+      return hasProductId ? f._productId === routeProductId : true
+    })
+    if (existing) {
+      seller.value = existing
+      if (existing.unread) {
+        existing.unread = 0
+        markConversationRead(existing.id).catch(err => console.error('标记已读失败:', err))
+      }
+      if (existing._productId) {
+        loadProductForConversation(existing._productId)
+      }
+    } else {
+      try {
+        const conv = await createConversation({
+          conversationType: 'product_consult',
+          ...(hasProductId ? { productId: routeProductId } : {}),
+          userId: routeSellerId,
+        })
+        seller.value = {
+          id: conv.id,
+          name: conv.userNickname || seller.value.name,
+          avatar: seller.value.avatar,
+          lastMessage: '',
+          lastTime: '',
+          unread: 0,
+          rating: 5,
+          location: '',
+          _conversationType: conv.conversationType,
+          _productId: conv.productId ?? undefined,
+          _orderId: conv.orderId ?? undefined,
+          _userId: conv.userId,
+        }
+        friends.value.unshift(seller.value)
+      } catch (convErr) {
+        console.error('自动创建会话失败:', convErr)
+        alert('创建会话失败，请稍后重试')
+        seller.value.id = 0
+      }
+    }
+  }
+  // 如果以上都没有找到会话，尝试从 sessionStorage 恢复（从商品详情页返回时）
+  if (!seller.value.id) {
+    try {
+      const savedConv = sessionStorage.getItem('chat_return_conv')
+      if (savedConv) {
+        const ctx = JSON.parse(savedConv) as Friend
+        const existing = friends.value.find(f => f.id === ctx.id)
+        if (existing) {
+          seller.value = existing
+        } else {
+          // 会话还在列表中找不到，直接用保存的上下文
+          seller.value = ctx
+          friends.value.unshift(ctx)
+        }
+        if (ctx._productId) {
+          loadProductForConversation(ctx._productId)
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  // 如果有选中的会话，通过详情接口加载消息列表
+  if (seller.value.id) {
+    // ★ 先设置对方用户ID，确保 toMessage 能正确判断消息方向
+    conversationOtherUserId.value = seller.value._userId ?? 0
+    try {
+      const detail = await getConversationDetail(seller.value.id)
+      // ★ API 返回的 userId 是对方ID，覆盖为权威值
+      conversationOtherUserId.value = detail.userId
+      seller.value._userId = detail.userId
+      messages.value = detail.messages.map(toMessage)
+      console.debug('[onMounted] 已加载会话', detail.id,
+        '| otherUserId=', conversationOtherUserId.value,
+        '| 消息数=', messages.value.length,
+        '| sent数=', messages.value.filter(m => m.type === 'sent').length,
+        '| received数=', messages.value.filter(m => m.type === 'received').length)
+      // 同步商品信息
+      if (detail.productId) {
+        seller.value._productId = detail.productId
+        loadProductForConversation(detail.productId)
+      }
+    } catch (err) {
+      console.error('加载会话详情失败，回退到消息列表接口:', err)
+      try {
+        const msgList = await getMessageList({ conversationId: seller.value.id })
+        messages.value = msgList.map(toMessage)
+      } catch (err2) {
+        console.error('加载消息列表也失败:', err2)
       }
     }
   }
@@ -611,7 +1140,9 @@ onMounted(() => {
 
 <style scoped>
 .chat-page {
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background: #f5f5f5;
   display: flex;
   animation: pageEnter 260ms ease both;
@@ -967,6 +1498,7 @@ onMounted(() => {
 
 .chat-messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px;
   scroll-behavior: smooth;
@@ -990,6 +1522,19 @@ onMounted(() => {
   font-size: 12px;
   padding: 6px 12px;
   border-radius: 12px;
+}
+
+/* 消息撤回居中提示 */
+.recall-notice {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+.recall-notice-text {
+  color: #9ca3af;
+  font-size: 12px;
+  padding: 4px 0;
 }
 
 .time-divider {
@@ -1059,6 +1604,14 @@ onMounted(() => {
   font-size: 14px;
   line-height: 1.5;
   word-break: break-word;
+}
+
+.message-time {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+  opacity: 0.65;
+  text-align: right;
 }
 
 .image-content img {
@@ -1384,6 +1937,68 @@ onMounted(() => {
   }
   to {
     opacity: 1;
+  }
+}
+
+/* 右键撤回菜单 */
+.recall-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+}
+
+.recall-menu {
+  position: fixed;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  min-width: 140px;
+  animation: recallMenuIn 120ms ease both;
+  z-index: 1000;
+}
+
+.recall-item {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 120ms;
+}
+
+.recall-item:hover {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.recall-item i {
+  width: 16px;
+  text-align: center;
+  color: #9ca3af;
+}
+
+.recall-item:hover i {
+  color: #ef4444;
+}
+
+@keyframes recallMenuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 </style>

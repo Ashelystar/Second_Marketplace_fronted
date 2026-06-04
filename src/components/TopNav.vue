@@ -69,7 +69,7 @@
 
 <script setup lang="ts">
 // 导入Vue组合式API和状态管理
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import UserDropdown from '@/components/UserDropdown.vue'
@@ -113,7 +113,7 @@ const userStore = useUserStore()
 const searchInput = ref('')
 
 // 热门标签数据
-const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 
 /**
  * 处理搜索功能
@@ -145,13 +145,6 @@ const goToForum = () => {
 const goToHome = () => {
   router.push('/')
 }
-/**
- * 导航到用户中心页面
- */
-const goToUserCenter = () => {
-  router.push('/user/center')
-}
-
 /**
  * 导航到购物车页面
  */

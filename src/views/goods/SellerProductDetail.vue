@@ -345,6 +345,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { offShelfProduct, relistProduct, getProductDetail } from '@/api/goods'
+import { createConversation } from '@/api/chat'
 import type { ProductVO } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
@@ -428,7 +429,6 @@ const product = ref<ProductData | null>(null)
 const currentIndex = ref(0)
 const images = ref<ProductImage[]>([])
 const isLoading = ref(true)
-const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
 const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
 
 // 咨询回复相关
@@ -549,7 +549,7 @@ const loadDetails = async () => {
       sellerRating: 5.0,
       price: vo.sellingPrice || 0,
       originalPrice: vo.originalPrice || 0,
-      image: productImages.length > 0 ? getImageUrl(productImages[0].url) : PLACEHOLDER_IMG,
+      image: productImages.length > 0 ? getImageUrl(productImages[0]!.url) : PLACEHOLDER_IMG,
       images: productImages,
       description: vo.description || '',
       condition: vo.conditionLevel ? (conditionMap[vo.conditionLevel] || vo.conditionLevel) : '未知',
@@ -636,7 +636,7 @@ const shareProduct = () => {
   alert('复制商品链接成功！')
 }
 
-const goToConsult = () => {
+const goToConsult = async () => {
   if (!userStore.isLoggedIn) {
     alert('请先登录后再咨询卖家')
     router.push('/user/login')
@@ -644,28 +644,27 @@ const goToConsult = () => {
   }
   if (!product.value) return
 
-  const friend = {
-    id: product.value.sellerId,
-    name: product.value.sellerName,
-    avatar: product.value.sellerAvatar,
-    lastMessage: `我对「${product.value.title}」感兴趣，方便聊聊吗？`,
-    lastTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    unread: 1,
-    rating: product.value.sellerRating || 5,
-    location: product.value.location || '未知'
+  const p = product.value
+  try {
+    const conv = await createConversation({
+      conversationType: 'product_consult',
+      productId: p.id,
+      userId: p.sellerId,
+    })
+    router.push({ path: '/chat', query: { conversationId: String(conv.id), productId: String(p.id) } })
+  } catch (err) {
+    console.error('创建会话失败，使用兜底流程:', err)
+    // 兜底：让聊天页自动补建会话（不再把 userId 当作 friendId 存入 localStorage）
+    router.push({
+      path: '/chat',
+      query: {
+        sellerId: String(p.sellerId),
+        sellerName: p.sellerName || '',
+        sellerAvatar: p.sellerAvatar || '',
+        productId: String(p.id),
+      },
+    })
   }
-
-  const stored = JSON.parse(localStorage.getItem(CHAT_FRIENDS_STORAGE_KEY) || '[]') as Array<typeof friend>
-  const mergedMap = new Map<number, typeof friend>()
-  stored.forEach(item => {
-    if (item && typeof item.id === 'number') {
-      mergedMap.set(item.id, item)
-    }
-  })
-  mergedMap.set(friend.id, friend)
-  localStorage.setItem(CHAT_FRIENDS_STORAGE_KEY, JSON.stringify(Array.from(mergedMap.values())))
-
-  router.push({ path: '/chat', query: { friendId: String(friend.id) } })
 }
 
 const contactBuyer = (item: Intention) => {

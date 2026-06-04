@@ -72,11 +72,17 @@ export const useProductStore = defineStore('product', () => {
   /**
    * 加载商品列表 — 所有筛选/搜索/排序/分页参数都通过 PageProductParams 传给后端
    */
-  const loadProducts = async (params?: Partial<PageProductParams>) => {
+  const loadProducts = async (params?: Partial<PageProductParams>, append = false) => {
     isLoading.value = true
     try {
       // 合并外部参数到 queryState
       if (params) {
+        // 先清除传入 undefined 的字段（Object.assign 会跳过 undefined 值）
+        for (const key of Object.keys(params) as (keyof PageProductParams)[]) {
+          if (params[key] === undefined) {
+            delete (queryState.value as Record<string, unknown>)[key]
+          }
+        }
         Object.assign(queryState.value, params)
       }
 
@@ -84,8 +90,13 @@ export const useProductStore = defineStore('product', () => {
       // 兼容 data 直接是数组或 { records: [...] } 格式
       const records = Array.isArray(result) ? result : (result.records || [])
       const mapped = records.map(mapApiProduct)
-      products.value = mapped
-      filteredProducts.value = mapped
+      if (append) {
+        products.value.push(...mapped)
+        filteredProducts.value.push(...mapped)
+      } else {
+        products.value = mapped
+        filteredProducts.value = mapped
+      }
       totalProducts.value = Array.isArray(result) ? result.length : (result.total || 0)
       currentPage.value = Array.isArray(result) ? 1 : (result.current || queryState.value.current || 1)
 
@@ -95,8 +106,10 @@ export const useProductStore = defineStore('product', () => {
       })
     } catch (error) {
       console.error('加载商品失败:', error)
-      products.value = []
-      filteredProducts.value = []
+      if (!append) {
+        products.value = []
+        filteredProducts.value = []
+      }
     } finally {
       isLoading.value = false
     }
@@ -105,7 +118,8 @@ export const useProductStore = defineStore('product', () => {
   /** 切换页码 */
   const changePage = (page: number) => {
     queryState.value.current = page
-    loadProducts()
+    // page > 1 时追加，page = 1 时覆盖
+    loadProducts(undefined, page > 1)
   }
 
   // ========== 搜索（走后端API）==========
@@ -114,6 +128,8 @@ export const useProductStore = defineStore('product', () => {
    * 搜索 — 将关键词传入后端进行服务端检索
    */
   const performSearch = (query: string) => {
+    // 搜索时清除分类筛选，避免 categoryId 与 keyword 交叉干扰
+    queryState.value.categoryId = undefined
     queryState.value.keyword = query.trim() || undefined
     queryState.value.current = 1  // 搜索时回到第1页
     loadProducts()
@@ -128,23 +144,22 @@ export const useProductStore = defineStore('product', () => {
     filterState.value = { ...filter }
     
     // 价格区间
-    queryState.value.priceMin = filter.minPrice ? parseFloat(filter.minPrice) : undefined
-    queryState.value.priceMax = filter.maxPrice ? parseFloat(filter.maxPrice) : undefined
+    queryState.value.minPrice = filter.minPrice ? parseFloat(filter.minPrice) : undefined
+    queryState.value.maxPrice = filter.maxPrice ? parseFloat(filter.maxPrice) : undefined
     
-    // 成色 → 转换为后端 conditionLevel（多选取第一个，或后端支持数组时可扩展）
-    // 注意：后端 conditionLevel 是单值字符串，前端多选时可以后续改为逗号分隔或多次请求
+    // 成色 → 转换为后端 conditionLevels 数组
     if (filter.conditions && filter.conditions.length > 0) {
       const levelValues = filter.conditions.map(c => reverseConditionMap[c] || c).filter(Boolean)
-      queryState.value.conditionLevel = levelValues.join(',')
+      queryState.value.conditionLevels = levelValues
     } else {
-      queryState.value.conditionLevel = undefined
+      queryState.value.conditionLevels = undefined
     }
 
-    // 城市 → 映射到 pickupCity
+    // 发货地 → 映射到 pickupCities 数组
     if (filter.locations && filter.locations.length > 0) {
-      queryState.value.pickupCity = filter.locations.join(',')
+      queryState.value.pickupCities = filter.locations
     } else {
-      queryState.value.pickupCity = undefined
+      queryState.value.pickupCities = undefined
     }
 
     // 时间范围 → 可映射为 publishedAt 的排序方向（可选）
@@ -156,16 +171,22 @@ export const useProductStore = defineStore('product', () => {
 
   const resetFilter = () => {
     filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' }
-    // 清除所有筛选项
-    queryState.value.priceMin = undefined
-    queryState.value.priceMax = undefined
-    queryState.value.conditionLevel = undefined
-    queryState.value.pickupCity = undefined
+    // 清空所有筛选项（包括关键词和分类）
+    queryState.value.keyword = undefined
+    queryState.value.categoryId = undefined
+    queryState.value.minPrice = undefined
+    queryState.value.maxPrice = undefined
+    queryState.value.conditionLevels = undefined
+    queryState.value.pickupCities = undefined
     queryState.value.publishStatus = undefined
     queryState.value.brand = undefined
     queryState.value.model = undefined
     queryState.value.isNew = undefined
     queryState.value.tradeMode = undefined
+    // 重置排序为默认
+    queryState.value.sortField = undefined
+    queryState.value.sortOrder = undefined
+    currentSort.value = 'default'
     queryState.value.current = 1
     loadProducts()
   }
@@ -173,7 +194,7 @@ export const useProductStore = defineStore('product', () => {
   // ========== 排序（走后端API）==========
 
   /**
-   * 排序 — 将排序字段和方向传给后端
+   * 排序 — 将排序字段和方向通过 PageProductParams 传给后端
    */
   const sortProducts = (sortType: SortOption) => {
     currentSort.value = sortType
@@ -186,13 +207,19 @@ export const useProductStore = defineStore('product', () => {
         queryState.value.sortField = 'sellingPrice'
         queryState.value.sortOrder = 'desc'
         break
+      case 'credit-high':
+        // TODO: 信用排序 — 后端目前无 sellerRating 排序字段，暂按发布时间倒序
+        queryState.value.sortField = 'publishedAt'
+        queryState.value.sortOrder = 'desc'
+        break
       case 'distance-near':
-        // 距离排序需要经纬度参数，后端可能不支持，回退到前端排序
-        // 如果后端支持 latitude/longitude + sortField=distance 则可走API
+        // TODO: 距离排序 — 需要后端支持 latitude/longitude + 距离计算，
+        //       目前暂回退到综合排序
         queryState.value.sortField = undefined
         queryState.value.sortOrder = undefined
         break
       default:
+        // 综合排序：清空排序字段，后端按默认规则（如发布时间倒序）
         queryState.value.sortField = undefined
         queryState.value.sortOrder = undefined
         break
@@ -203,6 +230,10 @@ export const useProductStore = defineStore('product', () => {
 
   // ========== 初始化 ==========
   const initialize = async () => {
+    // 重置查询条件，避免从其他页面（如搜索页）返回时携带旧的筛选参数
+    queryState.value = { current: 1, size: 20 }
+    currentSort.value = 'default'
+    filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' }
     await loadProducts()
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {

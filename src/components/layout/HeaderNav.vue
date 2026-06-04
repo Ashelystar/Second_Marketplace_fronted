@@ -46,7 +46,7 @@ import UserDropdown from '@/components/UserDropdown.vue'
 const router = useRouter()
 const userStore = useUserStore()
 const searchInput = ref('')
-const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 
 const handleSearch = () => {
   const keyword = searchInput.value.trim()
