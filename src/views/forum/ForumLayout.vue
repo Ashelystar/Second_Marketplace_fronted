@@ -80,7 +80,7 @@ const route = useRoute()
 const userStore = useUserStore()
 const forumStore = useForumStore()
 const searchInput = ref('')
-const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 
 const isForumSquare = computed(() => route.name === 'forum')
 const squareSearchDraft = ref(forumStore.squareSearchQuery)

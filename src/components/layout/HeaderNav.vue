@@ -52,7 +52,7 @@ const router = useRouter()
 const userStore = useUserStore()
 const chatStore = useChatStore()
 const searchInput = ref('')
-const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 
 const unreadCount = computed(() => {
   const uid = Number(userStore.userInfo?.id || 0)

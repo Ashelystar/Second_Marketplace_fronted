@@ -9,6 +9,17 @@
         <aside class="sidebar">
           <div class="categoryCard">
             <ul class="categoryList">
+              <!-- 全部分类入口 -->
+              <li
+                class="categoryItem"
+                :class="{ active: activeMainCategory === null }"
+                @click="selectMainCategory(null)"
+              >
+                <a href="#" @click.prevent>
+                  <i class="fa fa-th-large catIcon text-orange-500"></i>
+                  <span>全部分类</span>
+                </a>
+              </li>
               <li
                 v-for="(cat, index) in mainCategories"
                 :key="cat.id"
@@ -17,6 +28,7 @@
                 :ref="(el) => setCategoryRef(el as HTMLElement, index)"
                 @mouseenter="showSubMenu(cat.id, index)"
                 @mouseleave="hideSubMenu"
+                @click="selectMainCategory(cat.id)"
               >
                 <a href="#" @click.prevent>
                   <i :class="cat.iconClass" class="catIcon"></i>
@@ -28,6 +40,7 @@
           </div>
 
           <!-- 悬浮子分类 -->
+          <!--
           <div
             v-if="hoveredCategory"
             class="subMenu card"
@@ -54,11 +67,37 @@
               </div>
             </div>
           </div>
+          -->
         </aside>
 
         <!-- 商品列表 -->
         <section class="productSection">
-          <div class="productGrid">
+          <!-- 分类标题栏 -->
+          <div class="sectionHeader" v-if="activeMainCategory">
+            <h2 class="sectionTitle">
+              {{ mainCategories.find(c => c.id === activeMainCategory)?.name || '筛选结果' }}
+            </h2>
+            <span class="resultCount">共 {{ store.totalProducts }} 件商品</span>
+          </div>
+          <div class="sectionHeader" v-else>
+            <h2 class="sectionTitle">全部商品</h2>
+            <span class="resultCount">共 {{ store.totalProducts }} 件商品</span>
+          </div>
+
+          <!-- 加载中（仅首次加载，列表为空时显示） -->
+          <div v-if="store.isLoading && displayedProducts.length === 0" class="loadingState">
+            <i class="fa fa-spinner fa-spin"></i>
+            <span>加载中...</span>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-else-if="displayedProducts.length === 0" class="emptyState">
+            <i class="fa fa-inbox"></i>
+            <p>该分类下暂无商品</p>
+          </div>
+
+          <!-- 商品网格 -->
+          <div v-else class="productGrid">
             <div
               v-for="p in displayedProducts"
               :key="p.id"
@@ -81,6 +120,14 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- 加载更多 -->
+          <div v-if="displayedProducts.length > 0 && hasMore" class="loadMoreWrapper">
+            <button class="loadMoreBtn" @click="loadMore" :disabled="store.isLoading">
+              <i v-if="store.isLoading" class="fa fa-spinner fa-spin"></i>
+              {{ store.isLoading ? '加载中...' : '加载更多' }}
+            </button>
           </div>
         </section>
 
@@ -159,17 +206,19 @@ const loadCategories = async () => {
 
     mainCategories.value = sortedCategories.map(cat => {
       const iconConfig = getIconConfig(cat.id)
-      const subCategoryNames = ['综合', '热门推荐', '新品上架', '精选好物', '限时特惠', '更多']
+      // TODO: 子分类后续对接后端子分类 API，当前置空
+      // const subCategoryNames = ['综合', '热门推荐', '新品上架', '精选好物', '限时特惠', '更多']
       return {
         id: cat.id,
         name: cat.categoryName,
         iconClass: iconConfig.iconClass + ' text-orange-500',
-        children: subCategoryNames.map((name, index) => ({
-          id: cat.id * 100 + index,
-          name,
-          iconClass: iconConfig.iconClass,
-          iconBgClass: iconConfig.iconBgClass,
-        }))
+        children: [] // 暂时为空，后续从 API 获取
+        // children: subCategoryNames.map((name, index) => ({
+        //   id: cat.id * 100 + index,
+        //   name,
+        //   iconClass: iconConfig.iconClass,
+        //   iconBgClass: iconConfig.iconBgClass,
+        // }))
       }
     })
   } catch (error) {
@@ -178,7 +227,14 @@ const loadCategories = async () => {
 }
 
 
-const displayedProducts = computed(() => store.products.slice(0, 12))
+const displayedProducts = computed(() => store.products)
+const hasMore = computed(() => store.products.length < store.totalProducts)
+
+const loadMore = async () => {
+  if (store.isLoading) return
+  const nextPage = store.currentPage + 1
+  await store.loadProducts({ current: nextPage }, true)
+}
 
 onMounted(() => {
   store.initialize()
@@ -206,14 +262,43 @@ const hideSubMenu = () => {
   }, 150)
 }
 
-const keepSubMenu = () => {
-  if (hideTimeout) clearTimeout(hideTimeout)
+// TODO: 后续子分类 API 对接后恢复
+// const keepSubMenu = () => {
+//   if (hideTimeout) clearTimeout(hideTimeout)
+// }
+
+/** 点击主分类：按分类 ID 筛选商品，再次点击取消筛选 */
+const selectMainCategory = (catId: number | null) => {
+  if (catId === null) {
+    // 全部分类：清除筛选
+    activeMainCategory.value = null
+    activeSubCategory.value = null
+    store.loadProducts({ categoryId: undefined, current: 1 })
+    return
+  }
+  if (activeMainCategory.value === catId) {
+    // 再次点击已选中分类 → 取消筛选，恢复全部
+    activeMainCategory.value = null
+    activeSubCategory.value = null
+    store.loadProducts({ categoryId: undefined, current: 1 })
+  } else {
+    activeMainCategory.value = catId
+    activeSubCategory.value = null
+    store.loadProducts({ categoryId: catId, current: 1 })
+  }
 }
 
-const selectSubCategory = (id: number) => {
-  activeSubCategory.value = id
-  hoveredCategory.value = null
-}
+// TODO: 后续子分类 API 对接后恢复
+// const selectSubCategory = (id: number) => {
+//   const mainCat = hoveredCategory.value
+//   activeSubCategory.value = id
+//   hoveredCategory.value = null
+//   // 子分类点击时按当前悬浮的主分类筛选
+//   if (mainCat) {
+//     activeMainCategory.value = mainCat.id
+//     store.loadProducts({ categoryId: mainCat.id, current: 1 })
+//   }
+// }
 </script>
 
 <style scoped>
@@ -491,6 +576,55 @@ const selectSubCategory = (id: number) => {
   flex: 1;
 }
 
+/* 分类标题栏 */
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f97316;
+}
+
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.resultCount {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* 加载 & 空状态 */
+.loadingState,
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #9ca3af;
+}
+
+.loadingState i {
+  font-size: 32px;
+  margin-bottom: 12px;
+  color: #f97316;
+}
+
+.emptyState i {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.emptyState p {
+  font-size: 14px;
+  margin: 0;
+}
+
 .productGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -584,6 +718,33 @@ const selectSubCategory = (id: number) => {
 .location {
   font-size: 12px;
   color: var(--muted);
+}
+
+.loadMoreWrapper {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.loadMoreBtn {
+  padding: 10px 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.loadMoreBtn:hover:not(:disabled) {
+  border-color: #f97316;
+  color: #f97316;
+}
+
+.loadMoreBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 

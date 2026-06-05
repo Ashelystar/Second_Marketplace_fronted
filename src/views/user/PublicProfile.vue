@@ -5,7 +5,7 @@
     <main class="container">
       <button class="back-btn" @click="goBackToProduct">
         <i class="fa fa-arrow-left"></i>
-        返回商品详情
+        {{ backLabel }}
       </button>
 
       <section v-if="seller" class="profile-card">
@@ -137,6 +137,7 @@ import {
   type SellerReputationHistoryItem,
 } from '@/api/user'
 import { getSellerProducts, type ProductVO } from '@/api/goods'
+import { createConversation } from '@/api/chat'
 
 // 成色映射（与首页、详情页保持一致）
 const conditionMap: Record<string, string> = {
@@ -384,17 +385,24 @@ const handleToggleFollow = async () => {
 }
 
 const goBackToProduct = () => {
-  const fromProductId = Number(route.query.fromProductId)
-  if (Number.isFinite(fromProductId) && fromProductId > 0) {
-    router.push({ path: '/detail', query: { id: String(fromProductId) } })
-    return
-  }
+  // 不管从哪进来的，直接返回上一页（浏览器历史栈已记录完整路径）
   if (window.history.length > 1) {
     router.back()
     return
   }
   router.push('/')
 }
+
+/** 根据来源动态显示返回按钮文案 */
+const backLabel = computed(() => {
+  const fromProductId = Number(route.query.fromProductId)
+  if (Number.isFinite(fromProductId) && fromProductId > 0) return '返回商品详情'
+  try {
+    const savedConv = sessionStorage.getItem('chat_return_conv')
+    if (savedConv) return '返回聊天'
+  } catch { /* ignore */ }
+  return '返回'
+})
 
 const fetchSellerDisplayProfile = async () => {
   if (!Number.isFinite(sellerId.value) || sellerId.value <= 0 || isVirtualProfile.value) {

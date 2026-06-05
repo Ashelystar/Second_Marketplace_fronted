@@ -82,8 +82,8 @@
         </div>
       </div>
 
-      <!-- 加载中 -->
-      <div v-if="store.isLoading" class="loading">
+      <!-- 加载中（仅首次、列表为空时覆盖） -->
+      <div v-if="store.isLoading && displayedProducts.length === 0" class="loading">
         <div class="spinner"></div>
         <p>搜索商品中...</p>
       </div>
@@ -125,9 +125,11 @@
       </div>
 
       <!-- 加载更多 -->
-      <div v-if="!allLoaded && store.totalProducts > 0" class="loadMore">
-        <button class="loadMoreBtn" @click="loadMore">
-          <i class="fa fa-refresh"></i> 加载更多
+      <div v-if="displayedProducts.length > 0 && !allLoaded" class="loadMore">
+        <button class="loadMoreBtn" @click="loadMore" :disabled="store.isLoading">
+          <i v-if="store.isLoading" class="fa fa-spinner fa-spin"></i>
+          <i v-else class="fa fa-refresh"></i>
+          {{ store.isLoading ? '加载中...' : '加载更多' }}
         </button>
       </div>
     </div>
@@ -217,6 +219,7 @@ import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import type { SortOption } from '@/types'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
+import { getCategoryList } from '@/api/goods'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'SearchPage' })
@@ -227,7 +230,7 @@ const store = useProductStore()
 const userStore = useUserStore()
 
 const searchInput = ref('')
-const activeTopTag = ref(1)
+const activeTopTag = ref(0) // 0 = "全部"
 const sortDropdownOpen = ref(false)
 const filterModalOpen = ref(false)
 const filterState = ref({
@@ -238,15 +241,25 @@ const filterState = ref({
   timeRange: ''
 })
 
-const topFilterTags = [
-  { id: 1, text: '全部' },
-  { id: 2, text: '手机' },
-  { id: 3, text: '数码' },
-  { id: 4, text: '电脑' },
-  { id: 5, text: '服饰' },
-  { id: 6, text: '家居' },
-  { id: 7, text: '美妆' }
-]
+// 分类标签：从后端 API 动态加载（与首页相同的数据源）
+const topFilterTags = ref<{ id: number; text: string }[]>([])
+const activeCategoryId = ref<number | null>(null)
+
+const loadCategoryTags = async () => {
+  try {
+    const categories = await getCategoryList()
+    const enabled = categories
+      .filter(c => c.isEnabled)
+      .sort((a, b) => a.sortNo - b.sortNo)
+    topFilterTags.value = [
+      { id: 0, text: '全部' },
+      ...enabled.map(c => ({ id: c.id, text: c.categoryName }))
+    ]
+  } catch (err) {
+    console.error('加载分类标签失败:', err)
+    // 兜底：保留空数组，避免空白
+  }
+}
 
 const sortOptions = [
   { value: 'default' as SortOption, label: '综合排序', icon: 'fa fa-sort' },
@@ -282,17 +295,31 @@ const allLoaded = computed(() => store.currentPage * store.pageSize >= store.tot
 
 const getSortLabel = (v: SortOption) => sortOptions.find(o => o.value === v)?.label || '综合排序'
 
+/** 点击分类标签：通过 categoryId 筛选（保留当前搜索词） */
 const handleTopTagClick = (tag: { id: number; text: string }) => {
-  activeTopTag.value = tag.id
-  if (tag.id === 1) {
-    store.resetFilter()
+  const keyword = searchInput.value.trim() || undefined
+  if (tag.id === 0) {
+    // 全部：清空分类筛选，保留搜索词
+    activeTopTag.value = 0
+    activeCategoryId.value = null
+    store.loadProducts({ keyword, categoryId: undefined, current: 1 })
+  } else if (activeCategoryId.value === tag.id) {
+    // 已选中标签，不做操作（保持当前筛选）
+    return
   } else {
-    store.performSearch(tag.text)
+    activeTopTag.value = tag.id
+    activeCategoryId.value = tag.id
+    store.loadProducts({ keyword, categoryId: tag.id, current: 1 })
   }
 }
 
 const performSearch = () => {
-  if (searchInput.value.trim()) store.performSearch(searchInput.value.trim())
+  if (searchInput.value.trim()) {
+    // 关键字搜索时清除分类选中状态
+    activeTopTag.value = 0
+    activeCategoryId.value = null
+    store.performSearch(searchInput.value.trim())
+  }
 }
 
 const handleSort = (v: SortOption) => {
@@ -342,12 +369,15 @@ const handleLogin = () => {
 }
 
 onMounted(() => {
-  store.initialize().then(() => {
-    if (route.query.q) {
-      searchInput.value = route.query.q as string
-      store.performSearch(route.query.q as string)
-    }
-  })
+  loadCategoryTags()
+  if (route.query.q) {
+    // 有搜索词：直接搜索，跳过默认初始化（避免竞态覆盖）
+    searchInput.value = route.query.q as string
+    store.performSearch(route.query.q as string)
+  } else {
+    // 无搜索词：执行默认初始化
+    store.initialize()
+  }
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -779,6 +809,11 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 .loadMoreBtn:hover {
   background: #f5f5f5;
   border-color: #d1d5db;
+}
+
+.loadMoreBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* 弹窗 */

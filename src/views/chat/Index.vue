@@ -79,7 +79,10 @@
         </div>
         <div class="product-info">
           <h4 class="product-title">{{ activeProductCard.title }}</h4>
-          <p class="product-price">¥{{ activeProductCard.price }}</p>
+          <div class="product-price-row">
+            <span class="product-price">¥{{ activeProductCard.price }}</span>
+            <span v-if="activeProductCard.originalPrice && activeProductCard.originalPrice > activeProductCard.price" class="product-original-price">¥{{ activeProductCard.originalPrice }}</span>
+          </div>
         </div>
         <button class="btn-view-product" title="查看商品详情">
           <i class="fa fa-chevron-right"></i>
@@ -96,11 +99,28 @@
             还没有消息，发一句问候开始对话吧
           </div>
 
-          <transition-group name="message-pop" tag="div" class="msg-group">
+          <template
+            v-for="(msg, index) in displayMessages"
+            :key="msg.id"
+          >
+            <!-- 动态时间分隔线 -->
             <div
-              v-for="msg in displayMessages"
-              :key="msg.id"
+              v-if="showDateDivider(index, msg.createdAt)"
+              class="time-divider"
+            >
+              <span class="time-text">{{ formatDateLabel(msg.createdAt) }}</span>
+            </div>
+
+            <!-- 撤回消息：居中系统提示 -->
+            <div v-if="msg.recalled" class="recall-notice">
+              <span class="recall-text">{{ msg.content }}</span>
+            </div>
+
+            <!-- 正常消息 -->
+            <div
+              v-else
               :class="['message-item', msg.type === 'sent' ? 'sent' : 'received']"
+              @contextmenu.prevent="handleContextMenu($event, msg)"
             >
               <div v-if="msg.type === 'received'" class="message-avatar">
                 <img v-if="activePartner.avatar" :src="activePartner.avatar" :alt="activePartner.name">
@@ -122,22 +142,24 @@
                       <img :src="msg.product?.image || PLACEHOLDER_IMG" :alt="msg.product?.title || '商品'">
                       <div class="product-mini-info">
                         <p class="product-mini-title">{{ msg.product?.title || '商品卡片' }}</p>
-                        <p class="product-mini-price">¥{{ msg.product?.price ?? 0 }}</p>
+                        <div class="product-mini-price-row">
+                          <span class="product-mini-price">¥{{ msg.product?.price ?? 0 }}</span>
+                          <span v-if="msg.product?.originalPrice && msg.product.originalPrice > (msg.product.price ?? 0)" class="product-mini-original-price">¥{{ msg.product.originalPrice }}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                <p class="message-time">{{ formatTime(msg.createdAt) }}</p>
+                <p class="message-time">{{ formatMsgTime(msg.createdAt) }}</p>
               </div>
 
               <div v-if="msg.type === 'sent'" class="message-status">
-                <i v-if="msg.status === 'sending'" class="fa fa-clock-o sending"></i>
-                <i v-else-if="msg.status === 'sent'" class="fa fa-check sent"></i>
-                <i v-else-if="msg.status === 'delivered'" class="fa fa-check-double delivered"></i>
-                <i v-else class="fa fa-exclamation-circle failed"></i>
+                <i v-if="(msg as any).status === 'sending'" class="fa fa-clock-o sending"></i>
+                <i v-else-if="(msg as any).status === 'failed'" class="fa fa-exclamation-circle failed"></i>
+                <i v-else class="fa fa-check delivered"></i>
               </div>
             </div>
-          </transition-group>
+          </template>
         </div>
       </div>
 
@@ -159,8 +181,9 @@
           <button class="toolbar-btn" @click="toggleQuickReplies">
             <i class="fa fa-bolt"></i>
           </button>
-          <button class="toolbar-btn" @click="openImagePicker">
-            <i class="fa fa-image"></i>
+          <button class="toolbar-btn" @click="openImagePicker" :disabled="imageUploading" :title="imageUploading ? '图片上传中...' : '发送图片'">
+            <i v-if="imageUploading" class="fa fa-spinner fa-pulse"></i>
+            <i v-else class="fa fa-image"></i>
           </button>
           <button class="toolbar-btn" @click="sendProductCard">
             <i class="fa fa-tag"></i>
@@ -206,6 +229,19 @@
       </div>
     </div>
 
+    <!-- 消息右键菜单 -->
+    <div
+      v-if="contextMenuVisible"
+      class="context-menu"
+      :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
+      @click.stop
+    >
+      <button class="context-menu-item" @click="handleRecall">
+        <i class="fa fa-undo"></i>
+        <span>撤回消息</span>
+      </button>
+    </div>
+
     <input
       ref="imageInput"
       type="file"
@@ -217,13 +253,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { getProductDetail } from '@/api/goods'
 import { resolveUserDisplayProfile, isFallbackUserLabel } from '@/api/user'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore, type ChatProductCard, type ChatUserProfile } from '@/stores/chatStore'
+import { uploadChatImage } from '@/api/chat'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'ChatPage' })
@@ -244,8 +281,16 @@ const showQuickReplies = ref(false)
 const showMoreOptions = ref(false)
 const sidebarOpen = ref(false)
 
-const activeConversationId = ref('')
+const activeConversationId = ref<number>(0)
 const pendingProduct = ref<ChatProductCard | null>(null)
+
+// 上传状态
+const imageUploading = ref(false)
+
+// 右键菜单
+const contextMenuVisible = ref(false)
+const contextMenuPos = ref({ x: 0, y: 0 })
+const contextMenuMessage = ref<{ id: number; type: string; senderId: number; createdAt: number } | null>(null)
 
 const currentUserProfile = computed<ChatUserProfile>(() => ({
   id: Number(userStore.userInfo?.id || 0),
@@ -282,28 +327,80 @@ const activePartner = computed<ChatUserProfile>(() => {
 })
 
 const activeProductCard = computed<ChatProductCard | null>(() => {
-  return activeThread.value?.linkedProduct || pendingProduct.value
+  return pendingProduct.value
 })
 
 const displayMessages = computed(() => {
   if (!activeConversationId.value || !currentUserProfile.value.id) return []
-  return chatStore.getConversationMessages(activeConversationId.value).map((message) => ({
-    ...message,
-    type: message.senderId === currentUserProfile.value.id ? 'sent' : 'received',
-  }))
+  return chatStore.getConversationMessages(activeConversationId.value).map((message) => {
+    // 商品卡片消息如果缺少数据，用当前会话顶部商品兜底
+    let product = message.product
+    if (message.contentType === 'product' && (!product || !product.title || product.price === 0)) {
+      product = activeProductCard.value || undefined
+    }
+    return {
+      ...message,
+      product,
+      type: message.senderId === currentUserProfile.value.id ? 'sent' : 'received',
+    }
+  })
 })
 
+/** 会话列表最后消息时间：今天显示时间，昨天显示"昨天"，其余显示月日 */
 const formatTime = (timestamp: number) => {
   if (!timestamp) return ''
   const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return ''
   const now = new Date()
-  const isToday =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  return isToday
-    ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : date.toLocaleDateString()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  if (msgDay.getTime() >= today.getTime()) {
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  }
+  if (msgDay.getTime() >= yesterday.getTime()) return '昨天'
+  return `${date.getMonth() + 1}月${date.getDate()}日`
+}
+
+/** 消息气泡时间：只显示具体钟点 */
+const formatMsgTime = (timestamp: number) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return ''
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+/** 判断是否需要在当前消息前插入日期/时间分隔线（第一条、跨天、或间隔>5分钟） */
+const showDateDivider = (index: number, ts: number): boolean => {
+  if (!ts) return false
+  if (index === 0) return true
+  const prevMsg = displayMessages.value[index - 1]
+  if (!prevMsg?.createdAt) return false
+  try {
+    const cur = new Date(ts)
+    const prev = new Date(prevMsg.createdAt)
+    if (isNaN(cur.getTime()) || isNaN(prev.getTime())) return false
+    if (cur.toDateString() !== prev.toDateString()) return true
+    return cur.getTime() - prev.getTime() > 5 * 60 * 1000
+  } catch {
+    return false
+  }
+}
+
+/** 日期分隔线文案：今天只显示时间，昨天/更早显示日期+时间 */
+const formatDateLabel = (ts: number): string => {
+  if (!ts) return ''
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return ''
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const timeStr = `${hh}:${mm}`
+  if (d.toDateString() === today.toDateString()) return timeStr
+  if (d.toDateString() === yesterday.toDateString()) return `昨天 ${timeStr}`
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${timeStr}`
 }
 
 const getLegacyFriend = (targetId: number) => {
@@ -314,6 +411,16 @@ const getLegacyFriend = (targetId: number) => {
 const createConversationFromRoute = async () => {
   const current = currentUserProfile.value
   if (!current.id) return
+
+  // 1. 商品详情页已创建会话，直接用 conversationId
+  const routeConversationId = Number(route.query.conversationId || 0)
+  if (routeConversationId > 0) {
+    activeConversationId.value = routeConversationId
+    await chatStore.fetchMessages(routeConversationId)
+    return
+  }
+
+  // 2. 商家主页/其他页面传来 friendId/sellerId，创建新会话
   const routeFriendId = Number(route.query.friendId || route.query.sellerId || 0)
   if (!routeFriendId || routeFriendId === current.id) return
 
@@ -332,9 +439,10 @@ const createConversationFromRoute = async () => {
     location: String(legacy?.location || ''),
     rating: Number(legacy?.rating || 5),
   }
-  const conversation = chatStore.ensureConversation(current, target, activeProductCard.value || undefined)
+  const conversation = await chatStore.ensureConversation(current, target, activeProductCard.value || undefined)
   if (conversation) {
     activeConversationId.value = conversation.id
+    await chatStore.fetchMessages(conversation.id)
   }
 }
 
@@ -353,6 +461,7 @@ const initProductFromQuery = async () => {
       id: detail.id,
       title: detail.title || `商品${detail.id}`,
       price: Number(detail.sellingPrice ?? detail.price ?? 0),
+      originalPrice: detail.originalPrice ? Number(detail.originalPrice) : undefined,
       image,
     }
   } catch (error) {
@@ -360,14 +469,44 @@ const initProductFromQuery = async () => {
   }
 }
 
+/** 根据当前会话的 productId 加载商品详情到顶部卡片 */
+const fetchActiveProduct = async () => {
+  const thread = activeThread.value
+  const pid = thread?.productId
+  if (!pid) {
+    pendingProduct.value = null
+    return
+  }
+  // 已经是同一个商品就不重复请求
+  if (pendingProduct.value?.id === pid) return
+  try {
+    const detail = await getProductDetail(pid)
+    const image = detail.image
+      ? getImageUrl(detail.image)
+      : Array.isArray(detail.images) && detail.images[0]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? getImageUrl(((detail.images[0] as any).url || (detail.images[0] as any).imageUrl || ''))
+        : PLACEHOLDER_IMG
+    pendingProduct.value = {
+      id: detail.id,
+      title: detail.title || `商品${detail.id}`,
+      price: Number(detail.sellingPrice ?? detail.price ?? 0),
+      originalPrice: detail.originalPrice ? Number(detail.originalPrice) : undefined,
+      image,
+    }
+  } catch (error) {
+    console.error('加载会话商品失败', error)
+  }
+}
+
 const syncActiveConversation = () => {
   if (!threads.value.length) {
-    activeConversationId.value = ''
+    activeConversationId.value = 0
     return
   }
   const stillExists = threads.value.some((thread) => thread.conversationId === activeConversationId.value)
   if (!stillExists) {
-    activeConversationId.value = threads.value[0]?.conversationId || ''
+    activeConversationId.value = threads.value[0]?.conversationId || 0
   }
 }
 
@@ -378,28 +517,37 @@ const scrollToBottom = async () => {
   }
 }
 
-const switchThread = (conversationId: string) => {
+const switchThread = async (conversationId: number) => {
   activeConversationId.value = conversationId
   sidebarOpen.value = false
+  // 确保消息缓存已加载
+  await chatStore.fetchMessages(conversationId)
+  // 加载顶部商品卡片
+  await fetchActiveProduct()
   if (currentUserProfile.value.id) {
     chatStore.markConversationRead(conversationId, currentUserProfile.value.id)
   }
 }
 
-const sendMessagePayload = (payload: { contentType: 'text' | 'image' | 'product'; content: string; product?: ChatProductCard }) => {
+const sendMessagePayload = async (payload: { contentType: 'text' | 'image' | 'product'; content: string; product?: ChatProductCard }) => {
   if (!activeConversationId.value || !currentUserProfile.value.id) {
     ElMessage.info('请先选择会话')
     return
   }
-  chatStore.sendMessage({
-    conversationId: activeConversationId.value,
-    senderId: currentUserProfile.value.id,
-    contentType: payload.contentType,
-    content: payload.content,
-    product: payload.product,
-  })
-  chatStore.markConversationRead(activeConversationId.value, currentUserProfile.value.id)
-  scrollToBottom()
+  try {
+    await chatStore.sendMessage({
+      conversationId: activeConversationId.value,
+      senderId: currentUserProfile.value.id,
+      contentType: payload.contentType,
+      content: payload.content,
+      product: payload.product,
+    })
+    chatStore.markConversationRead(activeConversationId.value, currentUserProfile.value.id)
+    scrollToBottom()
+  } catch (e) {
+    ElMessage.error('发送消息失败，请重试')
+    console.error('发送消息失败:', e)
+  }
 }
 
 const sendTextMessage = () => {
@@ -429,17 +577,29 @@ const openImagePicker = () => {
   imageInput.value?.click()
 }
 
-const handleImageSelect = (event: Event) => {
+const handleImageSelect = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    sendMessagePayload({
+  try {
+    imageUploading.value = true
+    ElMessage.info('图片上传中...')
+    const result = await uploadChatImage(file)
+    // 上传成功后发送图片消息（content 为服务端返回的 URL）
+    await sendMessagePayload({
       contentType: 'image',
-      content: String(e.target?.result || ''),
+      content: result.url,
     })
+    ElMessage.success('图片发送成功')
+  } catch (e) {
+    ElMessage.error('图片上传失败，请重试')
+    console.error('图片上传失败:', e)
+  } finally {
+    imageUploading.value = false
+    // 清空 input 以便重复选择同一文件
+    if (imageInput.value) {
+      imageInput.value.value = ''
+    }
   }
-  reader.readAsDataURL(file)
 }
 
 const sendProductCard = () => {
@@ -468,6 +628,12 @@ const goBack = () => {
 
 const viewSellerProfile = () => {
   if (!activePartner.value.id) return
+  // 保存当前会话上下文，返回时恢复
+  if (activeConversationId.value) {
+    sessionStorage.setItem('chat_return_conv', JSON.stringify({
+      conversationId: activeConversationId.value,
+    }))
+  }
   router.push({
     path: `/user/home/${activePartner.value.id}`,
     query: {
@@ -480,6 +646,12 @@ const viewSellerProfile = () => {
 
 const viewProductDetail = () => {
   if (!activeProductCard.value?.id) return
+  // 保存当前会话上下文，返回时恢复
+  if (activeConversationId.value) {
+    sessionStorage.setItem('chat_return_conv', JSON.stringify({
+      conversationId: activeConversationId.value,
+    }))
+  }
   router.push({ name: 'goods-detail', params: { id: activeProductCard.value.id } })
 }
 
@@ -500,11 +672,47 @@ const blockUser = () => {
   showMoreOptions.value = false
 }
 
+/** 右键菜单：显示 */
+const handleContextMenu = (event: MouseEvent, msg: { id: number; type: string; senderId: number; createdAt: number }) => {
+  // 只能撤回自己 5 分钟内发送的消息
+  const fiveMin = 5 * 60 * 1000
+  const isOwn = msg.senderId === currentUserProfile.value.id
+  const isWithin5Min = Date.now() - msg.createdAt < fiveMin
+  if (!isOwn || !isWithin5Min) return
+
+  contextMenuPos.value = { x: event.clientX, y: event.clientY }
+  contextMenuMessage.value = msg
+  contextMenuVisible.value = true
+}
+
+/** 右键菜单：隐藏 */
+const hideContextMenu = () => {
+  contextMenuVisible.value = false
+  contextMenuMessage.value = null
+}
+
+/** 撤回消息 */
+const handleRecall = async () => {
+  if (!contextMenuMessage.value || !activeConversationId.value) return
+  try {
+    await chatStore.recallMessage(contextMenuMessage.value.id, activeConversationId.value, currentUserProfile.value.id)
+    ElMessage.success('消息已撤回')
+  } catch (e) {
+    ElMessage.error('撤回失败，可能已超过5分钟')
+    console.error('撤回失败:', e)
+  }
+  hideContextMenu()
+}
+
+// 点击页面任意位置关闭右键菜单
+window.addEventListener('click', hideContextMenu)
+
 watch(
   () => activeConversationId.value,
   (conversationId) => {
     if (!conversationId || !currentUserProfile.value.id) return
     chatStore.markConversationRead(conversationId, currentUserProfile.value.id)
+    fetchActiveProduct()
     scrollToBottom()
   },
   { immediate: true }
@@ -523,10 +731,9 @@ const refreshFallbackPartnerNames = async () => {
 
   const partnerIds = new Set<number>()
   for (const conv of chatStore.conversations) {
-    if (!conv.participantIds.includes(userId)) continue
-    const partnerId = conv.participantIds[0] === userId ? conv.participantIds[1] : conv.participantIds[0]
-    const partner = conv.participants[String(partnerId)]
-    if (partner && isFallbackUserLabel(partner.name, partnerId)) {
+    const partnerId = conv.userId
+    const partnerName = conv.userNickname
+    if (partnerId && isFallbackUserLabel(partnerName, partnerId)) {
       partnerIds.add(partnerId)
     }
   }
@@ -545,15 +752,31 @@ const refreshFallbackPartnerNames = async () => {
 }
 
 onMounted(async () => {
-  chatStore.initialize()
+  // 先检查登录状态，未登录就重定向，避免 initialize() 在未登录时拉取空数据
   if (!currentUserProfile.value.id) {
     ElMessage.info('请先登录再使用消息功能')
     router.push('/user/login')
     return
   }
+  // 登录后再初始化会话列表
+  await chatStore.initialize()
   await refreshFallbackPartnerNames()
   await initProductFromQuery()
   await createConversationFromRoute()
+  // 如果没有加载到会话，尝试从 sessionStorage 恢复
+  if (!activeConversationId.value) {
+    try {
+      const savedConv = sessionStorage.getItem('chat_return_conv')
+      if (savedConv) {
+        const ctx = JSON.parse(savedConv)
+        if (ctx.conversationId) {
+          activeConversationId.value = Number(ctx.conversationId)
+          // 恢复后拉取消息缓存
+          await chatStore.fetchMessages(Number(ctx.conversationId))
+        }
+      }
+    } catch { /* ignore */ }
+  }
   syncActiveConversation()
   if (activeConversationId.value) {
     chatStore.markConversationRead(activeConversationId.value, currentUserProfile.value.id)
@@ -561,11 +784,17 @@ onMounted(async () => {
   sidebarOpen.value = false
   scrollToBottom()
 })
+
+onUnmounted(() => {
+  window.removeEventListener('click', hideContextMenu)
+})
 </script>
 
 <style scoped>
 .chat-page {
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background: linear-gradient(180deg, #f5f7fb 0%, #f9fafc 100%);
   display: flex;
 }
@@ -842,10 +1071,23 @@ onMounted(async () => {
   text-overflow: ellipsis;
 }
 
+.product-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
 .product-price {
   margin: 0;
   color: #f97316;
   font-weight: 700;
+}
+
+.product-original-price {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+  text-decoration: line-through;
 }
 
 .btn-view-product {
@@ -856,6 +1098,7 @@ onMounted(async () => {
 
 .chat-messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 14px 16px;
 }
@@ -864,6 +1107,20 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.time-divider {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.time-text {
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
 }
 
 .system-message {
@@ -979,14 +1236,31 @@ onMounted(async () => {
   font-size: 13px;
 }
 
+.product-mini-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
 .product-mini-price {
   margin: 0;
   font-weight: 700;
   color: #f97316;
 }
 
+.product-mini-original-price {
+  margin: 0;
+  font-size: 11px;
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
 .message-item.sent .product-mini-price {
   color: #fff;
+}
+
+.message-item.sent .product-mini-original-price {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .message-time {
@@ -1200,6 +1474,52 @@ onMounted(async () => {
 .message-pop-leave-to {
   opacity: 0;
   transform: translateY(4px);
+}
+
+/* 撤回提示 — 居中显示 */
+.recall-notice {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.recall-text {
+  font-size: 12px;
+  color: #9ca3af;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #f3f4f6;
+}
+
+/* 右键菜单 */
+.context-menu {
+  position: fixed;
+  z-index: 100;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  min-width: 120px;
+  animation: modal-slide-in 120ms ease both;
+}
+
+.context-menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  border-radius: 6px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.context-menu-item:hover {
+  background: #f3f4f6;
 }
 
 @media (prefers-reduced-motion: reduce) {

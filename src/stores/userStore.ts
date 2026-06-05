@@ -14,7 +14,7 @@ import {
   getUserPermissionsApi,
   type UserPermissions,
 } from '@/api/user'
-
+import { useChatStore } from '@/stores/chatStore'
 export interface FavoriteItem {
   id: number
   title: string
@@ -392,6 +392,9 @@ export const useUserStore = defineStore('user', () => {
     localFollowIds.value = []
     localStorage.removeItem('localFollowIds')
     followerIds.value = []
+
+    // 重置聊天 store，确保下次登录重新拉取会话列表
+    useChatStore().reset()
   }
 
   loadFavoriteIds()

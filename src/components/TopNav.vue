@@ -59,7 +59,7 @@
       </nav>
     </div>
   </header>
-  
+
    <div class="floatTools">
       <button v-for="t in floatingTools" :key="t.id" class="floatBtn" @click="handleTool(t)">
         <i :class="t.icon"></i>
@@ -116,7 +116,7 @@ const chatStore = useChatStore()
 const searchInput = ref('')
 
 // 热门标签数据
-const hotTags = ['iPhone', '小米手机', '数码相机', '闲置衣服']
+const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 
 const unreadCount = computed(() => {
   const uid = Number(userStore.userInfo?.id || 0)
@@ -156,13 +156,6 @@ const goToForum = () => {
 const goToHome = () => {
   router.push('/')
 }
-/**
- * 导航到用户中心页面
- */
-const goToUserCenter = () => {
-  router.push('/user/center')
-}
-
 /**
  * 导航到购物车页面
  */
