@@ -264,7 +264,6 @@ const loadCategoryTags = async () => {
 
 const sortOptions = [
   { value: 'default' as SortOption, label: '综合排序', icon: 'fa fa-sort' },
-  { value: 'credit-high' as SortOption, label: '信用排序', icon: 'fa fa-credit-card' },
   { value: 'price-low' as SortOption, label: '价格从低到高', icon: 'fa fa-long-arrow-up' },
   { value: 'price-high' as SortOption, label: '价格从高到低', icon: 'fa fa-long-arrow-down' },
   { value: 'distance-near' as SortOption, label: '离我最近', icon: 'fa fa-location-arrow' }
