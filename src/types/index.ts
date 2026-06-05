@@ -63,7 +63,7 @@ export interface UserLocation {
   city: string
 }
 
-export type SortOption = 'default' | 'price-low' | 'price-high' | 'distance-near' | 'credit-high'
+export type SortOption = 'default' | 'price-low' | 'price-high' | 'distance-near'
 
 export interface ProductImage {
   id: number

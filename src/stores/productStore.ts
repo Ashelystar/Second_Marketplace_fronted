@@ -122,10 +122,6 @@ export const useProductStore = defineStore('product', () => {
       case 'price-high':
         list.sort((a, b) => parseFloat(b.price || '0') - parseFloat(a.price || '0'))
         break
-      case 'credit-high':
-        // 信用排序：按 sellerRating 降序，无评分排在最后
-        list.sort((a, b) => (b.sellerRating ?? 0) - (a.sellerRating ?? 0))
-        break
       case 'distance-near':
         // 距离排序：按 distance 升序，无距离数据排在最后
         list.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
@@ -281,11 +277,6 @@ export const useProductStore = defineStore('product', () => {
         break
       case 'price-high':
         queryState.value.sortField = 'sellingPrice'
-        queryState.value.sortOrder = 'desc'
-        break
-      case 'credit-high':
-        // 尝试请求后端按信用排序
-        queryState.value.sortField = 'sellerRating'
         queryState.value.sortOrder = 'desc'
         break
       case 'distance-near':
