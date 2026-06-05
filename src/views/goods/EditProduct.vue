@@ -563,9 +563,9 @@ const handleSaveDraft = async () => {
   }
 
   try {
-    console.log('【保存草稿】调用 createProduct 接口, publishStatus=draft')
-    console.log('请求参数:', { ...params, publishStatus: 'draft' })
-    const result = await createProduct({ ...params, publishStatus: 'draft' })
+    console.log('【保存草稿】调用 createProduct 接口, isDraft=true')
+    console.log('请求参数:', { ...params, isDraft: true })
+    const result = await createProduct({ ...params, isDraft: true })
     console.log('【保存草稿】接口返回:', result)
     alert('已保存至草稿箱')
     router.push('/drafts')
@@ -619,10 +619,10 @@ const handleSave = async () => {
       const result = await updateProduct(productId.value, params)
       console.log('【编辑商品】接口返回:', result)
     } else {
-      // 发布新商品
-      console.log('【发布商品】调用 createProduct 接口, publishStatus=pending_review')
-      console.log('请求参数:', { ...params, publishStatus: 'pending_review' })
-      const result = await createProduct({ ...params, publishStatus: 'pending_review' })
+      // 发布新商品（isDraft 不传或 false，后端默认设为 pending_review）
+      console.log('【发布商品】调用 createProduct 接口, isDraft=false')
+      console.log('请求参数:', { ...params, isDraft: false })
+      const result = await createProduct({ ...params, isDraft: false })
       console.log('【发布商品】接口返回:', result)
     }
 
