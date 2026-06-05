@@ -20,6 +20,7 @@
               v-model="searchInput"
               placeholder="搜索闲置物品"
               @keypress.enter="performSearch"
+              @input="onSearchInput"
             />
             <button @click="performSearch"><i class="fa fa-search"></i></button>
           </div>
@@ -94,7 +95,7 @@
           v-for="p in displayedProducts"
           :key="p.id"
           class="productCard card"
-          @click="goToDetail(p.id)"
+          @click="goToDetail(p)"
         >
           <div class="productImg">
             <img :src="getImageUrl(p.image) || PLACEHOLDER_IMG" :alt="p.title" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
@@ -314,11 +315,22 @@ const handleTopTagClick = (tag: { id: number; text: string }) => {
 }
 
 const performSearch = () => {
-  if (searchInput.value.trim()) {
+  const keyword = searchInput.value.trim()
+  if (keyword) {
     // 关键字搜索时清除分类选中状态
     activeTopTag.value = 0
     activeCategoryId.value = null
-    store.performSearch(searchInput.value.trim())
+    store.performSearch(keyword)
+    router.replace({ query: { q: keyword } })
+  } else {
+    store.resetFilter()
+    router.replace({ query: {} })
+  }
+}
+const onSearchInput = () => {
+  if (!searchInput.value.trim()) {
+    store.resetFilter()
+    router.replace({ query: {} })
   }
 }
 
@@ -352,13 +364,25 @@ const applyFilter = () => {
 const resetFilter = () => {
   filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' }
   store.resetFilter()
+  filterModalOpen.value = false
 }
 
 const loadMore = () => store.changePage(store.currentPage + 1)
 
-const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
+const goToDetail = (p: { id: number; sellerId?: number }) => {
+  const query: Record<string, string> = { id: p.id.toString() }
+  if (route.query.q) query.q = route.query.q as string
+  // 如果是当前登录用户自己发布的商品，跳转到卖家商品详情页
+  const currentUserId = userStore.userInfo?.id
+  if (currentUserId && p.sellerId && Number(currentUserId) === Number(p.sellerId)) {
+    router.push({ path: '/seller/product', query })
+  } else {
+    router.push({ path: '/detail', query })
+  }
+}
 
-const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/')
 
 const handleClickOutside = (e: MouseEvent) => {
   if (!(e.target as HTMLElement).closest('.sortWrap')) sortDropdownOpen.value = false
@@ -368,8 +392,10 @@ const handleLogin = () => {
   router.push('/user/login')
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadCategoryTags()
+  // 先获取用户真实位置，再加载数据（确保距离计算基准正确）
+  await store.requestLocation()
   if (route.query.q) {
     // 有搜索词：直接搜索，跳过默认初始化（避免竞态覆盖）
     searchInput.value = route.query.q as string

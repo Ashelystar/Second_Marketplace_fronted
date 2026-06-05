@@ -312,8 +312,8 @@ export async function getConversationList(params: ConversationListParams = {}): 
   if (!text) throw new Error('接口返回为空')
 
   try {
-    const json = JSON.parse(text) as ApiResponse<Conversation[]>
-    if (json.data === null || json.data === undefined) {
+  const json = JSON.parse(text) as ApiResponse<Conversation[]>
+  if (json.data === null || json.data === undefined) {
       throw new Error(json.message || '获取会话列表失败')
     }
     return json.data

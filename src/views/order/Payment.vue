@@ -180,13 +180,8 @@ const showFailModal = ref(false)
 const paidOrderId = ref('')
 const failMessage = ref('')
 
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
-  }
-}
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/')
 
 const handlePay = async () => {
   if (isPaying.value) return

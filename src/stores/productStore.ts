@@ -21,6 +21,39 @@ const reverseConditionMap: Record<string, string> = {
   '7成新及以下': 'poor'
 }
 
+// 城市名 → 大致坐标（兜底：后端没返经纬度时按城市排距离）
+const cityCoordinates: Record<string, { lat: number; lng: number }> = {
+  '北京': { lat: 39.9042, lng: 116.4074 },
+  '上海': { lat: 31.2304, lng: 121.4737 },
+  '广州': { lat: 23.1291, lng: 113.2644 },
+  '深圳': { lat: 22.5431, lng: 114.0579 },
+  '杭州': { lat: 30.2741, lng: 120.1551 },
+  '南京': { lat: 32.0603, lng: 118.7969 },
+  '成都': { lat: 30.5728, lng: 104.0668 },
+  '武汉': { lat: 30.5928, lng: 114.3055 },
+  '西安': { lat: 34.3416, lng: 108.9398 },
+  '重庆': { lat: 29.5630, lng: 106.5516 },
+  '天津': { lat: 39.0842, lng: 117.2009 },
+  '苏州': { lat: 31.2989, lng: 120.5853 },
+  '长沙': { lat: 28.2280, lng: 112.9388 },
+  '郑州': { lat: 34.7466, lng: 113.6253 },
+  '青岛': { lat: 36.0671, lng: 120.3826 },
+  '东莞': { lat: 22.9460, lng: 113.7470 },
+  '佛山': { lat: 23.0218, lng: 113.1219 },
+  '宁波': { lat: 29.8683, lng: 121.5440 },
+  '厦门': { lat: 24.4798, lng: 118.0894 },
+}
+
+/** 从详细地址中提取城市名（如"深圳市南山区" -> "深圳"） */
+const extractCity = (addr: string): string | undefined => {
+  if (!addr) return undefined
+  const cities = Object.keys(cityCoordinates)
+  for (const city of cities) {
+    if (addr.includes(city)) return city
+  }
+  return undefined
+}
+
 export const useProductStore = defineStore('product', () => {
   // ========== 状态 ==========
   const products = ref<Product[]>([])
@@ -64,8 +97,43 @@ export const useProductStore = defineStore('product', () => {
     description: p.description as string || p.subtitle as string || '',
     sellerId: p.sellerId as number || 0,
     sellerName: p.sellerName as string || '',
-    coordinates: p.latitude && p.longitude ? { lat: p.latitude as number, lng: p.longitude as number } : undefined
+    sellerAvatar: p.sellerAvatar as string || '',
+    // 卖家信用数据（后端 ProductVO 可能不包含，按运行时取值，缺失则为默认值）
+    sellerRating: Number(p.sellerRating ?? p.sellerScore ?? 0),
+    sellerVerified: Boolean(p.sellerVerified ?? false),
+    sellerGoodRate: Number(p.sellerGoodRate ?? p.goodRate ?? 0),
+    sellerOnSale: Number(p.sellerOnSale ?? p.onSaleCount ?? 0),
+    sellerSold: Number(p.sellerSold ?? p.soldCount ?? 0),
+    viewCount: Number(p.viewCount ?? 0),
+    favoriteCount: Number(p.favoriteCount ?? 0),
+    coordinates: p.latitude && p.longitude
+      ? { lat: p.latitude as number, lng: p.longitude as number }
+      : (cityCoordinates[extractCity(p.pickupCity as string) || ''] || undefined)
   })
+
+  // ========== 本地排序（前端兜底） ==========
+
+  /** 本地排序函数（后端不支持该排序字段时兜底，或做二次确认） */
+  const applyLocalSort = (list: Product[], sortType: SortOption) => {
+    switch (sortType) {
+      case 'price-low':
+        list.sort((a, b) => parseFloat(a.price || '0') - parseFloat(b.price || '0'))
+        break
+      case 'price-high':
+        list.sort((a, b) => parseFloat(b.price || '0') - parseFloat(a.price || '0'))
+        break
+      case 'credit-high':
+        // 信用排序：按 sellerRating 降序，无评分排在最后
+        list.sort((a, b) => (b.sellerRating ?? 0) - (a.sellerRating ?? 0))
+        break
+      case 'distance-near':
+        // 距离排序：按 distance 升序，无距离数据排在最后
+        list.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+        break
+      default:
+        break
+    }
+  }
 
   // ========== 核心加载方法（直接走后端API）==========
 
@@ -104,6 +172,12 @@ export const useProductStore = defineStore('product', () => {
       products.value.forEach(p => {
         if (p.coordinates) p.distance = calcDistance(userLocation.value.lat, userLocation.value.lng, p.coordinates.lat, p.coordinates.lng)
       })
+
+      // 本地排序兜底：如果当前有非默认排序且不是追加模式，对结果再排一次
+      // 后端支持排序时结果一致；后端不支持时保证前端排序生效
+      if (!append && currentSort.value !== 'default') {
+        applyLocalSort(filteredProducts.value, currentSort.value)
+      }
     } catch (error) {
       console.error('加载商品失败:', error)
       if (!append) {
@@ -191,13 +265,15 @@ export const useProductStore = defineStore('product', () => {
     loadProducts()
   }
 
-  // ========== 排序（走后端API）==========
+  // ========== 排序（后端API优先 + 前端本地兜底）==========
 
   /**
-   * 排序 — 将排序字段和方向通过 PageProductParams 传给后端
+   * 排序 — 将排序字段和方向传给后端，加载完成后前端再做本地排序兜底
    */
-  const sortProducts = (sortType: SortOption) => {
+  const sortProducts = async (sortType: SortOption) => {
     currentSort.value = sortType
+
+    // 1. 构造后端排序参数（优先让后端排序）
     switch (sortType) {
       case 'price-low':
         queryState.value.sortField = 'sellingPrice'
@@ -208,24 +284,28 @@ export const useProductStore = defineStore('product', () => {
         queryState.value.sortOrder = 'desc'
         break
       case 'credit-high':
-        // TODO: 信用排序 — 后端目前无 sellerRating 排序字段，暂按发布时间倒序
-        queryState.value.sortField = 'publishedAt'
+        // 尝试请求后端按信用排序
+        queryState.value.sortField = 'sellerRating'
         queryState.value.sortOrder = 'desc'
         break
       case 'distance-near':
-        // TODO: 距离排序 — 需要后端支持 latitude/longitude + 距离计算，
-        //       目前暂回退到综合排序
-        queryState.value.sortField = undefined
-        queryState.value.sortOrder = undefined
+        // 距离排序完全走后端默认（不传排序参数），前端兜底
+        delete queryState.value.sortField
+        delete queryState.value.sortOrder
         break
       default:
-        // 综合排序：清空排序字段，后端按默认规则（如发布时间倒序）
-        queryState.value.sortField = undefined
-        queryState.value.sortOrder = undefined
+        // 综合排序：清空排序字段，后端按默认规则
+        delete queryState.value.sortField
+        delete queryState.value.sortOrder
         break
     }
+
     queryState.value.current = 1  // 排序时回到第1页
-    loadProducts()
+    await loadProducts()
+    // 二次强制兜底：距离排序必须在 loadProducts 后再排一次，确保近的在前面
+    if (sortType === 'distance-near') {
+      applyLocalSort(filteredProducts.value, 'distance-near')
+    }
   }
 
   // ========== 初始化 ==========
@@ -256,6 +336,68 @@ export const useProductStore = defineStore('product', () => {
 
   const getUserLocation = () => initialize()
 
+  /**
+   * 更新用户位置并刷新所有商品距离
+   */
+  const updateLocationAndDistances = (lat: number, lng: number, city: string) => {
+    userLocation.value = { lat, lng, city }
+    const refreshDistances = (list: Product[]) => {
+      list.forEach((p) => {
+        if (p.coordinates)
+          p.distance = calcDistance(lat, lng, p.coordinates.lat, p.coordinates.lng)
+      })
+    }
+    refreshDistances(products.value)
+    refreshDistances(filteredProducts.value)
+  }
+
+  /**
+   * IP 地理定位兜底：浏览器定位失败时，通过 IP 推断城市
+   * 使用 ipapi.co（免费、HTTPS、JSONP 模式兼容 HTTP 开发环境）
+   */
+  const requestLocationByIP = async (): Promise<boolean> => {
+    try {
+      // ipapi.co 免费额度充足，且支持 HTTP/HTTPS
+      const resp = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) })
+      if (!resp.ok) return false
+      const data = await resp.json()
+      const city = data?.city as string | undefined
+      if (!city) return false
+      const coords = cityCoordinates[city]
+      if (!coords) return false
+      updateLocationAndDistances(coords.lat, coords.lng, city)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * 请求用户真实地理位置（Google Chrome 等可能拒绝，失败则用 IP 定位兜底）
+   * 在加载数据前调用，确保距离计算基准正确
+   */
+  const requestLocation = async (): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        // 不支持浏览器定位，直接用 IP 定位
+        requestLocationByIP().finally(resolve)
+        return
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          updateLocationAndDistances(pos.coords.latitude, pos.coords.longitude, '您的位置')
+          resolve()
+        },
+        async () => {
+          // 浏览器定位失败 → IP 定位兜底
+          await requestLocationByIP()
+          resolve()
+        },
+        { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 },
+      )
+    })
+  }
+
   return { 
     products, 
     filteredProducts, 
@@ -275,6 +417,7 @@ export const useProductStore = defineStore('product', () => {
     sortProducts, 
     getProductById, 
     getRecommendations, 
-    getUserLocation 
+    getUserLocation,
+    requestLocation,
   }
 })

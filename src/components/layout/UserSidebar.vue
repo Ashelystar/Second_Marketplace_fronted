@@ -239,8 +239,12 @@ const fetchUserProfile = async () => {
   try {
     const data = await getUserProfileApi()
     const avatarVal = data.avatarUrl || ''
+    // 保留原有 userInfo 的 id 等关键字段，避免被 getUserProfileApi 返回的字段覆盖丢失
+    const current = userStore.userInfo || {}
     const userInfo = {
+      ...current,
       ...data,
+      id: current.id ?? data.id,
       avatar: avatarVal,
       avatarUrl: avatarVal
     }

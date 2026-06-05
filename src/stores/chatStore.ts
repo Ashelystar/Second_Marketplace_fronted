@@ -94,15 +94,46 @@ function voToMessage(vo: MessageVO): ChatMessage {
   const ext = parseExtJson(vo.extJson)
   let product = ext.product as ChatProductCard | undefined
 
-  // 兜底：extJson 没有 product 时，尝试从 content 解析（发送时做了双写备份）
-  if (!product && vo.messageType === 'product_card' && vo.content) {
-    try {
-      const parsed = JSON.parse(vo.content)
-      if (parsed && typeof parsed === 'object' && 'id' in parsed) {
-        product = parsed as ChatProductCard
+  // ---------- 解析商品卡片数据（适配后端多种返回格式） ----------
+  if (vo.messageType === 'product_card' && !product) {
+    // 1. 后端平铺格式：extJson = {"price": 35, "imageUrl": "...", "title": "..."}
+    const extAny = ext as Record<string, unknown>
+    if (extAny.price !== undefined || extAny.imageUrl !== undefined || extAny.image !== undefined) {
+      const rawId = extAny.productId ?? extAny.id
+      product = {
+        id: Number(rawId || 0),
+        title: String(extAny.title ?? vo.content ?? '商品卡片'),
+        price: Number(extAny.price ?? 0),
+        image: String(extAny.imageUrl ?? extAny.image ?? ''),
+        originalPrice: extAny.originalPrice ? Number(extAny.originalPrice) : undefined,
       }
-    } catch {
-      /* content 不是 JSON，忽略 */
+    }
+
+    // 2. 从 content 解析（发送时做了双写备份，后端可能原样保留也可能改了格式）
+    if (!product && vo.content) {
+      try {
+        const parsed = JSON.parse(vo.content) as Record<string, unknown>
+        if (parsed && typeof parsed === 'object') {
+          if ('id' in parsed) {
+            // 标准格式：content = {"id": 5, "title": "...", "price": ...}
+            product = parsed as unknown as ChatProductCard
+          } else if (parsed.price !== undefined || parsed.imageUrl !== undefined || parsed.image !== undefined) {
+            // 后端平铺格式：content = {"price": 35, "imageUrl": "..."}
+            product = {
+              id: Number(parsed.productId ?? parsed.id ?? 0),
+              title: String(parsed.title ?? '商品卡片'),
+              price: Number(parsed.price ?? 0),
+              image: String(parsed.imageUrl ?? parsed.image ?? ''),
+              originalPrice: parsed.originalPrice ? Number(parsed.originalPrice) : undefined,
+            }
+          }
+        }
+      } catch {
+        // content 是纯文本（如 "宜家小边桌 LACK"），当作标题兜底
+        if (vo.content && vo.content !== '[消息已撤回]') {
+          product = { id: 0, title: vo.content, price: 0, image: '' }
+        }
+      }
     }
   }
 
@@ -185,6 +216,8 @@ export const useChatStore = defineStore('chat', () => {
         userId: targetUser.id,
         productId: product?.id,
       })
+      // 后端返回的 Conversation 不含 userAvatar，把 targetUser 的头像附上
+      ;(conv as unknown as Record<string, unknown>).userAvatar = targetUser.avatar
       // 去重后插入列表头部
       const idx = conversations.value.findIndex((c) => c.id === conv.id)
       if (idx >= 0) {
@@ -228,6 +261,84 @@ export const useChatStore = defineStore('chat', () => {
   /** 同步获取已缓存的消息（不发起请求） */
   const getConversationMessages = (conversationId: number): ChatMessage[] => {
     return messageCache.value[conversationId] || []
+  }
+
+  // ---------- 轮询 ----------
+
+  /**
+   * 轮询指定会话的新消息（绕过缓存，始终请求服务端）
+   * 只合并不在缓存中的新消息，不重复添加
+   * @returns 本次新增的消息数量
+   */
+  const pollNewMessages = async (conversationId: number): Promise<number> => {
+    try {
+      const detail = await getConversationDetail(conversationId)
+      const remoteMsgs: ChatMessage[] = (detail.messages || [])
+        .map(voToMessage)
+        .sort((a, b) => a.createdAt - b.createdAt)
+
+      const cached = messageCache.value[conversationId]
+      if (!cached) {
+        // 首次加载全部写入
+        messageCache.value[conversationId] = remoteMsgs
+        return remoteMsgs.length
+      }
+
+      // 只合并不在缓存中的新消息（按 id 去重）
+      const cachedIds = new Set(cached.map((m) => m.id))
+      const newMsgs = remoteMsgs.filter((m) => !cachedIds.has(m.id))
+      if (newMsgs.length > 0) {
+        cached.push(...newMsgs)
+        // 保持时间升序
+        cached.sort((a, b) => a.createdAt - b.createdAt)
+      }
+
+      // 同步 userAvatar
+      const conv = conversations.value.find((c) => c.id === conversationId)
+      if (conv && detail.userAvatar) {
+        ;(conv as Record<string, unknown>).userAvatar = detail.userAvatar
+      }
+
+      return newMsgs.length
+    } catch (e) {
+      console.error('[ChatStore] 轮询消息失败:', e)
+      return 0
+    }
+  }
+
+  /**
+   * 轮询刷新会话列表（更新未读数、最后消息、排序）
+   */
+  const pollConversationList = async () => {
+    try {
+      const list = await getConversationList({ pageSize: 50 })
+      const existingMap = new Map(conversations.value.map((c) => [c.id, c]))
+      const merged: Conversation[] = []
+
+      for (const remote of list) {
+        const existing = existingMap.get(remote.id)
+        if (existing) {
+          // 只更新关键字段，保留前端同步的 userAvatar 等
+          existing.unreadCount = remote.unreadCount
+          existing.lastMessageContent = remote.lastMessageContent
+          existing.lastMessageAt = remote.lastMessageAt
+          merged.push(existing)
+          existingMap.delete(remote.id)
+        } else {
+          // 新会话，加入列表
+          merged.push(remote)
+        }
+      }
+
+      // 保留本地还有但服务端已删除的会话（可能是刚创建的）
+      for (const remaining of existingMap.values()) {
+        merged.push(remaining)
+      }
+
+      conversations.value = merged
+    } catch (e) {
+      console.error('[ChatStore] 轮询会话列表失败:', e)
+    }
   }
 
   /** 发送消息 */
@@ -421,6 +532,8 @@ export const useChatStore = defineStore('chat', () => {
     markConversationRead,
     recallMessage,
     getConversationMessages,
+    pollNewMessages,
+    pollConversationList,
     getConversationsForUser,
     getUnreadCountForUser,
     clearConversation,

@@ -137,7 +137,6 @@ import {
   type SellerReputationHistoryItem,
 } from '@/api/user'
 import { getSellerProducts, type ProductVO } from '@/api/goods'
-import { createConversation } from '@/api/chat'
 
 // 成色映射（与首页、详情页保持一致）
 const conditionMap: Record<string, string> = {
@@ -346,14 +345,18 @@ const goToChat = () => {
     return
   }
 
-  router.push({
-    path: '/chat',
-    query: {
-      friendId: String(sellerId.value),
-      sellerName: seller.value?.name || `用户${sellerId.value}`,
-      sellerAvatar: seller.value?.avatar || '',
-    },
-  })
+  const query: Record<string, string> = {
+    friendId: String(sellerId.value),
+    sellerName: seller.value?.name || `用户${sellerId.value}`,
+    sellerAvatar: seller.value?.avatar || '',
+  }
+  // 如果是从商品详情页跳转过来的，带上商品ID，发起对话时关联该商品
+  const fromProductId = Number(route.query.fromProductId)
+  if (Number.isFinite(fromProductId) && fromProductId > 0) {
+    query.productId = String(fromProductId)
+  }
+
+  router.push({ path: '/chat', query })
 }
 
 const handleToggleFollow = async () => {
@@ -384,14 +387,8 @@ const handleToggleFollow = async () => {
   }
 }
 
-const goBackToProduct = () => {
-  // 不管从哪进来的，直接返回上一页（浏览器历史栈已记录完整路径）
-  if (window.history.length > 1) {
-    router.back()
-    return
-  }
-  router.push('/')
-}
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack: goBackToProduct } = useSmartBack('/')
 
 /** 根据来源动态显示返回按钮文案 */
 const backLabel = computed(() => {
