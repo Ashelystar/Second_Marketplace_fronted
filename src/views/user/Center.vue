@@ -125,8 +125,11 @@
             </div>
           </div>
           <div class="productActions" @click.stop>
-            <button class="actionBtn" @click="toggleStatus(product)">
+            <button v-if="product.status !== '待审核'" class="actionBtn" @click="toggleStatus(product)">
               <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
+            </button>
+            <button v-if="product.status === '待审核'" class="actionBtn revoke" @click="revokeReviewFn(product)" title="撤销审核">
+              <i class="fa fa-undo"></i>
             </button>
             <button class="actionBtn" @click="editProduct(product)">
               <i class="fa fa-edit"></i>
@@ -144,7 +147,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { offShelfProduct, relistProduct, getMyProducts, type ProductVO } from '@/api/goods'
+import { offShelfProduct, relistProduct, revokeReview, getMyProducts, type ProductVO } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 const router = useRouter()
@@ -296,6 +299,17 @@ const toggleStatus = async (product: Product) => {
   } catch (err) {
     console.error('重新上架接口调用失败:', err)
     alert(err instanceof Error ? err.message : '重新上架失败，请稍后重试')
+  }
+}
+
+const revokeReviewFn = async (product: Product) => {
+  if (!confirm('确定要撤销审核吗？商品将恢复为草稿状态。')) return
+  try {
+    await revokeReview(product.id)
+    product.status = '草稿'
+    alert('已撤销审核，商品恢复为草稿')
+  } catch (err) {
+    alert(err instanceof Error ? err.message : '撤销审核失败')
   }
 }
 
@@ -707,6 +721,10 @@ onMounted(() => {
 
 .actionBtn.delete:hover {
   background: #dc2626;
+}
+
+.actionBtn.revoke:hover {
+  background: #d97706;
 }
 
 /* 响应式 */

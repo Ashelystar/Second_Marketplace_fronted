@@ -75,6 +75,11 @@ export async function relistProduct(id: number): Promise<string> {
   return handleRequest<string>(`/api/product/${id}/relist`, { method: 'PUT' }, '重新上架失败')
 }
 
+/** 撤销商品审核（待审核 → 草稿） */
+export async function revokeReview(id: number): Promise<string> {
+  return handleRequest<string>(`/api/product/${id}/revoke-review`, { method: 'PUT' }, '撤销审核失败')
+}
+
 // ==========================================
 // 4. 获取我发布的商品列表
 // ==========================================
@@ -249,8 +254,11 @@ export async function getCategoryList(): Promise<Category[]> {
   return handleRequest<Category[]>('/api/product/categorylist', { method: 'GET' }, '获取分类列表失败')
 }
 
-/** 发布新商品参数（与修改参数相同） */
-export type CreateProductParams = UpdateProductParams
+/** 发布新商品参数 */
+export interface CreateProductParams extends Omit<UpdateProductParams, 'publishStatus'> {
+  /** 是否存为草稿（true=草稿，false/不传=直接提交审核） */
+  isDraft?: boolean
+}
 
 /** 发布新商品 */
 export async function createProduct(params: CreateProductParams): Promise<Product> {

@@ -59,8 +59,8 @@
       <div class="sellerCard card">
         <div class="sellerMain">
           <div class="productStatus">
-            <span class="statusTag" :class="product.status === '在售' ? 'onSale' : 'offSale'">
-              <i :class="product.status === '在售' ? 'fa fa-check-circle' : 'fa fa-pause-circle'"></i>
+            <span class="statusTag" :class="product.status === '在售' ? 'onSale' : product.status === '待审核' ? 'pending' : 'offSale'">
+              <i :class="product.status === '在售' ? 'fa fa-check-circle' : product.status === '待审核' ? 'fa fa-clock' : 'fa fa-pause-circle'"></i>
               {{ product.status }}
             </span>
             <span class="productTitle">{{ product.title }}</span>
@@ -183,9 +183,12 @@
               </button>
             </div>
             <div class="actionRow">
-              <button class="actionBtn secondary" @click="toggleStatus">
-                <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
-                {{ product.status === '在售' ? '下架商品' : '重新上架' }}
+              <button v-if="product?.status !== '待审核'" class="actionBtn secondary" @click="toggleStatus">
+                <i :class="product?.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
+                {{ product?.status === '在售' ? '下架商品' : '重新上架' }}
+              </button>
+              <button v-if="product?.status === '待审核'" class="actionBtn revoke" @click="revokeReviewFn">
+                <i class="fa fa-undo"></i> 撤销审核
               </button>
               <button class="actionBtn primary" @click="editProduct">
                 <i class="fa fa-edit"></i> 编辑商品
@@ -312,9 +315,12 @@
           <button class="editBtn" @click="editProduct">
             <i class="fa fa-edit"></i> 编辑信息
           </button>
-          <button class="toggleBtn" :class="product.status === '在售' ? 'off' : 'on'" @click="toggleStatus">
+          <button v-if="product?.status !== '待审核'" class="toggleBtn" :class="product.status === '在售' ? 'off' : 'on'" @click="toggleStatus">
             <i :class="product.status === '在售' ? 'fa fa-pause' : 'fa fa-play'"></i>
             {{ product.status === '在售' ? '下架' : '上架' }}
+          </button>
+          <button v-if="product?.status === '待审核'" class="toggleBtn revoke" @click="revokeReviewFn">
+            <i class="fa fa-undo"></i> 撤销
           </button>
         </div>
       </div>
@@ -344,7 +350,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { offShelfProduct, relistProduct, getProductDetail } from '@/api/goods'
+import { offShelfProduct, relistProduct, revokeReview, getProductDetail } from '@/api/goods'
 import { createConversation } from '@/api/chat'
 import type { ProductVO } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
@@ -410,7 +416,7 @@ interface ProductData {
   isNew: boolean
   canBargain: boolean
   freight: number
-  status: '在售' | '已下架'
+  status: '在售' | '已下架' | '待审核' | '草稿'
   viewCount: number
   favoriteCount: number
   consultCount: number
@@ -556,7 +562,11 @@ const loadDetails = async () => {
       isNew: vo.conditionLevel === 'new',
       canBargain: vo.canBargain ?? false,
       freight: 0,
-      status: vo.publishStatus === 'off_shelf' ? '已下架' : '在售',
+      status: (() => {
+        if (vo.publishStatus === 'off_shelf') return '已下架'
+        if (vo.publishStatus === 'pending_review') return '待审核'
+        return '在售'
+      })(),
       viewCount: vo.viewCount || 0,
       favoriteCount: vo.favoriteCount || 0,
       consultCount: 0,
@@ -616,6 +626,18 @@ const toggleStatus = async () => {
     } catch (err) {
       alert(err instanceof Error ? err.message : '重新上架失败')
     }
+  }
+}
+
+const revokeReviewFn = async () => {
+  if (!product.value) return
+  if (!confirm('确定要撤销审核吗？商品将恢复为草稿状态。')) return
+  try {
+    await revokeReview(product.value.id)
+    product.value.status = '草稿'
+    alert('已撤销审核，商品恢复为草稿')
+  } catch (err) {
+    alert(err instanceof Error ? err.message : '撤销审核失败')
   }
 }
 
@@ -946,6 +968,11 @@ onMounted(() => {
 .statusTag.offSale {
   background: #fef2f2;
   color: #dc2626;
+}
+
+.statusTag.pending {
+  background: #fffbeb;
+  color: #d97706;
 }
 
 .productTitle {
@@ -1730,6 +1757,15 @@ onMounted(() => {
 
 .toggleBtn.on:hover {
   background: #dcfce7;
+}
+
+.toggleBtn.revoke {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.toggleBtn.revoke:hover {
+  background: #fef3c7;
 }
 
 /* 悬浮工具栏 */
