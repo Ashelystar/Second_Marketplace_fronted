@@ -102,7 +102,7 @@
               v-for="p in displayedProducts"
               :key="p.id"
               class="productCard card"
-              @click="goToDetail(p.id)"
+              @click="goToDetail(p)"
             >
               <div class="productImg">
                 <img :src="getImageUrl(p.image) || PLACEHOLDER_IMG" :alt="p.title" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
@@ -142,6 +142,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
+import { useUserStore } from '@/stores/userStore'
 import { getCategoryList } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import Topnav from '@/components/TopNav.vue'
@@ -154,6 +155,7 @@ const showNav = computed(() => !hideNavRoutes.includes(route.path))
 
 const router = useRouter()
 const store = useProductStore()
+const userStore = useUserStore()
 
 const activeMainCategory = ref<number | null>(null)
 const activeSubCategory = ref<number | null>(null)
@@ -241,8 +243,14 @@ onMounted(() => {
   loadCategories()
 })
 
-const goToDetail = (id: number) => {
-  router.push({ path: '/detail', query: { id: id.toString() } })
+const goToDetail = (p: { id: number; sellerId?: number }) => {
+  // 如果是当前登录用户自己发布的商品，跳转到卖家商品详情页
+  const currentUserId = userStore.userInfo?.id
+  if (currentUserId && p.sellerId && Number(currentUserId) === Number(p.sellerId)) {
+    router.push({ path: '/seller/product', query: { id: p.id.toString() } })
+  } else {
+    router.push({ path: '/detail', query: { id: p.id.toString() } })
+  }
 }
 
 const showSubMenu = (id: number, index: number) => {

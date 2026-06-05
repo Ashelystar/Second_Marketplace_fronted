@@ -3,11 +3,34 @@
     <aside class="friend-sidebar" :class="{ open: sidebarOpen }">
       <div class="friend-header">
         <h3>消息</h3>
-        <span v-if="totalUnreadCount > 0" class="friend-count">{{ unreadCountDisplay }}</span>
+        <span v-if="totalBadgeCount > 0" class="friend-count">{{ unreadCountDisplay }}</span>
+      </div>
+
+      <!-- 通知列表（置顶在消息列表上方） -->
+      <div v-if="noticeStore.notices.length > 0" class="notice-list">
+        <div
+          v-for="notice in noticeStore.notices"
+          :key="notice.inboxId"
+          class="notice-item"
+          :class="{ unread: notice.readStatus === 'unread' }"
+          @click="handleNoticeClick(notice)"
+        >
+          <div class="notice-icon" :class="'notice-' + notice.noticeType">
+            <i :class="getNoticeIcon(notice.noticeType)"></i>
+          </div>
+          <div class="notice-info">
+            <p class="notice-title">{{ notice.title }}</p>
+            <p class="notice-preview">{{ notice.content }}</p>
+          </div>
+          <div class="notice-meta">
+            <span class="notice-time">{{ formatNoticeTime(notice.deliveredAt) }}</span>
+            <span v-if="notice.readStatus === 'unread'" class="notice-dot"></span>
+          </div>
+        </div>
       </div>
 
       <div v-if="threads.length === 0" class="friend-empty">
-        暂无会话，去商品页点击“咨询卖家”开始聊天
+        暂无会话，去商品页点击"咨询卖家"开始聊天
       </div>
 
       <div v-else class="friend-list">
@@ -49,7 +72,7 @@
           </button>
           <div class="seller-info">
             <div class="seller-avatar">
-              <img v-if="activePartner.avatar" :src="activePartner.avatar" :alt="activePartner.name">
+              <img v-if="activePartner.avatar" :src="getImageUrl(activePartner.avatar)" :alt="activePartner.name">
               <div v-else class="avatar-placeholder">
                 {{ activePartner.name.charAt(0) }}
               </div>
@@ -122,11 +145,18 @@
               :class="['message-item', msg.type === 'sent' ? 'sent' : 'received']"
               @contextmenu.prevent="handleContextMenu($event, msg)"
             >
-              <div v-if="msg.type === 'received'" class="message-avatar">
-                <img v-if="activePartner.avatar" :src="activePartner.avatar" :alt="activePartner.name">
+              <div v-if="msg.type === 'received'" class="message-avatar clickable" @click="goToUserProfile(activePartner.id, activePartner.name, activePartner.avatar, activePartner.location)">
+                <img v-if="activePartner.avatar" :src="getImageUrl(activePartner.avatar)" :alt="activePartner.name">
                 <div v-else class="avatar-placeholder small">
                   {{ activePartner.name.charAt(0) }}
                 </div>
+              </div>
+
+              <!-- 发出的消息：已读状态放在气泡前面 -->
+              <div v-if="msg.type === 'sent'" class="message-status">
+                <i v-if="(msg as any).status === 'sending'" class="fa fa-clock-o sending"></i>
+                <i v-else-if="(msg as any).status === 'failed'" class="fa fa-exclamation-circle failed"></i>
+                <i v-else class="fa fa-check delivered"></i>
               </div>
 
               <div class="message-main">
@@ -137,26 +167,30 @@
                   <div v-else-if="msg.contentType === 'image'" class="image-content">
                     <img :src="msg.content" alt="图片消息">
                   </div>
-                  <div v-else-if="msg.contentType === 'product'" class="product-content" @click="viewProductDetail">
-                    <div class="product-mini">
-                      <img :src="msg.product?.image || PLACEHOLDER_IMG" :alt="msg.product?.title || '商品'">
+                  <div v-else-if="msg.contentType === 'product'" class="product-content" @click="msg.product?.id ? goToProductDetail(msg.product.id) : undefined">
+                    <div v-if="msg.product?.title" class="product-mini">
+                      <img :src="(msg.product?.image ? getImageUrl(msg.product.image) : PLACEHOLDER_IMG)" :alt="msg.product?.title || '商品'">
                       <div class="product-mini-info">
-                        <p class="product-mini-title">{{ msg.product?.title || '商品卡片' }}</p>
+                        <p class="product-mini-title">{{ msg.product?.title }}</p>
                         <div class="product-mini-price-row">
                           <span class="product-mini-price">¥{{ msg.product?.price ?? 0 }}</span>
                           <span v-if="msg.product?.originalPrice && msg.product.originalPrice > (msg.product.price ?? 0)" class="product-mini-original-price">¥{{ msg.product.originalPrice }}</span>
                         </div>
                       </div>
                     </div>
+                    <div v-else class="product-mini product-mini-invalid">
+                      <span class="product-mini-placeholder">商品信息已失效</span>
+                    </div>
                   </div>
                 </div>
                 <p class="message-time">{{ formatMsgTime(msg.createdAt) }}</p>
               </div>
 
-              <div v-if="msg.type === 'sent'" class="message-status">
-                <i v-if="(msg as any).status === 'sending'" class="fa fa-clock-o sending"></i>
-                <i v-else-if="(msg as any).status === 'failed'" class="fa fa-exclamation-circle failed"></i>
-                <i v-else class="fa fa-check delivered"></i>
+              <div v-if="msg.type === 'sent'" class="message-avatar clickable" @click="goToMyCenter">
+                <img v-if="currentUserProfile.avatar" :src="getImageUrl(currentUserProfile.avatar)" :alt="currentUserProfile.name">
+                <div v-else class="avatar-placeholder small">
+                  {{ currentUserProfile.name.charAt(0) }}
+                </div>
               </div>
             </div>
           </template>
@@ -256,10 +290,13 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
+import { useSmartBack } from '@/composables/useSmartBack'
 import { getProductDetail } from '@/api/goods'
 import { resolveUserDisplayProfile, isFallbackUserLabel } from '@/api/user'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore, type ChatProductCard, type ChatUserProfile } from '@/stores/chatStore'
+import { useNoticeStore } from '@/stores/noticeStore'
+import type { NoticeVO } from '@/api/chat'
 import { uploadChatImage } from '@/api/chat'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
@@ -269,6 +306,7 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const chatStore = useChatStore()
+const noticeStore = useNoticeStore()
 
 const CHAT_FRIENDS_STORAGE_KEY = 'chat_friends'
 const quickReplies = ['你好，在吗？', '这个还有货吗？', '可以小刀吗？', '支持面交吗？', '什么时候方便？']
@@ -292,6 +330,55 @@ const contextMenuVisible = ref(false)
 const contextMenuPos = ref({ x: 0, y: 0 })
 const contextMenuMessage = ref<{ id: number; type: string; senderId: number; createdAt: number } | null>(null)
 
+// ============ 轮询 ============
+const POLL_INTERVAL = 3000 // 每 3 秒轮询一次
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let isPolling = false
+
+/** 开始轮询：定时刷新会话列表 + 当前会话新消息 + 通知 */
+const startPolling = () => {
+  if (pollTimer) return
+  pollTimer = setInterval(async () => {
+    if (isPolling) return
+    isPolling = true
+    try {
+      // 刷新会话列表（更新未读数、最后消息）
+      await chatStore.pollConversationList()
+      // 如果当前有活跃会话，轮询新消息
+      if (activeConversationId.value && currentUserProfile.value.id) {
+        await chatStore.pollNewMessages(activeConversationId.value)
+      }
+      // 轮询通知
+      if (userStore.isLoggedIn) {
+        await noticeStore.fetchNotices()
+      }
+    } catch {
+      // 静默忽略
+    } finally {
+      isPolling = false
+    }
+  }, POLL_INTERVAL)
+}
+
+/** 停止轮询 */
+const stopPolling = () => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+// 页面不可见时暂停轮询，可见时恢复
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    stopPolling()
+  } else {
+    startPolling()
+  }
+}
+
+// ============ 计算属性 ============
+
 const currentUserProfile = computed<ChatUserProfile>(() => ({
   id: Number(userStore.userInfo?.id || 0),
   name: userStore.userInfo?.nickname || userStore.userInfo?.username || '当前用户',
@@ -308,8 +395,11 @@ const totalUnreadCount = computed(() => {
   return chatStore.getUnreadCountForUser(currentUserProfile.value.id)
 })
 
+/** 总未读数 = 消息会话未读 + 通知未读 */
+const totalBadgeCount = computed(() => totalUnreadCount.value + noticeStore.unreadCount)
+
 const unreadCountDisplay = computed(() =>
-  totalUnreadCount.value > 99 ? '99+' : String(totalUnreadCount.value)
+  totalBadgeCount.value > 99 ? '99+' : String(totalBadgeCount.value)
 )
 
 const activeThread = computed(() =>
@@ -333,14 +423,10 @@ const activeProductCard = computed<ChatProductCard | null>(() => {
 const displayMessages = computed(() => {
   if (!activeConversationId.value || !currentUserProfile.value.id) return []
   return chatStore.getConversationMessages(activeConversationId.value).map((message) => {
-    // 商品卡片消息如果缺少数据，用当前会话顶部商品兜底
-    let product = message.product
-    if (message.contentType === 'product' && (!product || !product.title || product.price === 0)) {
-      product = activeProductCard.value || undefined
-    }
+    // 每个商品卡片消息使用自身携带的 product 数据，
+    // 不再用顶部商品卡片兜底（否则同一会话不同商品间切换会导致历史消息显示错误商品）
     return {
       ...message,
-      product,
       type: message.senderId === currentUserProfile.value.id ? 'sent' : 'received',
     }
   })
@@ -368,6 +454,42 @@ const formatMsgTime = (timestamp: number) => {
   const date = new Date(timestamp)
   if (isNaN(date.getTime())) return ''
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+// ============ 通知相关 ============
+
+/** 通知时间格式化 */
+const formatNoticeTime = (dateStr: string) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return ''
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const noticeDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  if (noticeDay.getTime() >= today.getTime()) {
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  }
+  if (noticeDay.getTime() >= yesterday.getTime()) return '昨天'
+  return `${date.getMonth() + 1}月${date.getDate()}日`
+}
+
+/** 通知类型对应图标 */
+const getNoticeIcon = (type: string) => {
+  const icons: Record<string, string> = {
+    system: 'fa fa-cog',
+    announcement: 'fa fa-bullhorn',
+    warning: 'fa fa-exclamation-triangle',
+    notification: 'fa fa-info-circle',
+  }
+  return icons[type] || 'fa fa-bell'
+}
+
+/** 点击通知：标记已读 */
+const handleNoticeClick = (notice: NoticeVO) => {
+  if (notice.readStatus === 'unread') {
+    noticeStore.markRead(notice.inboxId)
+  }
 }
 
 /** 判断是否需要在当前消息前插入日期/时间分隔线（第一条、跨天、或间隔>5分钟） */
@@ -439,7 +561,15 @@ const createConversationFromRoute = async () => {
     location: String(legacy?.location || ''),
     rating: Number(legacy?.rating || 5),
   }
-  const conversation = await chatStore.ensureConversation(current, target, activeProductCard.value || undefined)
+  // URL 有 productId 但 activeProductCard 还没加载时，先传简化对象让后端能创建会话
+  let productForConv = activeProductCard.value || undefined
+  if (!productForConv) {
+    const routeProductId = Number(route.query.productId || 0)
+    if (routeProductId > 0) {
+      productForConv = { id: routeProductId, title: '', price: 0, image: '' }
+    }
+  }
+  const conversation = await chatStore.ensureConversation(current, target, productForConv)
   if (conversation) {
     activeConversationId.value = conversation.id
     await chatStore.fetchMessages(conversation.id)
@@ -472,7 +602,9 @@ const initProductFromQuery = async () => {
 /** 根据当前会话的 productId 加载商品详情到顶部卡片 */
 const fetchActiveProduct = async () => {
   const thread = activeThread.value
-  const pid = thread?.productId
+  // 优先使用 URL 中的 productId（用户从商品页点击进入时）
+  const routeProductId = Number(route.query.productId || 0)
+  const pid = routeProductId || thread?.productId
   if (!pid) {
     pendingProduct.value = null
     return
@@ -520,6 +652,10 @@ const scrollToBottom = async () => {
 const switchThread = async (conversationId: number) => {
   activeConversationId.value = conversationId
   sidebarOpen.value = false
+  // 切换会话时清除 URL 中的 productId，避免旧商品影响新会话
+  if (route.query.productId) {
+    router.replace({ query: { ...route.query, productId: undefined } })
+  }
   // 确保消息缓存已加载
   await chatStore.fetchMessages(conversationId)
   // 加载顶部商品卡片
@@ -622,26 +758,36 @@ const autoResize = () => {
   }
 }
 
-const goBack = () => {
-  router.back()
-}
+const { goBack } = useSmartBack('/')
 
 const viewSellerProfile = () => {
   if (!activePartner.value.id) return
-  // 保存当前会话上下文，返回时恢复
+  goToUserProfile(
+    activePartner.value.id,
+    activePartner.value.name,
+    activePartner.value.avatar,
+    activePartner.value.location,
+  )
+}
+
+/** 点击消息头像跳转个人主页 */
+const goToUserProfile = (userId: number, name?: string, avatar?: string, location?: string) => {
+  if (!userId) return
   if (activeConversationId.value) {
     sessionStorage.setItem('chat_return_conv', JSON.stringify({
       conversationId: activeConversationId.value,
     }))
   }
   router.push({
-    path: `/user/home/${activePartner.value.id}`,
-    query: {
-      name: activePartner.value.name,
-      avatar: activePartner.value.avatar,
-      location: activePartner.value.location || '未知',
-    },
+    path: `/user/home/${userId}`,
+    query: { name, avatar, location: location || '未知' },
   })
+}
+
+/** 点击自己的头像 → 跳转个人中心（不是公开主页） */
+const goToMyCenter = () => {
+  if (!currentUserProfile.value.id) return
+  router.push('/user/center')
 }
 
 const viewProductDetail = () => {
@@ -653,6 +799,17 @@ const viewProductDetail = () => {
     }))
   }
   router.push({ name: 'goods-detail', params: { id: activeProductCard.value.id } })
+}
+
+/** 点击消息中的商品卡片，跳转到对应商品详情 */
+const goToProductDetail = (productId: number) => {
+  if (!productId) return
+  if (activeConversationId.value) {
+    sessionStorage.setItem('chat_return_conv', JSON.stringify({
+      conversationId: activeConversationId.value,
+    }))
+  }
+  router.push({ name: 'goods-detail', params: { id: productId } })
 }
 
 const clearChat = () => {
@@ -718,6 +875,17 @@ watch(
   { immediate: true }
 )
 
+// 当通过路由切换商品（同一会话）时，更新顶部商品卡片
+watch(
+  () => route.query.productId,
+  (productId) => {
+    const pid = Number(productId || 0)
+    if (pid && pid !== pendingProduct.value?.id) {
+      initProductFromQuery()
+    }
+  }
+)
+
 watch(
   () => displayMessages.value.length,
   () => {
@@ -733,7 +901,9 @@ const refreshFallbackPartnerNames = async () => {
   for (const conv of chatStore.conversations) {
     const partnerId = conv.userId
     const partnerName = conv.userNickname
-    if (partnerId && isFallbackUserLabel(partnerName, partnerId)) {
+    const userAvatar = (conv as Record<string, unknown>).userAvatar as string | undefined
+    // 名字是兜底标签 或 缺少头像 → 需要刷新
+    if (partnerId && (isFallbackUserLabel(partnerName, partnerId) || !userAvatar)) {
       partnerIds.add(partnerId)
     }
   }
@@ -741,12 +911,20 @@ const refreshFallbackPartnerNames = async () => {
   for (const partnerId of partnerIds) {
     try {
       const profile = await resolveUserDisplayProfile(partnerId)
-      chatStore.updateParticipantProfile(partnerId, {
-        name: profile.nickname,
-        avatar: profile.avatarUrl || '',
-      })
+      const patch: Partial<{ name: string; avatar: string }> = {}
+
+      // 只在当前名字是兜底标签时才用 API 返回的名字覆盖，保护后端已返回的真实昵称
+      const conv = chatStore.conversations.find((c) => c.userId === partnerId)
+      if (conv && isFallbackUserLabel(conv.userNickname, partnerId)) {
+        patch.name = profile.nickname
+      }
+
+      // 头像总是补充（因为进入此分支说明缺少头像）
+      patch.avatar = profile.avatarUrl || ''
+
+      chatStore.updateParticipantProfile(partnerId, patch)
     } catch (error) {
-      console.error('刷新会话昵称失败:', error)
+      console.error('刷新会话昵称/头像失败:', error)
     }
   }
 }
@@ -760,9 +938,13 @@ onMounted(async () => {
   }
   // 登录后再初始化会话列表
   await chatStore.initialize()
+  // 初始化通知列表
+  noticeStore.refresh()
   await refreshFallbackPartnerNames()
-  await initProductFromQuery()
+  // 注意顺序：先创建/定位会话，再用 URL 的 productId 覆盖顶部商品卡片
+  // 这样从不同商品进入同一卖家的会话时，顶部始终显示用户点进来的那个商品
   await createConversationFromRoute()
+  await initProductFromQuery()
   // 如果没有加载到会话，尝试从 sessionStorage 恢复
   if (!activeConversationId.value) {
     try {
@@ -783,9 +965,15 @@ onMounted(async () => {
   }
   sidebarOpen.value = false
   scrollToBottom()
+
+  // 启动轮询
+  startPolling()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
+  stopPolling()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   window.removeEventListener('click', hideContextMenu)
 })
 </script>
@@ -807,6 +995,115 @@ onUnmounted(() => {
   flex-direction: column;
   backdrop-filter: blur(8px);
 }
+
+/* ========== 通知列表（置顶在消息上方） ========== */
+
+.notice-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.notice-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 150ms;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.notice-item:hover {
+  background: #f9fafb;
+}
+
+.notice-item.unread {
+  background: #eff6ff;
+}
+
+.notice-item.unread:hover {
+  background: #dbeafe;
+}
+
+.notice-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.notice-icon.notice-system {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.notice-icon.notice-announcement {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.notice-icon.notice-warning {
+  background: #fce4ec;
+  color: #dc2626;
+}
+
+.notice-icon.notice-notification {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.notice-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.notice-title {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notice-preview {
+  margin: 0;
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notice-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.notice-time {
+  font-size: 10px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.notice-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f97316;
+}
+
+/* ========== 消息列表 ========== */
 
 .friend-header {
   padding: 16px;
@@ -1156,7 +1453,6 @@ onUnmounted(() => {
 
 .message-item.sent {
   margin-left: auto;
-  flex-direction: row-reverse;
 }
 
 .message-main {
@@ -1174,6 +1470,14 @@ onUnmounted(() => {
   border-radius: 50%;
   overflow: hidden;
   background: #e5e7eb;
+}
+
+.message-avatar.clickable {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.message-avatar.clickable:hover {
+  transform: scale(1.1);
 }
 
 .message-avatar img {
@@ -1234,6 +1538,11 @@ onUnmounted(() => {
 .product-mini-title {
   margin: 0 0 4px;
   font-size: 13px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .product-mini-price-row {
@@ -1261,6 +1570,18 @@ onUnmounted(() => {
 
 .message-item.sent .product-mini-original-price {
   color: rgba(255, 255, 255, 0.6);
+}
+
+.product-mini-invalid {
+  background: #f9fafb;
+  justify-content: center;
+  min-width: 180px;
+  padding: 12px;
+}
+
+.product-mini-placeholder {
+  font-size: 13px;
+  color: #9ca3af;
 }
 
 .message-time {

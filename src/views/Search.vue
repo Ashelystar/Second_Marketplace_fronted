@@ -8,7 +8,7 @@
           <h1 class="text-xl font-bold text-xianyuText hidden md:block">闲鱼</h1>
         </router-link>
         <div class="flex-1 relative max-w-2xl">
-          <input type="text" placeholder="搜索闲置物品" v-model="searchInput" @keypress.enter="performSearch"
+          <input type="text" placeholder="搜索闲置物品" v-model="searchInput" @keypress.enter="performSearch" @input="onSearchInput"
             class="w-full h-10 px-4 pr-12 rounded-full bg-searchBg/20 border border-searchBg/50 placeholder-gray-500 focus:ring-2 focus:ring-xianyuText/30 transition-all text-gray-800 focus:bg-white">
           <button class="absolute right-3 top-1/2 -translate-y-1/2 text-xianyuText hover:text-xianyuHover" @click="performSearch">
             <i class="fa fa-search text-lg"></i>
@@ -48,7 +48,7 @@
       </div>
 
       <div v-else-if="store.filteredProducts.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
-        <div v-for="p in displayedProducts" :key="p.id" class="product-card" @click="goToDetail(p.id)">
+        <div v-for="p in displayedProducts" :key="p.id" class="product-card" @click="goToDetail(p)">
           <div class="aspect-square overflow-hidden relative">
             <img :src="getImageUrl(p.image) || PLACEHOLDER_IMG" :alt="p.title" class="w-full h-full object-cover hover:scale-105 transition-transform" @error="(e: Event) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG" />
             <div class="absolute top-1.5 right-1.5"><span class="text-[10px] bg-white/90 text-gray-700 px-1.5 py-0.5 rounded-full">{{ p.condition }}</span></div>
@@ -124,12 +124,14 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
+import { useUserStore } from '@/stores/userStore'
 import type { FilterState, SortOption } from '@/types'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
+const userStore = useUserStore()
 
 const searchInput = ref('')
 const activeTopTag = ref(1)
@@ -170,20 +172,48 @@ const handleTopTagClick = (tag: { id: number; text: string }) => {
   activeTopTag.value = tag.id
   if (tag.id === 1) { store.resetFilter() } else { store.performSearch(tag.text) }
 }
-const performSearch = () => { if (searchInput.value.trim()) { store.performSearch(searchInput.value.trim()) } }
+const performSearch = () => {
+  const keyword = searchInput.value.trim()
+  if (keyword) {
+    store.performSearch(keyword)
+    router.replace({ query: { q: keyword } })
+  } else {
+    store.resetFilter()
+    router.replace({ query: {} })
+  }
+}
+const onSearchInput = () => {
+  // 用户清空输入框时自动显示全部商品
+  if (!searchInput.value.trim()) {
+    store.resetFilter()
+    router.replace({ query: {} })
+  }
+}
 const handleSort = (v: SortOption) => { store.sortProducts(v); sortDropdownOpen.value = false }
 const toggleCondition = (c: string) => { const i = filterState.value.conditions.indexOf(c); if (i === -1) { filterState.value.conditions.push(c) } else { filterState.value.conditions.splice(i, 1) } }
 const toggleLocation = (l: string) => { const i = filterState.value.locations.indexOf(l); if (i === -1) { filterState.value.locations.push(l) } else { filterState.value.locations.splice(i, 1) } }
 const openFilterModal = () => { filterModalOpen.value = true; filterState.value = { ...store.filterState } }
 const applyFilter = () => { store.applyFilter(filterState.value); filterModalOpen.value = false }
-const resetFilter = () => { filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' }; store.resetFilter() }
+const resetFilter = () => { filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' }; store.resetFilter(); filterModalOpen.value = false }
 const loadMore = () => store.changePage(store.currentPage + 1)
-const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
-const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
+const goToDetail = (p: { id: number; sellerId?: number }) => {
+  const query: Record<string, string> = { id: p.id.toString() }
+  if (route.query.q) query.q = route.query.q as string
+  // 如果是当前登录用户自己发布的商品，跳转到卖家商品详情页
+  const currentUserId = userStore.userInfo?.id
+  if (currentUserId && p.sellerId && Number(currentUserId) === Number(p.sellerId)) {
+    router.push({ path: '/seller/product', query })
+  } else {
+    router.push({ path: '/detail', query })
+  }
+}
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/')
 
 const handleClickOutside = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.sort-dropdown-container')) sortDropdownOpen.value = false }
 
-onMounted(() => {
+onMounted(async () => {
+  await store.requestLocation()
   store.initialize().then(() => {
     if (route.query.q) { searchInput.value = route.query.q as string; store.performSearch(route.query.q as string) }
   })

@@ -143,13 +143,8 @@ const formatTime = (time?: string): string => {
   return '刚刚'
 }
 
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/user/center')
-  }
-}
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/user/center')
 
 const handleLogin = () => {
   router.push('/user/login')

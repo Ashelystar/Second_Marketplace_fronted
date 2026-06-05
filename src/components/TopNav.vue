@@ -164,7 +164,7 @@ const goToCart = () => {
 }
 
 /**
- * 导航到消息页面
+ * 导航到消息页面（路由守卫统一处理登录校验）
  */
 const goToMessage = () => {
   router.push('/chat')

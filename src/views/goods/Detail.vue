@@ -381,6 +381,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { useChatStore } from '@/stores/chatStore'
 import type { Product, ProductImage } from '@/types'
 import { getProductDetail, incrementProductView, getProductStats, getProductStatus, getProductPage, getSellerProducts } from '@/api/goods'
 import { createConversation } from '@/api/chat'
@@ -397,6 +398,7 @@ defineOptions({ name: 'ProductDetail' })
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const chatStore = useChatStore()
 
 // 当前用户头像 URL（经过 getImageUrl 处理）
 const currentUserAvatar = computed(() => {
@@ -775,6 +777,30 @@ const goToChat = async () => {
   const p = product.value
   if (!p) return
 
+  // 1. 先初始化会话列表（如果还没加载），以便检查是否已有与同一卖家的会话
+  if (!chatStore.conversations || chatStore.conversations.length === 0) {
+    try {
+      await chatStore.initialize()
+    } catch {
+      // 初始化失败不影响后续创建流程
+    }
+  }
+
+  // 2. 查找是否已有与该卖家的历史会话（同一卖家共用一个对话列表）
+  const existingConv = chatStore.conversations.find(
+    (conv) => conv.userId === p.sellerId
+  )
+
+  if (existingConv) {
+    // 复用已有会话，productId 通过 URL 传给聊天页面，更新顶部商品卡片
+    router.push({
+      path: '/chat',
+      query: { conversationId: String(existingConv.id), productId: String(p.id) }
+    })
+    return
+  }
+
+  // 3. 没有已有会话，创建新的
   try {
     const conv = await createConversation({
       conversationType: 'product_consult',
@@ -1005,7 +1031,8 @@ const performSearch = () => {
 
 
 const goToDetail = (id: number) => router.push({ path: '/detail', query: { id: id.toString() } })
-const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/')
 
 watch(() => [route.query.id, route.params.id], async () => {
   if (resolveRouteProductId()) {
@@ -1016,6 +1043,8 @@ watch(() => [route.query.id, route.params.id], async () => {
 }, { immediate: true })
 
 onMounted(() => {
+  // 如果从搜索页跳转过来，回显搜索关键词
+  if (route.query.q) searchInput.value = route.query.q as string
   loadComments()
   if (userStore.isLoggedIn) {
     void userStore.loadFavoriteIds()

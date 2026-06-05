@@ -266,13 +266,8 @@ const onCityChange = () => {
   formData.value.district = ''
 }
 
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
-  }
-}
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/')
 
 const editAddress = (addr: Address) => {
   editingId.value = addr.id

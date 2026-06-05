@@ -32,12 +32,13 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { loginApi, getUserPermissionsApi } from '@/api/user'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const account = ref('')
 const password = ref('')
@@ -54,6 +55,20 @@ async function handleLogin() {
       account: account.value.trim(),
       password: password.value.trim(),
     })
+    console.log('[Login] loginApi data:', data)
+    console.log('[Login] token:', data?.token)
+    console.log('[Login] userInfo:', data?.userInfo)
+
+    if (!data?.token) {
+      ElMessage.error('登录异常：后端未返回 token，请检查接口')
+      console.error('登录接口未返回 token，完整响应:', data)
+      return
+    }
+    if (!data?.userInfo) {
+      ElMessage.error('登录异常：后端未返回用户信息')
+      return
+    }
+
     userStore.login(
       {
         ...data.userInfo,
@@ -62,16 +77,17 @@ async function handleLogin() {
       },
       data.token
     )
-    
+
     // 检查用户权限
     const permissions = await getUserPermissionsApi()
+    const redirect = route.query.redirect as string | undefined
     if (permissions.isAdmin) {
-        ElMessage.success('登录成功！您是管理员')
-        await router.push('/admin')
-      } else {
-        ElMessage.success('登录成功！')
-        await router.push('/user/center')
-      }
+      ElMessage.success('登录成功！您是管理员')
+      await router.push(redirect || '/admin')
+    } else {
+      ElMessage.success('登录成功！')
+      await router.push(redirect || '/user/center')
+    }
   } catch (error) {
     // 详细错误提示
     if (error instanceof Error) {

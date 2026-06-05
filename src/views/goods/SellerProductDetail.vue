@@ -591,7 +591,8 @@ const handleLogin = () => {
   router.push('/user/login')
 }
 
-const goBack = () => window.history.length > 1 ? router.back() : router.push('/')
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/')
 
 const toggleStatus = async () => {
   if (!product.value) return

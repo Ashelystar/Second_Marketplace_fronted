@@ -634,7 +634,8 @@ const handleSave = async () => {
   }
 }
 
-const goBack = () => router.back()
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/')
 
 const handleLogin = () => {
   router.push('/user/login')

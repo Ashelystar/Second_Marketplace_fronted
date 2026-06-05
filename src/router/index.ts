@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useUserStore } from '@/stores/userStore'
 import { ElMessage } from 'element-plus'
 
 import Home from '../views/home/Index.vue'
@@ -293,10 +292,23 @@ const router = createRouter({
 
 const guestAllowedPaths = new Set(['/','/user/login','/user/register','/user/forgot-password','/user/reset-password'])
 
-router.beforeEach((to) => {
-  const userStore = useUserStore()
-  if (userStore.isLoggedIn) return true
+/** 记录：目标页面 → 被拦截前用户所在的页面 */
+const originBeforeLogin = new Map<string, string>()
+
+router.beforeEach((to, from) => {
+  const token = localStorage.getItem('token')
+  // 放宽校验：只要有非空 token 就认为已登录，不再强制依赖 userInfo.id
+  // 避免 fetchUserProfile 覆盖 userInfo 后导致 id 丢失而被误踢
+  const hasValidToken = Boolean(token && token.length > 8)
+  console.log(`[router.beforeEach] path=${to.path}, hasValidToken=${hasValidToken}`)
+  if (hasValidToken) return true
   if (guestAllowedPaths.has(to.path)) return true
+
+  // 保存被拦截前的来源页面（即用户点消息/商品详情等之前所在的页面）
+  // 注意：login 本身不做为有效来源
+  if (from.path && from.path !== '/user/login') {
+    originBeforeLogin.set(to.fullPath, from.fullPath)
+  }
 
   ElMessage.info('请先进行登录')
   return {
@@ -304,5 +316,38 @@ router.beforeEach((to) => {
     query: { redirect: to.fullPath },
   }
 })
+
+/** 记录从登录页进入的路由路径（用于 goBack 时跳过登录页） */
+const enteredFromLogin = new Set<string>()
+
+router.afterEach((to, from) => {
+  if (from.path === '/user/login') {
+    enteredFromLogin.add(to.path)
+  }
+})
+
+/** 检测指定路径是否是从登录页跳转过来的 */
+export function didEnterFromLogin(path: string): boolean {
+  return enteredFromLogin.has(path)
+}
+
+/** 清除 enteredFromLogin 记录 */
+export function clearEnterFromLogin(path: string): void {
+  enteredFromLogin.delete(path)
+}
+
+/**
+ * 获取"返回目标"
+ * - 有被拦截前的来源页面 → 返回该页面
+ * - 没有（比如用户直接打开浏览器访问受保护页面）→ 返回首页
+ */
+export function getBackDestination(path: string): string {
+  const origin = originBeforeLogin.get(path)
+  if (origin) {
+    originBeforeLogin.delete(path)
+    return origin
+  }
+  return '/'
+}
 
 export default router

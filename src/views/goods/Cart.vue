@@ -198,13 +198,8 @@ const settle = () => {
   }
 }
 
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
-  }
-}
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/')
 </script>
 
 <style scoped>

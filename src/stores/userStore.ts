@@ -15,6 +15,7 @@ import {
   type UserPermissions,
 } from '@/api/user'
 import { useChatStore } from '@/stores/chatStore'
+import { useNoticeStore } from '@/stores/noticeStore'
 export interface FavoriteItem {
   id: number
   title: string
@@ -41,6 +42,7 @@ export interface UserInfo {
 }
 
 export const useUserStore = defineStore('user', () => {
+  // 从 localStorage 恢复登录态（只读不改，绝不清除）
   const cachedToken = localStorage.getItem('token') || ''
   const cachedUserInfo = localStorage.getItem('userInfo')
 
@@ -56,11 +58,6 @@ export const useUserStore = defineStore('user', () => {
   const hasValidAuthCache = Boolean(cachedToken && parsedUserInfo)
   const token = ref<string>(hasValidAuthCache ? cachedToken : '')
   const userInfo = ref<UserInfo | null>(hasValidAuthCache ? parsedUserInfo : null)
-
-  if (!hasValidAuthCache) {
-    localStorage.removeItem('token')
-    localStorage.removeItem('userInfo')
-  }
 
   // 收藏列表
   const favorites = ref<FavoriteItem[]>(
@@ -364,14 +361,23 @@ export const useUserStore = defineStore('user', () => {
   }
 
   const login = (user: typeof userInfo.value, tokenValue?: string) => {
+    console.log('[userStore.login] received tokenValue:', tokenValue, 'type:', typeof tokenValue)
     userInfo.value = user
     localStorage.setItem('userInfo', JSON.stringify(user))
-    if (tokenValue) {
-      localStorage.setItem('token', tokenValue)
-      token.value = tokenValue
-    } else {
+    // 只要不是空字符串都写入 token；空/undefined/null 不覆盖已有的
+    const safeToken = (tokenValue && typeof tokenValue === 'string' && tokenValue.trim()) ? tokenValue.trim() : ''
+    console.log('[userStore.login] safeToken:', safeToken)
+    if (safeToken) {
+      localStorage.setItem('token', safeToken)
+      token.value = safeToken
+      console.log('[userStore.login] token saved to localStorage')
+    } else if (!localStorage.getItem('token')) {
+      // 没有收到有效 token 且本地也没有 → 视为未登录
       token.value = ''
-      localStorage.removeItem('token')
+      console.warn('[userStore.login] no valid token received and no cached token')
+    } else {
+      // 本地有旧 token，保留它
+      console.log('[userStore.login] keeping existing cached token')
     }
     loadFavoriteIds()
     void loadFollowIds()
@@ -395,6 +401,8 @@ export const useUserStore = defineStore('user', () => {
 
     // 重置聊天 store，确保下次登录重新拉取会话列表
     useChatStore().reset()
+    // 重置通知 store
+    useNoticeStore().reset()
   }
 
   loadFavoriteIds()

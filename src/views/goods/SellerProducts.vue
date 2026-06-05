@@ -183,7 +183,7 @@ interface Product {
   originalPrice: number
   image: string
   category: string
-  status: '在售' | '已下架'
+  status: '在售' | '已下架' | '待审核'
   viewCount: number
   favoriteCount: number
   consultCount: number
@@ -284,13 +284,8 @@ const onSaleCount = computed(() => products.value.filter(p => p.status === '在�
 const offSaleCount = computed(() => products.value.filter(p => p.status === '已下架').length)
 const totalViews = computed(() => products.value.reduce((sum, p) => sum + p.viewCount, 0))
 
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/orders')
-  }
-}
+import { useSmartBack } from '@/composables/useSmartBack'
+const { goBack } = useSmartBack('/orders')
 
 const performSearch = () => {
   // 搜索功能实现
