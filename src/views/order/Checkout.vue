@@ -480,29 +480,69 @@ const loadCartProducts = async (productIds: number[]) => {
     const cartItems = getCartItems()
     
     // 根据productIds过滤出选中的商品
-    const selectedProducts = cartItems.filter(item => productIds.includes(item.id))
+    const selectedCartItems = cartItems.filter(item => productIds.includes(item.id))
     
-    if (selectedProducts.length === 0) {
+    if (selectedCartItems.length === 0) {
       alert('未找到选中的商品信息，请返回后重试')
       router.back()
       return
     }
     
-    console.log('[Checkout] 找到的选中商品:', selectedProducts)
+    console.log('[Checkout] 找到的选中商品:', selectedCartItems)
     
-    // 将购物车商品转换为订单商品格式
-    products.value = selectedProducts.map(item => ({
-      id: item.id,
-      title: item.title,
-      description: '',
-      price: parseFloat(item.price),
-      image: item.image || PLACEHOLDER_IMG,
-      quantity: item.quantity,
-      sellerId: 0, // 购物车中没有sellerId，需要从后端获取
-      tradeMode: 'shipping', // 默认快递
-      freightAmount: 0,
-      pickupLocation: ''
-    }))
+    // 并行请求所有商品的详细信息
+    const productDetailsPromises = selectedCartItems.map(async (cartItem) => {
+      try {
+        const productData = await getProductDetail(cartItem.id)
+        console.log(`[Checkout] 商品${cartItem.id}详情:`, productData)
+        
+        // 处理图片：优先使用 image 字段，否则从 images 数组中提取第一张
+        let imageUrl = productData.image || ''
+        if (!imageUrl && Array.isArray(productData.images) && productData.images.length > 0) {
+          const firstImage = productData.images[0]
+          if (typeof firstImage === 'string') {
+            imageUrl = firstImage
+          } else if (firstImage && typeof firstImage === 'object') {
+            const imgObj = firstImage as Record<string, unknown>
+            imageUrl = (imgObj.imageUrl as string) || (imgObj.url as string) || ''
+          }
+        }
+        
+        // 处理价格：API 返回 sellingPrice(number) 或 price(string)
+        const priceValue = productData.sellingPrice ?? Number(productData.price) ?? parseFloat(cartItem.price)
+        
+        return {
+          id: productData.id,
+          title: productData.title,
+          description: productData.description || '',
+          price: priceValue,
+          image: imageUrl || PLACEHOLDER_IMG,
+          quantity: cartItem.quantity, // 使用购物车中的数量
+          sellerId: productData.sellerId, // 使用真实的sellerId
+          tradeMode: productData.tradeMode || 'shipping',
+          freightAmount: productData.freight || 0,
+          pickupLocation: productData.pickupAddress || ''
+        }
+      } catch (error) {
+        console.error(`[Checkout] 获取商品${cartItem.id}详情失败:`, error)
+        // 如果获取失败，使用购物车中的数据作为降级方案
+        return {
+          id: cartItem.id,
+          title: cartItem.title,
+          description: '',
+          price: parseFloat(cartItem.price),
+          image: cartItem.image || PLACEHOLDER_IMG,
+          quantity: cartItem.quantity,
+          sellerId: 0,
+          tradeMode: 'shipping',
+          freightAmount: 0,
+          pickupLocation: ''
+        }
+      }
+    })
+    
+    // 等待所有商品详情加载完成
+    products.value = await Promise.all(productDetailsPromises)
     
     console.log('[Checkout] 购物车商品信息加载成功:', products.value)
   } catch (error) {
