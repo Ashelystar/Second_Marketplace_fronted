@@ -470,6 +470,48 @@ const loadProduct = async (productId: number) => {
   }
 }
 
+// 从购物车加载商品信息
+const loadCartProducts = async (productIds: number[]) => {
+  try {
+    console.log('[Checkout] 开始从购物车加载商品, productIds:', productIds)
+    
+    // 导入购物车工具函数
+    const { getCartItems } = await import('@/utils/cart')
+    const cartItems = getCartItems()
+    
+    // 根据productIds过滤出选中的商品
+    const selectedProducts = cartItems.filter(item => productIds.includes(item.id))
+    
+    if (selectedProducts.length === 0) {
+      alert('未找到选中的商品信息，请返回后重试')
+      router.back()
+      return
+    }
+    
+    console.log('[Checkout] 找到的选中商品:', selectedProducts)
+    
+    // 将购物车商品转换为订单商品格式
+    products.value = selectedProducts.map(item => ({
+      id: item.id,
+      title: item.title,
+      description: '',
+      price: parseFloat(item.price),
+      image: item.image || PLACEHOLDER_IMG,
+      quantity: item.quantity,
+      sellerId: 0, // 购物车中没有sellerId，需要从后端获取
+      tradeMode: 'shipping', // 默认快递
+      freightAmount: 0,
+      pickupLocation: ''
+    }))
+    
+    console.log('[Checkout] 购物车商品信息加载成功:', products.value)
+  } catch (error) {
+    console.error('加载购物车商品失败:', error)
+    alert('商品信息加载失败，请返回重试')
+    router.back()
+  }
+}
+
 onMounted(() => {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
@@ -497,11 +539,17 @@ onMounted(() => {
   fromCart.value = route.query.fromCart === 'true'
 
   if (productIdsStr) {
-    // 从购物车来的情况，传递了多个商品
-    // TODO: 待实现购物车结算功能，目前暂不支持多商品结算
-    alert('暂不支持多商品结算，请单独购买')
-    router.back()
-    return
+    // 从购物车来的情况，传递了多个商品ID（逗号分隔）
+    const productIds = productIdsStr.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id))
+
+    if (productIds.length === 0) {
+      alert('商品信息异常，请返回后重试')
+      router.back()
+      return
+    }
+
+    // 加载购物车中的商品信息
+    loadCartProducts(productIds)
   } else {
     // 单独购买的情况 - 从商品详情页跳转过来
     const productId = route.query.productId ? Number(route.query.productId) : null
