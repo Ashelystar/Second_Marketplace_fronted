@@ -72,26 +72,38 @@ export interface ProductImage {
 }
 
 // 订单类型
+export interface OrderItem {
+  id: number
+  order_id: number
+  product_id: number
+  product_title: string
+  product_image: string
+  price: string
+  quantity: number
+  sku_info?: string
+}
+
 export interface TradeOrder {
   id: number
   order_no: string
-  order_status: string
-  status: string
-  statusText: string
-  total_amount: string
-  trade_mode: string
-  freight_amount: string
+  order_status: 'pending' | 'paid' | 'shipped' | 'completed' | 'cancelled' | 'refunding'
   pay_amount: string
-  remark?: string
+  total_amount: string
+  freight: string
+  trade_mode: 'shipping' | 'pickup'
   created_at: string
-  paid_at?: string
-  ship_time?: string
-  receive_time?: string
-  receiver_name: string
-  receiver_phone: string
-  receiver_address: string
+  updated_at: string
+  seller_id: number
+  seller_name: string
+  buyer_id: number
+  buyer_name: string
+  receiver_name?: string
+  receiver_phone?: string
+  receiver_address?: string
   pickup_location?: string
-  products: OrderProduct[]
+  shipping_no?: string
+  remark?: string
+  items?: OrderItem[]
 }
 
 export interface OrderProduct {

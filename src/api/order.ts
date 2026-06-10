@@ -16,7 +16,10 @@ export interface CreateOrderRequest {
   tradeMode: 'pickup' | 'shipping';
   freightAmount: number;
   remark: string;
-  pickupLocation: string;
+  pickupLocation?: string; // 自提时必填
+  receiverName?: string;   // 快递时必填
+  receiverPhone?: string;  // 快递时必填
+  receiverAddress?: string;// 快递时必填
   items: OrderItem[];
 }
 
@@ -33,23 +36,31 @@ export interface CreatePaymentRequest {
 }
 
 export interface PaymentCallbackRequest {
-  paymentId: number;
-  paymentStatus: 'paid' | 'failed';
-  paidAmount: number;
-  channelTradeNo: string;
+  paymentId?: number;
+  paymentNo?: string;
+  paymentStatus: 'paid' | 'failed' | 'closed' | 'refunded';
+  paidAmount?: number;
+  channelTradeNo?: string;
+  failedReason?: string;
+  channelResponse?: string;
 }
 
 // --- 物流相关接口 ---
 export interface CreateShipmentRequest {
-  logisticsCompany: string;
-  trackingNo: string;
+  logisticsCompany?: string; // shipping 场景必填
+  trackingNo?: string;       // shipping 场景必填
+  pickupCode?: string;       // pickup 场景可选，不传则后端自动生成
 }
 
 export interface AddTraceRequest {
-  traceTime: string;
+  traceTime?: string;    // 不传默认当前时间
   traceStatus: string;
   traceDetail: string;
-  traceLocation: string;
+  traceLocation?: string;
+}
+
+export interface PickupVerifyRequest {
+  pickupCode: string;
 }
 
 // --- 通用请求函数 (包含 Token 自动注入) ---
@@ -111,6 +122,10 @@ export const confirmReceipt = (orderId: number) =>
 export const getOrderStatusLogs = (orderId: number) =>
   request(`/api/orders/${orderId}/status-logs`);
 
+/** 获取订单商品列表 */
+export const getOrderItems = (orderId: number) =>
+  request(`/api/orders/${orderId}/items`);
+
 
 // ===================== 支付流程 =====================
 
@@ -157,8 +172,24 @@ export const getShipmentTraces = (orderId: number, shipmentId: number) =>
   request(`/api/orders/${orderId}/shipments/${shipmentId}/traces`);
 
 /** 签收/自提核销 */
-export const signShipment = (orderId: number, shipmentId: number, pickupCode?: string) =>
+export const signShipment = (orderId: number, shipmentId: number) =>
   request(`/api/orders/${orderId}/shipments/${shipmentId}/sign`, {
-    method: 'POST',
-    body: JSON.stringify({ pickupCode })
+    method: 'POST'
   });
+
+/** 自提验证 */
+export const verifyPickup = (orderId: number, shipmentId: number, data: PickupVerifyRequest) =>
+  request(`/api/orders/${orderId}/shipments/${shipmentId}/pickup-verify`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+
+// ===================== 辅助函数 =====================
+
+/** 获取订单统计信息 */
+export const getOrderStats = () =>
+  request('/api/orders/stats');
+
+/** 提醒发货 */
+export const remindShip = (orderId: number) =>
+  request(`/api/orders/${orderId}/remind-ship`, { method: 'POST' });

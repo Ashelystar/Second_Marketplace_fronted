@@ -81,8 +81,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getCartItems, saveCartItems } from '@/utils/cart'
 
 defineOptions({ name: 'CartIndex' })
 
@@ -98,36 +99,18 @@ interface CartItem {
   selected: boolean
 }
 
-// 模拟购物车数据
-const cartItems = ref<CartItem[]>([
-  {
-    id: 1,
-    title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
-    price: '6999',
-    image: 'https://picsum.photos/id/1/200/200',
-    condition: '99新',
-    quantity: 1,
-    selected: false
-  },
-  {
-    id: 2,
-    title: 'AirPods Pro 2 全新未拆封 国行正品',
-    price: '1599',
-    image: 'https://picsum.photos/id/119/200/200',
-    condition: '全新',
-    quantity: 1,
-    selected: false
-  },
-  {
-    id: 3,
-    title: 'MacBook Pro 14寸 M2 Pro 16+512G 银色',
-    price: '12999',
-    image: 'https://picsum.photos/id/45/200/200',
-    condition: '95新',
-    quantity: 1,
-    selected: false
-  }
-])
+// 购物车数据
+const cartItems = ref<CartItem[]>([])
+
+// 加载购物车
+const loadCart = () => {
+  cartItems.value = getCartItems()
+}
+
+// 组件挂载时加载购物车
+onMounted(() => {
+  loadCart()
+})
 
 const selectedCount = computed(() => cartItems.value.filter(item => item.selected).length)
 const isAllSelected = computed(() => cartItems.value.length > 0 && selectedCount.value === cartItems.value.length)
@@ -143,6 +126,7 @@ const toggleSelect = (id: number) => {
   const item = cartItems.value.find(i => i.id === id)
   if (item) {
     item.selected = !item.selected
+    saveCartItems(cartItems.value)
   }
 }
 
@@ -151,25 +135,20 @@ const toggleSelectAll = () => {
   cartItems.value.forEach(item => {
     item.selected = newState
   })
+  saveCartItems(cartItems.value)
 }
 
 const increaseQty = (item: CartItem) => {
   item.quantity++
+  // 保存到 localStorage
+  saveCartItems(cartItems.value)
 }
 
 const decreaseQty = (item: CartItem) => {
   if (item.quantity > 1) {
     item.quantity--
-  }
-}
-
-const deleteSelected = () => {
-  if (selectedCount.value === 0) {
-    alert('请先选择要删除的商品')
-    return
-  }
-  if (confirm('确定删除选中的商品吗？')) {
-    cartItems.value = cartItems.value.filter(item => !item.selected)
+    // 保存到 localStorage
+    saveCartItems(cartItems.value)
   }
 }
 

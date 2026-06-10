@@ -1,4 +1,4 @@
- 
+
 /**
  * 论坛模块 HTTP 对接（路径与 API对接文档.md 一致）
  *
@@ -984,9 +984,20 @@ function mapApiStatusToForumPostStatus(status: string): ForumPostStatus {
 }
 
 export function mapPostListItemToForumPost(item: PostListItem): ForumPost {
+  // 解码标题（处理URL编码）
+  let decodedTitle = item.title
+  try {
+    if (item.title && item.title.includes('%')) {
+      decodedTitle = decodeURIComponent(item.title)
+    }
+  } catch {
+    // 如果解码失败，使用原始标题
+    decodedTitle = item.title
+  }
+
   return {
     id: String(item.id),
-    title: item.title,
+    title: decodedTitle,
     content: item.content,
     tags: item.categoryName ? [item.categoryName] : [],
     author: {

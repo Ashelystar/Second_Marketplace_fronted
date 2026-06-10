@@ -31,9 +31,9 @@
 
       <!-- 商品信息 -->
       <div class="section productSection">
-        <div 
-          class="productItem" 
-          v-for="(item, index) in products" 
+        <div
+          class="productItem"
+          v-for="(item, index) in products"
           :key="item.id"
         >
           <img :src="item.image" :alt="item.title" class="productImg" />
@@ -41,7 +41,7 @@
             <div class="productTitle">{{ item.title }}</div>
             <div class="productDesc" v-if="item.description">{{ item.description }}</div>
             <div class="productPrice">
-              <span class="price">¥{{ item.price }}</span>
+              <span class="price">¥{{ formatPrice(item.price) }}</span>
             </div>
           </div>
           <div class="quantityControl">
@@ -59,10 +59,10 @@
       <!-- 订单备注 -->
       <div class="section remarkSection">
         <div class="remarkLabel">订单备注</div>
-        <input 
-          type="text" 
-          v-model="remark" 
-          placeholder="选填，可备注特殊需求" 
+        <input
+          type="text"
+          v-model="remark"
+          placeholder="选填，可备注特殊需求"
           class="remarkInput"
           maxlength="100"
         />
@@ -135,9 +135,9 @@
           </button>
         </div>
         <div class="modalBody">
-          <div 
-            class="addressItem" 
-            v-for="addr in addressList" 
+          <div
+            class="addressItem"
+            v-for="addr in addressList"
             :key="addr.id"
             :class="{ selected: selectedAddress?.id === addr.id }"
             @click="selectAddress(addr)"
@@ -166,6 +166,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { getProductDetail } from '@/api/goods'
+import { createOrder, type CreateOrderRequest } from '@/api/order'
+import { PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'CheckoutPage' })
 
@@ -191,12 +194,17 @@ interface CartProduct {
   price: number
   image: string
   quantity: number
+  sellerId?: number
+  tradeMode?: string
+  freightAmount?: number
+  pickupLocation?: string
 }
 
 const products = ref<CartProduct[]>([])
 const remark = ref('')
 const showAddressPicker = ref(false)
 const fromCart = ref(false)
+const loading = ref(false) // 添加loading状态
 
 const selectedAddress = ref<Address | null>(null)
 const selectedPayment = ref('alipay')
@@ -207,11 +215,17 @@ const formatPhone = (phone: string) => {
   return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
 }
 
+// 价格格式化（保留两位小数）
+const formatPrice = (price: number | undefined): string => {
+  const value = Number(price) || 0
+  return value.toFixed(2)
+}
+
 const addressList = ref<Address[]>([
   {
     id: 1,
     receiver: '张三',
-    phone: '138****8888',
+    phone: '13800138888', // 使用真实格式的手机号
     province: '北京市',
     city: '朝阳区',
     district: '望京街道',
@@ -221,7 +235,7 @@ const addressList = ref<Address[]>([
   {
     id: 2,
     receiver: '李四',
-    phone: '139****6666',
+    phone: '13900136666', // 使用真实格式的手机号
     province: '上海市',
     city: '浦东新区',
     district: '陆家嘴街道',
@@ -232,21 +246,30 @@ const addressList = ref<Address[]>([
 
 // 商品总数量
 const totalQuantity = computed(() => {
-  return products.value.reduce((sum, item) => sum + item.quantity, 0)
+  return products.value.reduce((sum, item) => sum + (item.quantity || 0), 0)
 })
 
-// 总价
+// 总价（确保价格有效）
 const totalPrice = computed(() => {
-  return products.value
-    .reduce((sum, item) => sum + Number(item.price) * item.quantity, 0)
-    .toFixed(2)
+  const total = products.value
+    .reduce((sum, item) => {
+      const price = Number(item.price) || 0
+      const quantity = item.quantity || 1
+      return sum + price * quantity
+    }, 0)
+  console.log('[Checkout] 计算总价 - products:', products.value, 'total:', total.toFixed(2))
+  return total.toFixed(2)
 })
 
 // 商品总价（不含运费）
 const goodsPrice = computed(() => {
-  return products.value
-    .reduce((sum, item) => sum + Number(item.price) * item.quantity, 0)
-    .toFixed(2)
+  const total = products.value
+    .reduce((sum, item) => {
+      const price = Number(item.price) || 0
+      const quantity = item.quantity || 1
+      return sum + price * quantity
+    }, 0)
+  return total.toFixed(2)
 })
 
 const increaseQty = (index: number) => {
@@ -271,40 +294,129 @@ const selectAddress = (addr: Address) => {
 import { useSmartBack } from '@/composables/useSmartBack'
 const { goBack } = useSmartBack('/')
 
-const submitOrder = () => {
+// 提交订单 - 调用真实API
+const submitOrder = async () => {
+  // 验证必填项
   if (!selectedAddress.value) {
     alert('请选择收货地址')
     return
   }
-  
-  // 生成模拟订单号
-  const orderId = 'ORD' + Date.now()
-  const productNames = products.value.map(p => p.title).join('、')
-  const address = `${selectedAddress.value.province}${selectedAddress.value.city}${selectedAddress.value.district}${selectedAddress.value.detail}`
-  
-  // 将订单信息存储到本地，用于付款页面展示
-  const orderInfo = {
-    orderId,
-    productNames,
-    address,
-    remark: remark.value,
-    totalAmount: totalPrice.value,
-    selectedPayment: selectedPayment.value
+
+  if (products.value.length === 0) {
+    alert('商品信息异常')
+    return
   }
-  localStorage.setItem('pendingPaymentOrder', JSON.stringify(orderInfo))
-  
-  // 跳转到付款页面
-  router.push('/payment')
+
+  const product = products.value[0]
+
+  // 确定交易方式：如果有自提地点则是pickup，否则是shipping
+  const tradeMode: 'pickup' | 'shipping' = product.pickupLocation ? 'pickup' : 'shipping'
+
+  // 构建符合API要求的订单数据
+  const orderData: CreateOrderRequest = {
+    sellerId: product.sellerId || 1,
+    tradeMode: tradeMode,
+    freightAmount: product.freightAmount || 0,
+    remark: remark.value || '',
+    pickupLocation: tradeMode === 'pickup' ? (product.pickupLocation || '') : undefined,
+    receiverName: tradeMode === 'shipping' ? selectedAddress.value.receiver : undefined,
+    receiverPhone: tradeMode === 'shipping' ? selectedAddress.value.phone : undefined,
+    receiverAddress: tradeMode === 'shipping'
+      ? `${selectedAddress.value.province}${selectedAddress.value.city}${selectedAddress.value.district}${selectedAddress.value.detail}`
+      : undefined,
+    items: [
+      {
+        productId: product.id,
+        quantity: product.quantity
+      }
+    ]
+  }
+
+  console.log('[Checkout] 创建订单数据:', JSON.stringify(orderData, null, 2))
+
+  try {
+    loading.value = true
+
+    // 调用API创建订单
+    console.log('[Checkout] 开始调用createOrder API...')
+    const result = await createOrder(orderData)
+    console.log('[Checkout] 订单创建成功，响应:', result)
+    console.log('[Checkout] 响应类型:', typeof result, '是否为数组:', Array.isArray(result))
+
+    // API返回格式可能是：
+    // 1. 直接返回订单ID数字: 941228
+    // 2. 返回对象: { id: xxx } 或 { orderId: xxx }
+    let orderId = null
+
+    if (typeof result === 'number') {
+      // 直接是订单ID数字
+      orderId = result
+    } else if (typeof result === 'object' && result !== null) {
+      // 尝试多种可能的字段名
+      orderId = (result as Record<string, unknown>).id ||
+                (result as Record<string, unknown>).orderId ||
+                (result as Record<string, unknown>).data?.id ||
+                (result as Record<string, unknown>).data?.orderId
+    }
+
+    if (!orderId) {
+      console.error('无法获取订单ID，完整响应:', JSON.stringify(result, null, 2))
+      throw new Error(`未获取到订单ID，响应数据: ${JSON.stringify(result)}`)
+    }
+
+    alert('订单创建成功！')
+
+    // 跳转到订单详情页（包含物流信息）
+    router.push(`/order/detail/${orderId}`)
+  } catch (error: unknown) {
+    console.error('创建订单失败:', error)
+
+    // 提取错误信息
+    let errorMsg = '未知错误'
+    if (error instanceof Error) {
+      errorMsg = error.message
+      console.error('错误详情:', {
+        message: error.message,
+        stack: error.stack,
+        orderData: orderData
+      })
+    }
+
+    // 显示更详细的错误信息
+    alert(`创建订单失败：${errorMsg}\n\n请检查：\n1. 是否已登录\n2. 商品信息是否正确\n3. 收货地址是否完整`)
+
+    // 返回上一页（商品详情页）
+    router.back()
+  } finally {
+    loading.value = false
+  }
 }
 
 const addToCart = () => {
-  alert('已加入购物车')
-  // 返回上一页（商品详情页）
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
+  if (products.value.length === 0) {
+    alert('商品信息异常')
+    return
   }
+
+  const product = products.value[0]
+
+  // 导入购物车工具函数
+  import('@/utils/cart').then(({ addToCart: addItemToCart }) => {
+    addItemToCart({
+      id: product.id,
+      title: product.title,
+      price: product.price,
+      image: product.image,
+      condition: '未知'
+    })
+
+    alert('已加入购物车')
+    // 返回上一页（商品详情页）
+    router.back()
+  }).catch(err => {
+    console.error('加入购物车失败:', err)
+    alert('操作失败，请重试')
+  })
 }
 
 const goToAddAddress = () => {
@@ -312,11 +424,57 @@ const goToAddAddress = () => {
   router.push('/address/edit?from=checkout')
 }
 
+// 加载商品详情 - 从路由参数获取商品ID并调用真实API
+const loadProduct = async (productId: number) => {
+  try {
+    console.log('[Checkout] 开始加载商品详情, productId:', productId)
+    const productData = await getProductDetail(productId)
+    console.log('[Checkout] API返回的商品数据:', productData)
+
+    // 处理图片：优先使用 image 字段，否则从 images 数组中提取第一张
+    let imageUrl = productData.image || ''
+    if (!imageUrl && Array.isArray(productData.images) && productData.images.length > 0) {
+      const firstImage = productData.images[0]
+      // 兼容多种图片格式：{ imageUrl }, { url }, string
+      if (typeof firstImage === 'string') {
+        imageUrl = firstImage
+      } else if (firstImage && typeof firstImage === 'object') {
+        const imgObj = firstImage as Record<string, unknown>
+        imageUrl = (imgObj.imageUrl as string) || (imgObj.url as string) || ''
+      }
+    }
+    console.log('[Checkout] 最终使用的图片URL:', imageUrl)
+
+    // 处理价格：API 返回 sellingPrice(number) 或 price(string)
+    const priceValue = productData.sellingPrice ?? Number(productData.price) ?? 0
+    console.log('[Checkout] 最终使用的价格:', priceValue)
+
+    // API字段映射为前端格式
+    products.value = [{
+      id: productData.id,
+      title: productData.title,
+      description: productData.description || '',
+      price: priceValue,
+      image: imageUrl || PLACEHOLDER_IMG,
+      quantity: 1,
+      sellerId: productData.sellerId,
+      tradeMode: productData.tradeMode || 'shipping',
+      freightAmount: productData.freight || 0,
+      pickupLocation: productData.pickupAddress || ''
+    }]
+    console.log('[Checkout] 商品信息加载成功:', products.value[0])
+  } catch (error) {
+    console.error('加载商品详情失败:', error)
+    alert('商品信息加载失败，请返回重试')
+    router.back()
+  }
+}
+
 onMounted(() => {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
     alert('请先登录后再下单')
-    router.push('/')
+    router.push('/user/login')
     return
   }
 
@@ -340,47 +498,20 @@ onMounted(() => {
 
   if (productIdsStr) {
     // 从购物车来的情况，传递了多个商品
-    const productIds = productIdsStr.split(',').map(Number)
-    // 模拟根据ID获取商品信息
-    const mockProducts: CartProduct[] = [
-      {
-        id: 1,
-        title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
-        description: '2024年3月购买，使用不到一年，功能完好',
-        price: 6999,
-        image: 'https://picsum.photos/id/1/200/200',
-        quantity: 1
-      },
-      {
-        id: 2,
-        title: 'AirPods Pro 2 全新未拆封 国行正品',
-        description: '官方在保，支持验货',
-        price: 1599,
-        image: 'https://picsum.photos/id/119/200/200',
-        quantity: 1
-      },
-      {
-        id: 3,
-        title: 'MacBook Pro 14寸 M2 Pro 16+512G 银色',
-        description: '2023年购买，电池循环次数少',
-        price: 12999,
-        image: 'https://picsum.photos/id/45/200/200',
-        quantity: 1
-      }
-    ]
-    // 只获取选中的商品
-    products.value = mockProducts.filter(p => productIds.includes(p.id))
+    // TODO: 待实现购物车结算功能，目前暂不支持多商品结算
+    alert('暂不支持多商品结算，请单独购买')
+    router.back()
+    return
   } else {
-    // 单独购买的情况
-    const productId = route.query.productId || 1
-    products.value = [{
-      id: Number(productId),
-      title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
-      description: '2024年3月购买，使用不到一年，功能完好',
-      price: 6999,
-      image: 'https://picsum.photos/id/1/200/200',
-      quantity: 1
-    }]
+    // 单独购买的情况 - 从商品详情页跳转过来
+    const productId = route.query.productId ? Number(route.query.productId) : null
+    if (!productId) {
+      alert('商品信息异常，请返回后重试')
+      router.back()
+      return
+    }
+    // 加载真实商品信息
+    loadProduct(productId)
   }
 
   // 设置默认地址

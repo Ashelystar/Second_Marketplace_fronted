@@ -27,9 +27,9 @@
 
       <div v-else class="list">
         <RouterLink v-for="p in results" :key="p.id" class="item card" :to="`/forum/post/${p.id}`">
-          <img class="thumb" :src="p.coverUrl ?? p.media[0]?.posterUrl ?? p.media[0]?.url ?? p.author.avatarUrl" :alt="p.title" />
+          <img class="thumb" :src="p.coverUrl ?? p.media[0]?.posterUrl ?? p.media[0]?.url ?? p.author.avatarUrl" :alt="decodeTitle(p.title)" />
           <div class="meta">
-            <div class="title">{{ p.title }}</div>
+            <div class="title">{{ decodeTitle(p.title) }}</div>
             <div class="desc">{{ p.content }}</div>
             <div class="tags">
               <TagPill v-for="t in p.tags.slice(0, 4)" :key="t" :label="t" />
@@ -59,6 +59,18 @@ const searched = ref(false)
 const results = ref(store.posts)
 
 const suggestions = computed(() => ['验机', '宿舍', '穿搭', '跑鞋', '二手', '清单'])
+
+// 解码标题（处理URL编码）
+function decodeTitle(title: string) {
+  try {
+    if (title && title.includes('%')) {
+      return decodeURIComponent(title)
+    }
+  } catch {
+    // 如果解码失败，使用原始标题
+  }
+  return title || ''
+}
 
 function doSearch() {
   searched.value = true

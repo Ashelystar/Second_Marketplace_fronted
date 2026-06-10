@@ -1,152 +1,142 @@
 <template>
-  <div class="page">
+  <div class="payment-container">
     <!-- 顶部导航 -->
-    <div class="top">
-      <button class="backBtn" @click="goBack">
+    <div class="page-header">
+      <button class="back-btn" @click="goBack">
         <i class="fa fa-arrow-left"></i>
       </button>
-      <span class="title">订单支付</span>
+      <h1>订单支付</h1>
     </div>
 
-    <!-- 主体内容 -->
-    <div class="mainContent">
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-state">
+      <i class="fa fa-spinner fa-spin"></i>
+      <p>加载中...</p>
+    </div>
+
+    <!-- 错误状态 -->
+    <div v-else-if="error" class="error-state">
+      <i class="fa fa-exclamation-circle"></i>
+      <p>{{ error }}</p>
+      <button class="btn-primary" @click="loadOrderInfo">重试</button>
+    </div>
+
+    <!-- 支付内容 -->
+    <div v-else-if="order" class="payment-content">
       <!-- 订单信息卡片 -->
-      <div class="section">
-        <div class="sectionTitle">订单信息</div>
-        <div class="infoList">
-          <div class="infoItem">
-            <span class="infoLabel">订单编号</span>
-            <span class="infoValue">{{ orderInfo.orderId || '-' }}</span>
-          </div>
-          <div class="infoItem" v-if="orderInfo.productNames">
-            <span class="infoLabel">商品</span>
-            <span class="infoValue">{{ orderInfo.productNames }}</span>
-          </div>
-          <div class="infoItem" v-if="orderInfo.address">
-            <span class="infoLabel">收货地址</span>
-            <span class="infoValue">{{ orderInfo.address }}</span>
-          </div>
-          <div class="infoItem" v-if="orderInfo.remark">
-            <span class="infoLabel">备注</span>
-            <span class="infoValue">{{ orderInfo.remark }}</span>
+      <div class="order-card">
+        <div class="order-header">
+          <span class="label">订单号：</span>
+          <span class="value">{{ order.orderNo }}</span>
+        </div>
+        <div class="order-status">
+          <span :class="['status-badge', getStatusClass(order.orderStatus)]">
+            {{ getStatusText(order.orderStatus) }}
+          </span>
+        </div>
+      </div>
+
+      <!-- 商品信息 -->
+      <div class="product-card">
+        <h3>商品信息</h3>
+        <div v-for="item in order.items" :key="item.id" class="product-item">
+          <img :src="item.productImageUrl || '/placeholder.png'" :alt="item.productTitle" class="product-img" />
+          <div class="product-info">
+            <div class="product-title">{{ item.productTitle }}</div>
+            <div class="product-meta">
+              <span class="price">¥{{ item.unitPrice.toFixed(2) }}</span>
+              <span class="quantity">x{{ item.quantity }}</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- 支付金额 -->
-      <div class="section amountSection">
-        <div class="amountRow">
-          <span class="amountLabel">支付金额</span>
-          <span class="amountValue">¥{{ orderInfo.totalAmount || '0.00' }}</span>
+      <!-- 金额明细 -->
+      <div class="amount-card">
+        <h3>支付金额</h3>
+        <div class="amount-row">
+          <span class="label">商品总额：</span>
+          <span class="value">¥{{ order.totalAmount.toFixed(2) }}</span>
+        </div>
+        <div class="amount-row">
+          <span class="label">运费：</span>
+          <span class="value">¥{{ order.freightAmount.toFixed(2) }}</span>
+        </div>
+        <div class="amount-row total">
+          <span class="label">实付金额：</span>
+          <span class="total-value">¥{{ order.payAmount.toFixed(2) }}</span>
         </div>
       </div>
 
-      <!-- 支付方式 -->
-      <div class="section">
-        <div class="sectionTitle">选择支付方式</div>
-        <div class="paymentList">
-          <div 
-            class="paymentItem" 
-            :class="{ selected: selectedPayment === 'alipay' }" 
-            @click="selectedPayment = 'alipay'"
+      <!-- 支付方式选择 -->
+      <div class="payment-method-card">
+        <h3>选择支付方式</h3>
+        <div class="method-list">
+          <div
+            v-for="method in paymentMethods"
+            :key="method.value"
+            :class="['method-item', { selected: selectedMethod === method.value }]"
+            @click="selectedMethod = method.value"
           >
-            <div class="paymentIcon alipayIcon">
-              <i class="fa fa-alipay"></i>
+            <div class="method-icon">
+              <i :class="method.icon"></i>
             </div>
-            <div class="paymentName">支付宝</div>
-            <div class="checkIcon" v-if="selectedPayment === 'alipay'">
-              <i class="fa fa-check-circle"></i>
+            <div class="method-info">
+              <div class="method-name">{{ method.name }}</div>
+              <div class="method-desc">{{ method.desc }}</div>
             </div>
-            <div class="checkIcon uncheck" v-else>
-              <i class="fa fa-circle"></i>
-            </div>
-          </div>
-
-          <div 
-            class="paymentItem" 
-            :class="{ selected: selectedPayment === 'wechat' }" 
-            @click="selectedPayment = 'wechat'"
-          >
-            <div class="paymentIcon wechatIcon">
-              <i class="fa fa-weixin"></i>
-            </div>
-            <div class="paymentName">微信支付</div>
-            <div class="checkIcon" v-if="selectedPayment === 'wechat'">
-              <i class="fa fa-check-circle"></i>
-            </div>
-            <div class="checkIcon uncheck" v-else>
-              <i class="fa fa-circle"></i>
-            </div>
-          </div>
-
-          <div 
-            class="paymentItem" 
-            :class="{ selected: selectedPayment === 'wallet' }" 
-            @click="selectedPayment = 'wallet'"
-          >
-            <div class="paymentIcon walletIcon">
-              <i class="fa fa-wallet"></i>
-            </div>
-            <div class="paymentName">
-              余额支付
-              <span class="balance">(¥{{ walletBalance }})</span>
-            </div>
-            <div class="checkIcon" v-if="selectedPayment === 'wallet'">
-              <i class="fa fa-check-circle"></i>
-            </div>
-            <div class="checkIcon uncheck" v-else>
-              <i class="fa fa-circle"></i>
+            <div class="method-check">
+              <i v-if="selectedMethod === method.value" class="fa fa-check-circle"></i>
+              <i v-else class="fa fa-circle-o"></i>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 安全提示 -->
-      <div class="securityTip">
-        <i class="fa fa-shield-alt"></i>
-        <span>支付安全由平台保障，请放心支付</span>
+      <!-- 支付按钮 -->
+      <div class="action-area">
+        <button
+          class="pay-btn"
+          :disabled="!selectedMethod || paying"
+          @click="handlePay"
+        >
+          <span v-if="paying">
+            <i class="fa fa-spinner fa-spin"></i> 生成支付二维码...
+          </span>
+          <span v-else>立即支付 ¥{{ order.payAmount.toFixed(2) }}</span>
+        </button>
       </div>
-    </div>
 
-    <!-- 底部提交栏 -->
-    <div class="bottomBar">
-      <div class="totalInfo">
-        <span class="totalLabel">应付金额：</span>
-        <span class="totalPrice">¥{{ orderInfo.totalAmount || '0.00' }}</span>
-      </div>
-      <button class="payBtn" @click="handlePay" :disabled="isPaying">
-        <span v-if="!isPaying">确认支付</span>
-        <span v-else>支付中...</span>
-      </button>
-    </div>
+      <!-- 支付二维码弹窗 -->
+      <div v-if="showQRCode" class="qrcode-modal" @click.self="closeQRCode">
+        <div class="qrcode-content">
+          <div class="qrcode-header">
+            <h3>{{ getPaymentMethodName(selectedMethod) }}扫码支付</h3>
+            <button class="close-btn" @click="closeQRCode">
+              <i class="fa fa-times"></i>
+            </button>
+          </div>
 
-    <!-- 支付成功弹窗 -->
-    <div class="modal" v-if="showSuccessModal" @click.self="closeSuccessModal">
-      <div class="modalContent">
-        <div class="successIcon">
-          <i class="fa fa-check-circle"></i>
-        </div>
-        <div class="modalTitle">支付成功</div>
-        <div class="modalDesc">您的订单已支付成功</div>
-        <div class="modalOrderId">订单号：{{ paidOrderId }}</div>
-        <div class="modalActions">
-          <button class="viewOrderBtn" @click="goToOrderDetail">查看订单</button>
-          <button class="backHomeBtn" @click="goHome">返回首页</button>
-        </div>
-      </div>
-    </div>
+          <div class="qrcode-body">
+            <div class="amount-display">
+              <span class="label">支付金额：</span>
+              <span class="value">¥{{ order.payAmount.toFixed(2) }}</span>
+            </div>
 
-    <!-- 支付失败弹窗 -->
-    <div class="modal" v-if="showFailModal" @click.self="closeFailModal">
-      <div class="modalContent">
-        <div class="failIcon">
-          <i class="fa fa-times-circle"></i>
-        </div>
-        <div class="modalTitle">支付失败</div>
-        <div class="modalDesc">{{ failMessage }}</div>
-        <div class="modalActions row">
-          <button class="cancelBtn" @click="goToOrders">取消</button>
-          <button class="retryBtn" @click="closeFailModal">重新支付</button>
+            <!-- 二维码区域 -->
+            <div class="qrcode-container">
+              <canvas ref="qrCodeCanvas" class="qr-code"></canvas>
+            </div>
+
+            <div class="qrcode-tips">
+              <p><i class="fa fa-info-circle"></i> 请在5分钟内完成支付</p>
+              <p><i class="fa fa-shield"></i> 安全支付，资金有保障</p>
+            </div>
+          </div>
+
+          <div class="qrcode-footer">
+            <button class="btn-secondary" @click="closeQRCode">取消支付</button>
+          </div>
         </div>
       </div>
     </div>
@@ -154,423 +144,723 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { payOrder } from '@/api/trade'
+import { getOrderDetail, createPayment } from '@/api/order'
+import QRCode from 'qrcode'
 
 defineOptions({ name: 'PaymentPage' })
 
 const router = useRouter()
 const route = useRoute()
 
-interface OrderInfo {
-  orderId?: string
-  productNames?: string
-  address?: string
-  remark?: string
-  totalAmount?: string
+interface OrderItem {
+  id: number
+  productId: number
+  productTitle: string
+  productImageUrl?: string
+  unitPrice: number
+  quantity: number
+  subtotalAmount: number
 }
 
-const orderInfo = ref<OrderInfo>({})
-const selectedPayment = ref('alipay')
-const walletBalance = ref('1000.00')
-const isPaying = ref(false)
-const showSuccessModal = ref(false)
-const showFailModal = ref(false)
-const paidOrderId = ref('')
-const failMessage = ref('')
+interface Order {
+  id: number
+  orderNo: string
+  buyerId: number
+  sellerId: number
+  orderStatus: string
+  tradeMode: 'shipping' | 'pickup'
+  totalAmount: number
+  freightAmount: number
+  payAmount: number
+  remark?: string
+  receiverName?: string
+  receiverPhone?: string
+  receiverAddress?: string
+  pickupLocation?: string
+  createdAt: string
+  items: OrderItem[]
+}
 
-import { useSmartBack } from '@/composables/useSmartBack'
-const { goBack } = useSmartBack('/')
+const order = ref<Order | null>(null)
+const loading = ref(false)
+const paying = ref(false)
+const error = ref('')
+const selectedMethod = ref<'alipay' | 'wechat' | 'balance'>('alipay')
+const showQRCode = ref(false)
+const qrCodeCanvas = ref<HTMLCanvasElement | null>(null)
 
-const handlePay = async () => {
-  if (isPaying.value) return
-  
-  const orderId = orderInfo.value.orderId
+// 支付方式列表
+const paymentMethods = [
+  { value: 'alipay', name: '支付宝', desc: '推荐使用', icon: 'fa fa-alipay' },
+  { value: 'wechat', name: '微信支付', desc: '快捷方便', icon: 'fa fa-wechat' },
+  { value: 'balance', name: '余额支付', desc: '账户余额', icon: 'fa fa-wallet' }
+]
+
+// 获取状态文本
+const getStatusText = (status: string) => {
+  const textMap: Record<string, string> = {
+    pending_payment: '待付款',
+    paid: '待发货',
+    shipped: '待收货',
+    completed: '已完成',
+    cancelled: '已取消'
+  }
+  return textMap[status] || status
+}
+
+// 获取状态样式类
+const getStatusClass = (status: string) => {
+  const classMap: Record<string, string> = {
+    pending_payment: 'status-pending',
+    paid: 'status-paid',
+    shipped: 'status-shipped',
+    completed: 'status-completed',
+    cancelled: 'status-cancelled'
+  }
+  return classMap[status] || ''
+}
+
+// 加载订单信息
+const loadOrderInfo = async () => {
+  const orderId = Number(route.params.id)
   if (!orderId) {
-    alert('订单信息不完整')
+    error.value = '订单ID无效'
     return
   }
 
-  isPaying.value = true
-  
+  loading.value = true
+  error.value = ''
+
   try {
-    await payOrder(Number(orderId), { paymentChannel: selectedPayment.value })
-    paidOrderId.value = orderId
-    showSuccessModal.value = true
-  } catch (error: unknown) {
-    const err = error as Error
-    failMessage.value = err.message || '支付失败，请稍后重试'
-    showFailModal.value = true
+    console.log('[Payment] 开始加载订单信息, orderId:', orderId)
+    const result = await getOrderDetail(orderId)
+    console.log('[Payment] API返回数据:', result)
+
+    // API返回格式: { code: 200, message: "success", data: {...} }
+    const orderData = (result as Record<string, unknown>)?.data || result
+    order.value = orderData as Order
+
+    // 检查订单状态
+    if (order.value.orderStatus !== 'pending_payment') {
+      error.value = `订单状态为"${getStatusText(order.value.orderStatus)}"，无法支付`
+      setTimeout(() => {
+        router.back()
+      }, 2000)
+    }
+  } catch (err: unknown) {
+    console.error('加载订单失败:', err)
+    error.value = (err as Error).message || '加载订单失败'
   } finally {
-    isPaying.value = false
+    loading.value = false
   }
 }
 
-const closeSuccessModal = () => {
-  showSuccessModal.value = false
+// 处理支付
+const handlePay = async () => {
+  if (!order.value || !selectedMethod.value) return
+
+  paying.value = true
+
+  try {
+    console.log('[Payment] 开始创建支付单, orderId:', order.value.id, 'method:', selectedMethod.value)
+
+    // 1. 创建支付单
+    const paymentResult = await createPayment(order.value.id, {
+      paymentChannel: selectedMethod.value
+    })
+    console.log('[Payment] 支付单创建成功:', paymentResult)
+
+    // 获取支付单ID
+    const paymentData = (paymentResult as Record<string, unknown>)?.data || paymentResult
+
+    // API可能直接返回数字类型的支付单ID，也可能返回对象
+    let paymentId = null
+    if (typeof paymentResult === 'number') {
+      // 直接是支付单ID数字
+      paymentId = paymentResult
+    } else if (typeof paymentData === 'number') {
+      // data字段是数字
+      paymentId = paymentData
+    } else if (typeof paymentData === 'object' && paymentData !== null) {
+      // data是对象，尝试获取id字段
+      paymentId = (paymentData as Record<string, unknown>)?.id
+    }
+
+    if (!paymentId) {
+      console.error('无法获取支付单ID，完整响应:', JSON.stringify(paymentResult, null, 2))
+      throw new Error(`未获取到支付单ID，响应数据: ${JSON.stringify(paymentResult)}`)
+    }
+
+    console.log('[Payment] 支付单ID:', paymentId)
+
+    // 2. 显示支付二维码
+    showQRCode.value = true
+    paying.value = false
+
+    // 3. 生成二维码
+    await nextTick()
+    if (qrCodeCanvas.value) {
+      try {
+        const qrData = JSON.stringify({
+          paymentId: paymentId,
+          orderId: order.value.id,
+          amount: order.value.payAmount,
+          method: selectedMethod.value
+        })
+
+        await QRCode.toCanvas(qrCodeCanvas.value, qrData, {
+          width: 200,
+          height: 200,
+          margin: 1,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        })
+        console.log('[Payment] 二维码生成成功')
+      } catch (err) {
+        console.error('生成二维码失败:', err)
+      }
+    }
+
+  } catch (err: unknown) {
+    console.error('支付失败:', err)
+    alert(`支付失败：${(err as Error).message || '未知错误'}`)
+    paying.value = false
+  }
 }
 
-const closeFailModal = () => {
-  showFailModal.value = false
+// 关闭二维码弹窗
+const closeQRCode = () => {
+  showQRCode.value = false
 }
 
-const goToOrderDetail = () => {
-  showSuccessModal.value = false
-  router.push(`/order/order-detail/${paidOrderId.value}`)
+// 获取支付方式名称
+const getPaymentMethodName = (method: string) => {
+  const nameMap: Record<string, string> = {
+    alipay: '支付宝',
+    wechat: '微信支付',
+    balance: '余额'
+  }
+  return nameMap[method] || method
 }
 
-const goHome = () => {
-  showSuccessModal.value = false
-  router.push('/')
+// 返回上一页
+const goBack = () => {
+  router.back()
 }
 
-const goToOrders = () => {
-  showFailModal.value = false
-  router.push('/user/orders')
-}
-
+// 组件挂载时加载数据
 onMounted(() => {
-  const savedOrder = localStorage.getItem('pendingPaymentOrder')
-  if (savedOrder) {
-    orderInfo.value = JSON.parse(savedOrder)
-    localStorage.removeItem('pendingPaymentOrder')
-  }
-  
-  const orderId = route.params.orderId as string
-  if (orderId) {
-    orderInfo.value.orderId = orderId
-  }
+  loadOrderInfo()
 })
 </script>
 
 <style scoped>
-.page {
+.payment-container {
   min-height: 100vh;
   background: #f5f5f5;
-  padding-bottom: 70px;
+  padding-bottom: 80px;
 }
 
-/* 顶部导航 */
-.top {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 14px 16px;
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: white;
+  border-bottom: 1px solid #eee;
+}
+
+.back-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  color: #333;
+  cursor: pointer;
+}
+
+.page-header h1 {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  margin: 0;
+}
+
+.loading-state, .error-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.loading-state i, .error-state i {
+  font-size: 48px;
+  color: #ccc;
+  margin-bottom: 16px;
+}
+
+.loading-state p, .error-state p {
+  color: #999;
+  margin-bottom: 20px;
+}
+
+.btn-primary {
+  padding: 10px 24px;
+  background: #ff6b00;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.payment-content {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* 订单卡片 */
+.order-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.order-header {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.backBtn {
-  padding: 8px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #374151;
-  font-size: 18px;
+.order-header .label {
+  color: #666;
+  font-size: 14px;
 }
 
-.title {
-  font-size: 17px;
-  font-weight: 600;
-  color: #1f2937;
+.order-header .value {
+  color: #333;
+  font-size: 14px;
+  font-weight: bold;
 }
 
-/* 主体内容 */
-.mainContent {
-  padding: 12px;
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
 }
 
-/* 通用区块 */
-.section {
-  background: #fff;
-  border-radius: 10px;
-  margin-bottom: 12px;
+.status-pending {
+  background: #fff7e6;
+  color: #ff6b00;
 }
 
-.sectionTitle {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1f2937;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f3f4f6;
+.status-paid {
+  background: #e6f7ff;
+  color: #1890ff;
 }
 
-/* 订单信息 */
-.infoList {
-  padding: 12px 16px;
+.status-shipped {
+  background: #f6ffed;
+  color: #52c41a;
 }
 
-.infoItem {
+.status-completed {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.status-cancelled {
+  background: #fff1f0;
+  color: #ff4d4f;
+}
+
+/* 商品卡片 */
+.product-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.product-card h3 {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin: 0 0 12px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.product-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.product-item:not(:last-child) {
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.product-img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #f5f5f5;
+}
+
+.product-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.product-title {
+  font-size: 14px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.price {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ff6b00;
+}
+
+.quantity {
+  font-size: 12px;
+  color: #999;
+}
+
+/* 金额卡片 */
+.amount-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.amount-card h3 {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin: 0 0 12px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.amount-row {
   display: flex;
   justify-content: space-between;
   padding: 8px 0;
   font-size: 14px;
 }
 
-.infoLabel {
-  color: #6b7280;
+.amount-row .label {
+  color: #666;
 }
 
-.infoValue {
-  color: #374151;
-  text-align: right;
-  max-width: 65%;
-  word-break: break-all;
+.amount-row .value {
+  color: #333;
 }
 
-/* 支付金额 */
-.amountSection {
+.amount-row.total {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e0e0e0;
+  font-weight: bold;
+}
+
+.total-value {
+  font-size: 20px;
+  color: #ff6b00;
+}
+
+/* 支付方式卡片 */
+.payment-method-card {
+  background: white;
+  border-radius: 8px;
   padding: 16px;
+  margin-bottom: 16px;
 }
 
-.amountRow {
+.payment-method-card h3 {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin: 0 0 12px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.method-list {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.amountLabel {
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.amountValue {
-  font-size: 22px;
-  font-weight: 700;
-  color: #f97316;
-}
-
-/* 支付方式 */
-.paymentList {
-  padding: 12px 16px;
-}
-
-.paymentItem {
+.method-item {
   display: flex;
   align-items: center;
-  padding: 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  margin-bottom: 10px;
+  gap: 12px;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 150ms;
+  transition: all 0.3s;
 }
 
-.paymentItem:last-child {
-  margin-bottom: 0;
+.method-item:hover {
+  border-color: #ff6b00;
+  background: #fff7e6;
 }
 
-.paymentItem.selected {
-  border-color: #f97316;
-  background: #fef7f0;
+.method-item.selected {
+  border-color: #ff6b00;
+  background: #fff7e6;
 }
 
-.paymentIcon {
+.method-icon {
   width: 40px;
   height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  font-size: 18px;
-  color: #fff;
-}
-
-.alipayIcon {
-  background: #1677ff;
-}
-
-.wechatIcon {
-  background: #07c160;
-}
-
-.walletIcon {
-  background: #f97316;
-}
-
-.paymentName {
-  flex: 1;
-  font-size: 15px;
-  color: #374151;
-}
-
-.balance {
-  font-size: 13px;
-  color: #9ca3af;
-  margin-left: 4px;
-}
-
-.checkIcon {
   font-size: 20px;
-  color: #f97316;
+  color: #666;
 }
 
-.checkIcon.uncheck {
-  color: #d1d5db;
+.method-info {
+  flex: 1;
 }
 
-/* 安全提示 */
-.securityTip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 12px;
+.method-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.method-desc {
   font-size: 12px;
-  color: #9ca3af;
+  color: #999;
 }
 
-.securityTip i {
-  color: #22c55e;
+.method-check {
+  font-size: 20px;
+  color: #ff6b00;
 }
 
-/* 底部提交栏 */
-.bottomBar {
+/* 操作区域 */
+.action-area {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 70px;
-  background: #fff;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  z-index: 50;
+  padding: 16px;
+  background: white;
+  border-top: 1px solid #eee;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.totalInfo {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.totalLabel {
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.totalPrice {
-  font-size: 22px;
-  font-weight: 700;
-  color: #f97316;
-}
-
-.payBtn {
-  height: 44px;
-  padding: 0 32px;
-  background: #f97316;
-  color: #fff;
+.pay-btn {
+  width: 100%;
+  padding: 14px;
+  background: #ff6b00;
+  color: white;
   border: none;
-  border-radius: 22px;
+  border-radius: 8px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: bold;
   cursor: pointer;
-  transition: background 200ms;
+  transition: all 0.3s;
 }
 
-.payBtn:hover:not(:disabled) {
-  background: #ea580c;
+.pay-btn:hover:not(:disabled) {
+  background: #e65a00;
 }
 
-.payBtn:disabled {
-  background: #d1d5db;
+.pay-btn:disabled {
+  background: #ccc;
   cursor: not-allowed;
 }
 
-/* 弹窗 */
-.modal {
+/* 二维码弹窗 */
+.qrcode-modal {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 200;
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 1000;
 }
 
-.modalContent {
-  background: #fff;
-  border-radius: 16px;
-  width: calc(100% - 60px);
-  max-width: 320px;
-  padding: 30px 24px;
-  text-align: center;
+.qrcode-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
-.successIcon {
-  font-size: 60px;
-  color: #22c55e;
-  margin-bottom: 16px;
+.qrcode-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.failIcon {
-  font-size: 60px;
-  color: #ef4444;
-  margin-bottom: 16px;
-}
-
-.modalTitle {
+.qrcode-header h3 {
   font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 8px;
+  font-weight: bold;
+  color: #333;
+  margin: 0;
 }
 
-.modalDesc {
-  font-size: 14px;
-  color: #6b7280;
-  margin-bottom: 8px;
+.close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  color: #999;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.3s;
 }
 
-.modalOrderId {
-  font-size: 12px;
-  color: #9ca3af;
+.close-btn:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.qrcode-body {
+  padding: 24px;
+}
+
+.amount-display {
+  text-align: center;
   margin-bottom: 24px;
 }
 
-.modalActions {
+.amount-display .label {
+  font-size: 14px;
+  color: #666;
+  margin-right: 8px;
+}
+
+.amount-display .value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #ff6b00;
+}
+
+.qrcode-container {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  justify-content: center;
+  margin-bottom: 24px;
 }
 
-.modalActions.row {
-  flex-direction: row;
+.qr-code {
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: white;
+}
+
+.qrcode-tips {
+  background: #f7f7f7;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.qrcode-tips p {
+  font-size: 12px;
+  color: #666;
+  margin: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qrcode-tips p:first-child {
+  margin-top: 0;
+}
+
+.qrcode-tips p:last-child {
+  margin-bottom: 0;
+}
+
+.qrcode-footer {
+  display: flex;
   gap: 12px;
+  padding: 16px;
+  border-top: 1px solid #f0f0f0;
 }
 
-.viewOrderBtn,
-.retryBtn {
-  width: 100%;
-  padding: 14px;
-  background: #f97316;
-  color: #fff;
+.qrcode-footer button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-secondary {
+  background: white;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.btn-secondary:hover {
+  border-color: #ff6b00;
+  color: #ff6b00;
+}
+
+.btn-primary {
+  background: #ff6b00;
+  color: white;
   border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
 }
 
-.backHomeBtn,
-.cancelBtn {
-  width: 100%;
-  padding: 14px;
-  background: #fff;
-  color: #6b7280;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  font-size: 15px;
-  cursor: pointer;
+.btn-primary:hover {
+  background: #e65a00;
+}
+
+@media (max-width: 600px) {
+  .payment-content {
+    padding: 12px;
+  }
+
+  .product-img {
+    width: 60px;
+    height: 60px;
+  }
 }
 </style>

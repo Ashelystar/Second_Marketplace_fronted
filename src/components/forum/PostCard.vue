@@ -2,7 +2,7 @@
   <article class="card post">
     <RouterLink class="link" :to="`/forum/post/${post.id}`">
       <div class="media">
-        <img class="thumb" :src="thumbUrl" :alt="post.title" loading="lazy" @error="onThumbError" />
+        <img class="thumb" :src="thumbUrl" :alt="titleText" loading="lazy" @error="onThumbError" />
         <div class="coverShade" />
         <div v-if="hasVideo" class="badge">
           <span class="dot" />
@@ -11,7 +11,7 @@
       </div>
 
       <div class="body">
-        <div class="title" :title="post.title">{{ titleText }}</div>
+        <div class="title" :title="titleText">{{ titleText }}</div>
       </div>
     </RouterLink>
 
@@ -49,9 +49,33 @@ const firstMedia = computed(
 )
 const hasVideo = computed(() => props.post.media.some((m) => m.type === 'video'))
 const fallbackSvg = computed(() => {
-  const title = encodeURIComponent((props.post.title || '论坛帖子').slice(0, 10))
+  // 解码标题用于显示
+  let displayTitle = props.post.title || '论坛帖子'
+  try {
+    if (displayTitle.includes('%')) {
+      displayTitle = decodeURIComponent(displayTitle)
+    }
+  } catch {
+    // 如果解码失败，使用原始标题
+  }
+
+  // 根据帖子ID生成渐变色背景
+  const postId = Number(props.post.id) || 0
+  const hue1 = (postId * 37) % 360
+  const hue2 = (hue1 + 40) % 360
+  const title = encodeURIComponent(displayTitle.slice(0, 8))
+
   return `data:image/svg+xml;utf8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="900"><rect width="100%" height="100%" fill="#ececec"/><text x="36" y="96" fill="#262626" font-size="44" font-family="Arial" font-weight="700">${title}</text></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="900">
+      <defs>
+        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:hsl(${hue1}, 70%, 85%)"/>
+          <stop offset="100%" style="stop-color:hsl(${hue2}, 70%, 75%)"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#g)"/>
+      <text x="36" y="96" fill="#666" font-size="44" font-family="Arial" font-weight="700">${title}</text>
+    </svg>`,
   )}`
 })
 const thumbUrl = computed(() => {
@@ -71,7 +95,17 @@ const liked = computed(() => store.isPostLiked(props.post.id))
 const authorName = computed(() => props.post.author.name)
 const titleText = computed(() => {
   const title = props.post.title ?? ''
-  return title.length > 50 ? `${title.slice(0, 50)}...` : title
+  // 尝试解码URL编码的标题
+  let decodedTitle = title
+  try {
+    if (title.includes('%')) {
+      decodedTitle = decodeURIComponent(title)
+    }
+  } catch {
+    // 如果解码失败，使用原始标题
+    decodedTitle = title
+  }
+  return decodedTitle.length > 50 ? `${decodedTitle.slice(0, 50)}...` : decodedTitle
 })
 const durationText = computed(() => {
   const v = props.post.media.find((m) => m.type === 'video')

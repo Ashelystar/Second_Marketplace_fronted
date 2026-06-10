@@ -21,7 +21,7 @@
           </RouterLink>
         </div>
         <div class="head">
-          <div class="title">{{ post.title }}</div>
+          <div class="title">{{ decodedTitle }}</div>
           <div class="meta">
             <div class="author">
               <button class="uLink avatarBtn" type="button" @click="goAuthorHome(post.author)">
@@ -152,9 +152,9 @@
         <div class="st">相关推荐</div>
         <div class="slist">
           <RouterLink v-for="p in related" :key="p.id" class="sitem" :to="`/forum/post/${p.id}`">
-            <img class="simg" :src="p.coverUrl ?? p.media[0]?.posterUrl ?? p.media[0]?.url ?? p.author.avatarUrl" :alt="p.title" />
+            <img class="simg" :src="p.coverUrl ?? p.media[0]?.posterUrl ?? p.media[0]?.url ?? p.author.avatarUrl" :alt="decodeTitle(p.title)" />
             <div class="sm">
-              <div class="sn">{{ p.title }}</div>
+              <div class="sn">{{ decodeTitle(p.title) }}</div>
               <div class="ss">♥ {{ formatCompactNumber(p.likeCount) }} · {{ formatCompactNumber(p.viewCount) }} 浏览</div>
             </div>
           </RouterLink>
@@ -253,6 +253,33 @@ const viewText = computed(() => (post.value ? formatCompactNumber(post.value.vie
 const likeText = computed(() => (post.value ? formatCompactNumber(post.value.likeCount) : '0'))
 const meAvatar = computed(() => post.value?.author.avatarUrl ?? '')
 const postLiked = computed(() => (post.value ? store.isPostLiked(post.value.id) : false))
+
+// 解码帖子标题（处理URL编码）
+const decodedTitle = computed(() => {
+  if (!post.value) return ''
+  const title = post.value.title ?? ''
+  try {
+    if (title.includes('%')) {
+      return decodeURIComponent(title)
+    }
+  } catch {
+    // 如果解码失败，使用原始标题
+  }
+  return title
+})
+
+// 通用解码函数
+function decodeTitle(title: string) {
+  try {
+    if (title && title.includes('%')) {
+      return decodeURIComponent(title)
+    }
+  } catch {
+    // 如果解码失败，使用原始标题
+  }
+  return title || ''
+}
+
 const inputPlaceholder = computed(() =>
   replyTarget.value ? `回复 @${replyTarget.value.author.name}：` : '写下你的评论…',
 )

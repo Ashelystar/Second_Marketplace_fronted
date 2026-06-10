@@ -13,7 +13,7 @@ import UserLogin from '../views/user/Login.vue'
 import UserRegister from '../views/user/Register.vue'
 import UserForgotPassword from '../views/user/ForgotPassword.vue'
 import UserResetPassword from '../views/user/ResetPassword.vue'
-import UserLayout from '../views/user/UserLayout.vue' 
+import UserLayout from '../views/user/UserLayout.vue'
 import Center from '../views/user/Center.vue'
 
 
@@ -133,14 +133,22 @@ const router = createRouter({
       props: true,
     },
     {
+      path: '/order/review/:id',
+      name: 'order-review',
+      component: () => import('../views/order/Review.vue'),
+      props: true,
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/order/confirm',
       name: 'order-confirm',
       component: () => import('../views/order/Confirm.vue'),
     },
     {
-      path: '/payment',
+      path: '/order/payment/:id',
       name: 'payment',
       component: () => import('../views/order/Payment.vue'),
+      props: true,
       meta: { requiresAuth: true },
     },
     {
@@ -196,7 +204,7 @@ const router = createRouter({
       children: [
         {
           path: 'center',
-          name: 'user-center',  
+          name: 'user-center',
           component: Center,
         },
         {
@@ -280,7 +288,7 @@ const router = createRouter({
         },
       ],
     },
-    
+
     // 错误页面路由
     {
       path: '/:pathMatch(.*)*',

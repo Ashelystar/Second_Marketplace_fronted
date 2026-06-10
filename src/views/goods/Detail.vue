@@ -28,7 +28,7 @@
 
         <nav class="navLinks">
           <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
-          <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
+          <a href="#" @click.prevent="goToCart"><i class="fa fa-shopping-cart"></i> 购物车</a>
           <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
             <UserDropdown />
@@ -545,125 +545,11 @@ const submitReply = (commentId: number) => {
   cancelReply()
 }
 
-// 模拟加载评论数据
+// 加载评论数据 - 目前后端未提供商品评论API，暂时显示空列表
 const loadComments = () => {
-  comments.value = [
-    {
-      id: 1,
-      userId: 2001,
-      name: '买家小明',
-      avatar: 'https://picsum.photos/id/100/50/50',
-      time: '2小时前',
-      content: '东西看起来不错，成色怎么样？',
-      replies: [
-        {
-          id: 101,
-          userId: product.value?.sellerId ?? 101,
-          name: '卖家小李',
-          avatar: 'https://picsum.photos/id/101/50/50',
-          time: '1小时前',
-          content: '95新，无划痕无磕碰，电池健康度95%'
-        }
-      ]
-    },
-    {
-      id: 2,
-      userId: 2002,
-      name: '买家小红',
-      avatar: 'https://picsum.photos/id/102/50/50',
-      time: '3小时前',
-      content: '可以便宜点吗？诚心想要',
-      replies: []
-    },
-    {
-      id: 3,
-      userId: 2003,
-      name: '买家小王',
-      avatar: 'https://picsum.photos/id/103/50/50',
-      time: '1天前',
-      content: '请问支持当面交易吗？',
-      replies: [
-        {
-          id: 301,
-          userId: product.value?.sellerId ?? 101,
-          name: '卖家小李',
-          avatar: 'https://picsum.photos/id/101/50/50',
-          time: '23小时前',
-          content: '可以的，周末在大学城附近'
-        },
-        {
-          id: 302,
-          userId: 2003,
-          name: '买家小王',
-          avatar: 'https://picsum.photos/id/103/50/50',
-          time: '22小时前',
-          content: '好的，周六下午方便吗？'
-        }
-      ]
-    },
-    {
-      id: 4,
-      userId: 2004,
-      name: '买家小赵',
-      avatar: 'https://picsum.photos/id/104/50/50',
-      time: '1天前',
-      content: '这个还在吗？',
-      replies: [
-        {
-          id: 401,
-          userId: product.value?.sellerId ?? 101,
-          name: '卖家小李',
-          avatar: 'https://picsum.photos/id/101/50/50',
-          time: '20小时前',
-          content: '在的，欢迎来问'
-        }
-      ]
-    },
-    {
-      id: 5,
-      userId: 2005,
-      name: '买家小钱',
-      avatar: 'https://picsum.photos/id/105/50/50',
-      time: '2天前',
-      content: '包装盒还在吗？',
-      replies: []
-    },
-    {
-      id: 6,
-      userId: 2006,
-      name: '买家小孙',
-      avatar: 'https://picsum.photos/id/106/50/50',
-      time: '2天前',
-      content: '有发票吗？',
-      replies: [
-        {
-          id: 601,
-          userId: product.value?.sellerId ?? 101,
-          name: '卖家小李',
-          avatar: 'https://picsum.photos/id/101/50/50',
-          time: '2天前',
-          content: '有的，当时购买的小票还在'
-        },
-        {
-          id: 602,
-          userId: 2006,
-          name: '买家小孙',
-          avatar: 'https://picsum.photos/id/106/50/50',
-          time: '2天前',
-          content: '那就好，诚心要'
-        }
-      ]
-    },
-    {
-      id: 7,
-      userId: 2007,
-      name: '买家小周',
-      avatar: 'https://picsum.photos/id/107/50/50',
-      time: '3天前',
-      content: '走咸鱼交易可以吗？',
-      replies: []
-    }
-  ]
+  // TODO: 待后端提供商品评论API后，在此处调用真实接口
+  // 例如: getProductComments(product.value?.id).then(data => { comments.value = data })
+  comments.value = []
 }
 
 // 计算属性：显示的评论
@@ -771,6 +657,10 @@ const goToCheckout = () => {
     return
   }
   router.push({ path: '/checkout', query: { productId: String(productId) } })
+}
+
+const goToCart = () => {
+  router.push('/cart')
 }
 const goToChat = async () => {
   if (!ensureLoggedIn('和卖家聊天')) return
