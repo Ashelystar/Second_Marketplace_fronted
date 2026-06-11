@@ -26,11 +26,6 @@ const router = createRouter({
       name: 'home',
       component: Home,
     },
-        {
-      path: '/agent',
-      name: 'agent',
-      component: () => import('../views/Agent.vue'),
-    },
     // 商品模块路由
     {
       path: '/goods',
