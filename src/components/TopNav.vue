@@ -34,10 +34,10 @@
 
       <!-- 右侧导航链接 -->
       <nav class="navLinks">
-        <a href="#" @click.prevent="goToForum">
+        <!-- <a href="#" @click.prevent="goToForum">
           <i class="fa fa-comments"></i>
           社区
-        </a>
+        </a> -->
         <a href="#" @click.prevent="goToCart">
           <i class="fa fa-shopping-cart"></i>
           购物车

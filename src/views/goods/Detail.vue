@@ -27,7 +27,7 @@
         </div>
 
         <nav class="navLinks">
-          <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a>
+          <!-- <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a> -->
           <a href="#" @click.prevent="goToCart"><i class="fa fa-shopping-cart"></i> 购物车</a>
           <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
@@ -384,6 +384,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useChatStore } from '@/stores/chatStore'
 import type { Product, ProductImage } from '@/types'
 import { getProductDetail, incrementProductView, getProductStats, getProductStatus, getProductPage, getSellerProducts } from '@/api/goods'
+import { getProductReviews } from '@/api/review'
 import { createConversation } from '@/api/chat'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
@@ -475,14 +476,29 @@ const showAllComments = ref(false)
 const replyToUser = ref<string | null>(null)
 
 interface Comment {
+  // 基础字段
   id: number
-  userId?: number
-  name: string
-  avatar?: string
-  time: string
-  content: string
-  replies?: Reply[]
-  showAllReplies?: boolean
+  userId?: number           // 买家ID（对应 API 的 buyerId）
+  name: string              // 买家昵称
+  avatar?: string           // 买家头像
+  time: string              // 格式化后的时间（从 createdAt 转换）
+  content: string           // 评论内容
+  replies?: Reply[]         // 子回复（如果有）
+  showAllReplies?: boolean  // 是否展开所有回复
+  
+  // API 返回的新增字段
+  orderId?: number          // 订单ID
+  orderItemId?: number      // 订单项ID
+  productId?: number        // 商品ID
+  buyerId?: number          // 买家ID（与 userId 对应）
+  sellerId?: number         // 卖家ID
+  rating?: number           // 评分（1-5）
+  isAnonymous?: number      // 是否匿名（0: 否，1: 是）
+  hasSensitiveContent?: number // 是否包含敏感内容
+  sellerReply?: string      // 卖家回复内容
+  sellerReplyAt?: string    // 卖家回复时间
+  createdAt?: string        // 原始创建时间（ISO 格式）
+  images?: string[]         // 评论图片
 }
 
 interface Reply {
@@ -546,12 +562,23 @@ const submitReply = (commentId: number) => {
 }
 
 // 加载评论数据 - 目前后端未提供商品评论API，暂时显示空列表
-const loadComments = () => {
-  // TODO: 待后端提供商品评论API后，在此处调用真实接口
-  // 例如: getProductComments(product.value?.id).then(data => { comments.value = data })
-  comments.value = []
-}
 
+
+const formatCommentTime = (isoTime: string) => {
+      const created = new Date(isoTime).getTime();
+      if (Number.isNaN(created)) return '未知时间';
+
+      const now = Date.now();
+      const diffMs = now - created;
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return '刚刚';
+      if (diffMin < 60) return `${diffMin}分钟前`;
+      const diffHour = Math.floor(diffMin / 60);
+      if (diffHour < 24) return `${diffHour}小时前`;
+      const diffDay = Math.floor(diffHour / 24);
+      if (diffDay < 7) return `${diffDay}天前`;
+      return new Date(created).toLocaleDateString();
+};
 // 计算属性：显示的评论
 const displayedComments = computed(() => {
   if (showAllComments.value || comments.value.length <= 3) {
@@ -617,6 +644,7 @@ const goToUserProfile = (user: { userId?: number; name: string; avatar?: string 
 }
 
 const toggleFavorite = async () => {
+  console.log(product.value)
   if (!product.value) return
   if (!ensureLoggedIn('收藏商品')) return
   if (favoritePending.value) return
@@ -828,6 +856,9 @@ const loadDetails = async () => {
       sellerSold: data.sellerSold ?? 0,
       location: data.pickupCity || data.location || '未知',
     }
+    if (userStore.isLoggedIn) {
+      await loadComments()
+    }
     // 增加浏览量（不阻塞主流程）
     incrementProductView(id).catch(err => console.error('增加浏览量失败:', err))
     // 获取商品统计（浏览量、收藏量等）
@@ -932,12 +963,51 @@ watch(() => [route.query.id, route.params.id], async () => {
   }
 }, { immediate: true })
 
+// 将 API 数据转换为 UI 数据
+const convertApiReviewToComment = (apiReview: ApiReview): Comment => {
+  return {
+    id: apiReview.id,
+    userId: apiReview.buyerId,
+    name: apiReview.isAnonymous ? '匿名用户' : `用户${apiReview.buyerId}`,
+    avatar: '', // 如果 API 有头像字段，可以在这里设置
+    time: formatCommentTime(apiReview.createdAt),
+    content: apiReview.content,
+    rating: apiReview.rating,
+    isAnonymous: Boolean(apiReview.isAnonymous),
+    sellerReply: apiReview.sellerReply,
+    sellerReplyAt: apiReview.sellerReplyAt,
+    images: apiReview.images,
+    replies: [],
+    showAllReplies: false
+  }
+}
+
+// 在 loadComments 中使用
+const loadComments = async () => {
+    console.log(product.value)
+    if (!product.value?.id) return
+    console.log('正在加载评论...')
+    try {
+      
+      const res = await getProductReviews(product.value.id)
+      
+      if (res.code === 200) {
+        comments.value = res.data.map(convertApiReviewToComment)
+      }
+    } catch (error) {
+      console.error('加载评论失败:', error)
+    }
+}
 onMounted(() => {
   // 如果从搜索页跳转过来，回显搜索关键词
   if (route.query.q) searchInput.value = route.query.q as string
-  loadComments()
+  console.log('正在加载评论...')
+  
   if (userStore.isLoggedIn) {
     void userStore.loadFavoriteIds()
+    console.log(product)
+    console.log(product.value)
+    // loadComments()
   }
 })
 </script>

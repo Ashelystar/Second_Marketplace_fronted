@@ -20,16 +20,15 @@ export interface Review {
   productId: number
   buyerId: number
   sellerId: number
-  rating: number // 1-5
-  content?: string
-  isAnonymous: boolean
-  hasSensitiveContent: boolean
+  rating: number
+  content: string
+  isAnonymous: number
+  hasSensitiveContent: number
   sellerReply?: string
   sellerReplyAt?: string
   createdAt: string
-  images: ReviewImage[]
+  images: string[]
 }
-
 /** 评价图片 */
 export interface ReviewImage {
   id: number
@@ -183,9 +182,52 @@ export const getReviewList = (params?: {
   return request<Review[]>(`/api/reviews${queryString ? `?${queryString}` : ''}`)
 }
 
+function getAuthHeader(): HeadersInit {
+  const token = localStorage.getItem('token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+export interface ReviewsResponse {
+  code: number
+  message: string
+  data: Review[]
+}
 /** 获取评价详情 */
-export const getReviewDetail = (reviewId: number) =>
-  request<Review>(`/api/reviews/${reviewId}`)
+export const getProductReviews = async (productId: number): Promise<ReviewsResponse> => {
+  console.log('🚀 Fetching reviews for productId:', productId)
+
+  // ✅ 使用 URLSearchParams 拼接参数
+  const query = new URLSearchParams({
+    productId: String(productId) // 确保转为字符串
+  })
+
+  const url = `/api/reviews?${query.toString()}`
+  console.log('📡 请求 URL:', url)
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getAuthHeader(),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const result: ReviewsResponse = await response.json()
+    console.log('✅ 评论接口返回数据:', result)
+    
+    return result
+  } catch (error) {
+    console.error('❌ 获取评论失败:', error)
+    // 返回一个符合类型的错误响应
+    return {
+      code: 500,
+      message: error instanceof Error ? error.message : '请求失败',
+      data: []
+    }
+  }
+}
 
 /** 上传评价图片 */
 export const uploadReviewImage = (reviewId: number, data: UploadReviewImageRequest) =>
