@@ -41,7 +41,7 @@
     </div>
 
     <!-- 分类标签 -->
-    <div class="filters">
+    <!-- <div class="filters">
       <button
         v-for="tag in topFilterTags"
         :key="tag.id"
@@ -51,7 +51,7 @@
       >
         {{ tag.text }}
       </button>
-    </div>
+    </div> -->
 
     <!-- 主体内容 -->
     <div class="main">
