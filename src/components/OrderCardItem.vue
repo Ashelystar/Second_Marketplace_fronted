@@ -15,7 +15,12 @@
         class="order-product"
         @click="$emit('view-detail', order)"
       >
-        <img :src="item.product_image || item.product_image_url" :alt="item.product_title" class="product-img" />
+        <img 
+          :src="getImageUrl(item.product_image || item.product_image_url)" 
+          :alt="item.product_title" 
+          class="product-img" 
+          @error="handleImageError"
+        />
         <div class="product-info">
           <span class="product-title">{{ item.product_title }}</span>
           <div class="product-meta">
@@ -110,6 +115,24 @@ const getStatusText = (status: string) => {
     refunding: '退款中'
   }
   return textMap[status] || status
+}
+
+// 获取完整的图片URL
+const getImageUrl = (url: string | undefined): string => {
+  if (!url) return '/placeholder.png'
+  // 如果已经是完整URL，直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  // 否则添加API基础URL前缀
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://1.117.73.156:8083'
+  return `${baseUrl}${url}`
+}
+
+// 图片加载失败处理
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement
+  img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzljYTNhZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuaWsOi9t+WQp+S6jOWPqueUteingueggTwvdGV4dD48L3N2Zz4='
 }
 </script>
 

@@ -237,7 +237,11 @@ const loadOrderDetail = async () => {
     console.log('[OrderDetail] API返回数据:', result)
 
     // API返回格式: { code: 200, message: "success", data: {...} }
-    const orderData = (result as Record<string, unknown>)?.data || result
+    let orderData = (result as Record<string, unknown>)?.data || result
+    
+    // 将后端返回的下划线命名转换为前端使用的驼峰命名
+    orderData = convertToCamelCase(orderData)
+    
     console.log('[OrderDetail] 解析后的订单数据:', orderData)
 
     // 处理商品图片URL - 如果缺少协议头，添加完整URL
@@ -246,7 +250,8 @@ const loadOrderDetail = async () => {
         const imageUrl = item.productImageUrl as string | undefined
         if (imageUrl && !imageUrl.startsWith('http')) {
           // 假设后端返回的是相对路径，需要添加基础URL
-          item.productImageUrl = `${import.meta.env.VITE_API_BASE_URL || ''}${imageUrl}`
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://1.117.73.156:8083'
+          item.productImageUrl = `${baseUrl}${imageUrl}`
           console.log('[OrderDetail] 修正图片URL:', item.productImageUrl)
         }
       })
@@ -261,6 +266,27 @@ const loadOrderDetail = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 将对象的下划线命名转换为驼峰命名
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const convertToCamelCase = (obj: unknown): unknown => {
+  if (Array.isArray(obj)) {
+    return obj.map(item => convertToCamelCase(item))
+  } else if (obj !== null && typeof obj === 'object') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const converted: Record<string, any> = {}
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        // 将下划线命名转换为驼峰命名
+        const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        converted[camelKey] = convertToCamelCase((obj as Record<string, any>)[key])
+      }
+    }
+    return converted
+  }
+  return obj
 }
 
 // 取消订单
