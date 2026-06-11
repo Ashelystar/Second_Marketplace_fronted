@@ -26,7 +26,11 @@ const router = createRouter({
       name: 'home',
       component: Home,
     },
-
+        {
+      path: '/agent',
+      name: 'agent',
+      component: () => import('../views/Agent.vue'),
+    },
     // 商品模块路由
     {
       path: '/goods',
@@ -70,37 +74,6 @@ const router = createRouter({
       path: '/seller/products',
       name: 'seller-products',
       component: () => import('../views/goods/SellerProducts.vue'),
-    },
-
-    // 论坛模块路由
-    {
-      path: '/forum',
-      component: ForumLayout,
-      meta: { requiresAuth: true },
-      children: [
-        {
-          path: '',
-          name: 'forum',
-          component: Forum,
-        },
-        {
-          path: 'new',
-          name: 'forum-create',
-          component: () => import('../views/forum/Post.vue'),
-          meta: { requiresAuth: true },
-        },
-        {
-          path: 'post/:id',
-          name: 'forum-detail',
-          component: () => import('../views/forum/Detail.vue'),
-          props: true,
-        },
-        {
-          path: 'search',
-          name: 'forum-search',
-          component: () => import('../views/forum/ForumSearch.vue'),
-        },
-      ],
     },
     {
       path: '/orders',

@@ -238,7 +238,7 @@
         </div>
 
         <!-- 评论输入框 -->
-        <div class="commentInput">
+        <!-- <div class="commentInput">
           <img v-if="currentUserAvatar" :src="currentUserAvatar" class="commentAvatar" />
           <div v-else class="commentAvatar avatarDefault">{{ userStore.userInfo?.username?.charAt(0) || '游' }}</div>
           <div class="inputWrapper">
@@ -253,7 +253,7 @@
               <button class="submitBtn" @click="submitComment" :disabled="!newComment.trim()">发表评论</button>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- 评论列表 -->
         <div class="commentList" v-if="comments.length > 0">

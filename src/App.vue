@@ -7,17 +7,21 @@
       <component :is="Component" />
     </router-view>
   </div>
+   <AgentChat v-model:visible="agentStore.isDialogVisible" />
 </template>
 
 <script setup lang="ts">
+import { useAgentStore } from '@/stores/agentStore'
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/productStore'
 
+import AgentChat from '@/components/AgentChat.vue'
 const router = useRouter()
 const productStore = useProductStore()
 const isNavigating = ref(false)
 
+const agentStore = useAgentStore()
 router.beforeEach(() => isNavigating.value = true)
 router.afterEach(() => setTimeout(() => isNavigating.value = false, 100))
 

@@ -1,5 +1,6 @@
 <!-- TopNavbar.vue -->
 <template>
+    <AgentDialog v-model:visible="showAgentDialog" />
   <!-- 顶部导航栏 -->
   <header class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
     <div class="site-topnav-row max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
@@ -70,11 +71,14 @@
 
 <script setup lang="ts">
 // 导入Vue组合式API和状态管理
+
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore } from '@/stores/chatStore'
 import UserDropdown from '@/components/UserDropdown.vue'
+import { useAgentStore } from '@/stores/agentStore'
+const agentStore = useAgentStore()
 
 const floatingTools = [
   { id: 1, icon: 'fa fa-plus', label: '发闲置', action: 'publish' },
@@ -82,8 +86,9 @@ const floatingTools = [
   { id: 3, icon: 'fa fa-qrcode', label: '二维码', action: 'qrcode' },
   { id: 4, icon: 'fa fa-mobile', label: 'APP', action: 'app' },
   { id: 5, icon: 'fa fa-commenting', label: '反馈', action: 'feedback' },
-  { id: 6, icon: 'fa fa-headphones', label: '客服', action: 'service' }
+  { id: 6, icon: 'fa fa-headphones', label: '智能小荔', action: 'service' }
 ]
+
 
 const handleTool = (t: { action: string }) => {
   if (t.action === 'publish') {
@@ -96,16 +101,23 @@ const handleTool = (t: { action: string }) => {
     return
   }
 
+  if (t.action === 'service') {
+    goToAgent()
+
+    return
+  }
   const msgs: Record<string, string> = {
     qrcode: '商品码功能开发中',
     app: '打开应用商店下载荔园APP',
     feedback: '欢迎提出宝贵意见和建议！',
-    service: '正在为您连接客服...'
   }
   alert(msgs[t.action] || '功能开发中')
 }
 const goToChat = () => {
   router.push('/chat')
+}
+const goToAgent = () => {
+  agentStore.openDialog()
 }
 // 初始化路由和状态管理
 const router = useRouter()
