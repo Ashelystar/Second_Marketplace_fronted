@@ -1,16 +1,12 @@
 <template>
-  <!-- 遮罩层（可选，点击遮罩关闭） -->
   <Teleport to="body">
     <transition name="dialog-fade">
-      <!-- 对话框容器 -->
       <div 
         v-if="visible" 
         class="agent-dialog-container"
         :class="{ 'mobile-fullscreen': isMobile }"
       >
-        <!-- 对话框主体 -->
         <div class="agent-dialog">
-          <!-- 头部 -->
           <div class="dialog-header">
             <div class="header-left">
               <div class="agent-avatar">
@@ -26,9 +22,7 @@
             </button>
           </div>
 
-          <!-- 消息区域 -->
           <div class="dialog-body" ref="messageContainer">
-            <!-- 欢迎消息 -->
             <div v-if="messages.length === 0" class="welcome-message">
               <div class="welcome-icon">
                 <i class="fa fa-comments"></i>
@@ -48,7 +42,6 @@
               </div>
             </div>
 
-            <!-- 消息列表 -->
             <div 
               v-for="(msg, index) in messages" 
               :key="index"
@@ -64,7 +57,6 @@
               </div>
             </div>
 
-            <!-- 正在输入 -->
             <div v-if="isTyping" class="typing-indicator">
               <div class="typing-dots">
                 <span></span>
@@ -74,12 +66,12 @@
             </div>
           </div>
 
-          <!-- 输入区域 -->
           <div class="dialog-footer">
             <div class="input-wrapper">
               <textarea
                 ref="inputRef"
                 v-model="inputMessage"
+                @input="adjustInputHeight"
                 @keydown.enter.exact.prevent="sendMessage"
                 @keydown.shift.enter="newLine"
                 placeholder="输入问题..."
@@ -154,13 +146,15 @@ const sendMessage = async () => {
   messages.push(userMsg)
   const question = inputMessage.value
   inputMessage.value = ''
-  adjustInputHeight()
   
+  // 重置输入框高度并触发滚动
+  adjustInputHeight()
   scrollToBottom()
+  
   isTyping.value = true
 
   try {
-    // 调用后端 API
+    console.log('发送问题:', question)  
     const response = await fetchAgentResponse(question)
     
     setTimeout(() => {
@@ -180,16 +174,14 @@ const sendMessage = async () => {
       content: '连接服务器失败，请稍后再试。',
       timestamp: new Date()
     })
+    scrollToBottom()
   }
 }
 
 // 调用后端 API
 const fetchAgentResponse = async (question) => {
-  // TODO: 替换为你的实际 API 地址
-  const API_URL = 'http://localhost:8000/api/agent'
-  
   try {
-    const response = await fetch(API_URL, {
+    const response = await fetch('/agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -202,7 +194,7 @@ const fetchAgentResponse = async (question) => {
     if (!response.ok) throw new Error('API error')
     return await response.json()
   } catch (error) {
-    // 开发阶段使用模拟数据
+    console.error('API 调用失败:', error)
     return getMockResponse(question)
   }
 }
@@ -210,28 +202,16 @@ const fetchAgentResponse = async (question) => {
 // 模拟响应
 const getMockResponse = (question) => {
   const q = question.toLowerCase()
-  
   if (q.includes('苹果') || q.includes('iphone')) {
-    return {
-      answer: '为您找到 2 款苹果手机：\n\n📱 **iPhone 13**\n¥2999 | 成色极佳\n📱 **iPhone 12**\n¥2200 | 功能完好'
-    }
+    return { answer: '为您找到 2 款苹果手机：\n\n📱 **iPhone 13**\n¥2999 | 成色极佳\n📱 **iPhone 12**\n¥2200 | 功能完好' }
   }
-  
   if (q.includes('热门')) {
-    return {
-      answer: '🔥 当前热门：\n1. iPhone 13 - ¥2999\n2. ThinkPad - ¥4500\n3. AirPods - ¥1200'
-    }
+    return { answer: '🔥 当前热门：\n1. iPhone 13 - ¥2999\n2. ThinkPad - ¥4500\n3. AirPods - ¥1200' }
   }
-  
   if (q.includes('禁售')) {
-    return {
-      answer: '🚫 禁售物品：\n• 易燃易爆品\n• 管制刀具\n• 食品药品\n• 违规电器\n• 贴身旧物'
-    }
+    return { answer: '🚫 禁售物品：\n• 易燃易爆品\n• 管制刀具\n• 食品药品\n• 违规电器\n• 贴身旧物' }
   }
-  
-  return {
-    answer: '我可以帮你：\n• 搜索商品\n• 查询价格\n• 了解规则\n• 查看热门'
-  }
+  return { answer: '我可以帮你：\n• 搜索商品\n• 查询价格\n• 了解规则\n• 查看热门' }
 }
 
 // 快速问题
@@ -243,6 +223,7 @@ const sendQuickQuestion = (question) => {
 // 换行
 const newLine = () => {
   inputMessage.value += '\n'
+  nextTick(() => adjustInputHeight())
 }
 
 // 调整输入框高度
@@ -251,6 +232,8 @@ const adjustInputHeight = () => {
   if (textarea) {
     textarea.style.height = 'auto'
     textarea.style.height = Math.min(textarea.scrollHeight, 80) + 'px'
+    // 输入框长高时，同时让聊天区域滚动到底部，防止遮挡
+    scrollToBottom()
   }
 }
 
@@ -258,7 +241,10 @@ const adjustInputHeight = () => {
 const scrollToBottom = async () => {
   await nextTick()
   if (messageContainer.value) {
-    messageContainer.value.scrollTop = messageContainer.value.scrollHeight
+    messageContainer.value.scrollTo({
+      top: messageContainer.value.scrollHeight,
+      behavior: 'smooth' // 使用平滑滚动，体验更好
+    })
   }
 }
 
@@ -283,6 +269,7 @@ watch(() => props.visible, (newVal) => {
   if (newVal) {
     nextTick(() => {
       inputRef.value?.focus()
+      scrollToBottom()
     })
   }
 })
@@ -299,7 +286,6 @@ onUnmounted(() => {
 
 <style scoped>
 /* 对话框容器 */
-/* Agent 悬浮对话框样式 - 与现有风格保持一致 */
 .agent-dialog-container {
   position: fixed;
   top: 0;
@@ -314,13 +300,18 @@ onUnmounted(() => {
   animation: slideInRight 0.3s ease-out;
 }
 
+/* 【新增】保证内部主体撑满容器，建立严格的 Flex 上下布局 */
+.agent-dialog {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden; 
+}
+
 @keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }
 
 .dialog-header {
@@ -330,7 +321,7 @@ onUnmounted(() => {
   padding: 16px;
   border-bottom: 1px solid #e5e7eb;
   background: #fff;
-  flex-shrink: 0;
+  flex-shrink: 0; 
 }
 
 .header-left {
@@ -384,11 +375,35 @@ onUnmounted(() => {
   color: #374151;
 }
 
+/* 消息区域 - 严格限定 flex 比例并开启滚动 */
 .dialog-body {
-  flex: 1;
-  overflow-y: auto;
+  flex: 1 1 0%;       /* 核心修改：允许自由伸长和收缩，基准为 0 */
+  overflow-y: auto;   /* 确保持续开启垂直滚动 */
+  -webkit-overflow-scrolling: touch; /* 优化 iOS 端的滚动灵活性 */
   padding: 16px;
   background: #f9fafb;
+  scrollbar-width: thin; 
+  scrollbar-color: #c1c1c1 #f1f1f1; 
+}
+
+/* 自定义滚动条样式 */
+.dialog-body::-webkit-scrollbar {
+  width: 6px; 
+}
+
+.dialog-body::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+  border-radius: 10px;
+}
+
+.dialog-body::-webkit-scrollbar-thumb {
+  background: #c1c1c1; 
+  border-radius: 10px;
+  transition: background 0.3s;
+}
+
+.dialog-body::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8; 
 }
 
 .welcome-message {
@@ -480,6 +495,7 @@ onUnmounted(() => {
   font-size: 14px;
   line-height: 1.5;
   color: #374151;
+  word-break: break-word; /* 保证长文本和URL能正常换行 */
 }
 
 .user-msg .msg-bubble {
@@ -531,11 +547,12 @@ onUnmounted(() => {
   30% { transform: translateY(-4px); }
 }
 
+/* 输入区域 */
 .dialog-footer {
   padding: 12px 16px;
   border-top: 1px solid #e5e7eb;
   background: white;
-  flex-shrink: 0;
+  flex-shrink: 0; 
 }
 
 .input-wrapper {
@@ -555,8 +572,9 @@ onUnmounted(() => {
   outline: none;
   font-size: 14px;
   resize: none;
-  transition: all 120ms ease;
+  transition: border-color 120ms ease;
   font-family: inherit;
+  overflow-y: auto; 
 }
 
 .input-wrapper textarea:focus {

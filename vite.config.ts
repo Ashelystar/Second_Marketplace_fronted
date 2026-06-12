@@ -34,7 +34,11 @@ export default defineConfig(({ mode }) => {
         '/filebucket': { // 当请求路径以 /filebucket 开头时
         target: 'http://218.244.142.223:9000', // 转发到这个目标地址
         changeOrigin: true,
-      }
+      },
+       '/agent': {
+        target: 'http://localhost:8000', // Python后端地址
+        changeOrigin: true,
+      },
       }
     },
   }
