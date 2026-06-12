@@ -91,6 +91,7 @@ const floatingTools = [
 
 
 const handleTool = (t: { action: string }) => {
+  console.log(t)
   if (t.action === 'publish') {
     router.push('/publish')
     return
