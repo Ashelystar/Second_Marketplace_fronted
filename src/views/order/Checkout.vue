@@ -168,6 +168,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { getProductDetail } from '@/api/goods'
 import { createOrder, type CreateOrderRequest } from '@/api/order'
+import { getAddressListApi } from '@/api/user'
 import { PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'CheckoutPage' })
@@ -221,28 +222,27 @@ const formatPrice = (price: number | undefined): string => {
   return value.toFixed(2)
 }
 
-const addressList = ref<Address[]>([
-  {
-    id: 1,
-    receiver: '张三',
-    phone: '13800138888', // 使用真实格式的手机号
-    province: '北京市',
-    city: '朝阳区',
-    district: '望京街道',
-    detail: '望京SOHO大厦T3-1801',
-    isDefault: true
-  },
-  {
-    id: 2,
-    receiver: '李四',
-    phone: '13900136666', // 使用真实格式的手机号
-    province: '上海市',
-    city: '浦东新区',
-    district: '陆家嘴街道',
-    detail: '环球金融中心1001',
-    isDefault: false
+const addressList = ref<Address[]>([])
+
+// 从后端API加载地址列表
+const loadAddressList = async () => {
+  try {
+    const list = await getAddressListApi()
+    addressList.value = list.map(item => ({
+      id: item.id,
+      receiver: item.receiverName,
+      phone: item.receiverPhone,
+      province: item.province,
+      city: item.city,
+      district: item.district,
+      detail: item.detailAddress,
+      isDefault: item.isDefault
+    }))
+  } catch (error) {
+    console.error('加载地址列表失败:', error)
+    addressList.value = []
   }
-])
+}
 
 // 商品总数量
 const totalQuantity = computed(() => {
@@ -566,13 +566,16 @@ const loadCartProducts = async (productIds: number[]) => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
     alert('请先登录后再下单')
     router.push('/user/login')
     return
   }
+
+  // 先加载地址列表
+  await loadAddressList()
 
   // 处理从地址页面返回的选中地址
   const savedAddress = localStorage.getItem('selectedAddress')

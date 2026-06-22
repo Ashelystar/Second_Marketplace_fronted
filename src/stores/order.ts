@@ -81,10 +81,10 @@ export const useOrderStore = defineStore('order', () => {
     try {
       // 1. 调用带 Auth 头的后端 API 发送 POST 请求
       await apiConfirmReceipt(orderId)
-      
+
       // 2. 交互成功后，自动重新拉取订单列表，利用数据响应式机制无缝刷新界面状态
       await loadOrders()
-      
+
       // 3. 如果此时用户正在详情页中，同步更新详情视图
       if (currentOrder.value?.id === orderId) {
         await loadOrderDetail(orderId)

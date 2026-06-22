@@ -14,10 +14,10 @@
         class="order-product"
         @click="$emit('view-detail', order)"
       >
-        <img 
-          :src="getImageUrl(item.productImageUrl)" 
-          :alt="item.productTitle" 
-          class="product-img" 
+        <img
+          :src="getImageUrl(item.productImageUrl)"
+          :alt="item.productTitle"
+          class="product-img"
           @error="handleImageError"
         />
         <div class="product-info">
