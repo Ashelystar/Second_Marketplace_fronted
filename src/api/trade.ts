@@ -75,7 +75,7 @@ async function handleRequest<T>(url: string, options: RequestInit, errorMsg: str
     ...options,
     headers: { ...headers, ...options.headers },
   })
-
+    console.log(`请求 ${url} 返回状态码:`, response.status)
   if (!response.ok) {
     const text = await response.text()
     throw new Error(text || `网络错误：${response.status}`)
@@ -149,8 +149,9 @@ export async function cancelOrder(orderId: number, body: CancelOrderRequest): Pr
 
 /** 6. 确认收货 */
 export async function confirmReceipt(orderId: number): Promise<void> {
-  return handleRequest<void>(`/api/orders/${orderId}/confirm`, { method: 'POST' }, '操作失败')
+  return handleRequest<void>(`/api/orders/${orderId}/confirm-receipt`, { method: 'POST' }, '操作失败')
 }
+/**
 
 /** 7. 卖家发货 (物流) */
 export async function shipOrder(orderId: number, body: ShippingRequest): Promise<void> {
