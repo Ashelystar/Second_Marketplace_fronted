@@ -23,7 +23,6 @@
       </div>
 
       <nav class="navLinks">
-        <!-- <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a> -->
         <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
         <a href="#" class="message-link" @click.prevent="router.push('/chat')">
           <i class="fa fa-bell"></i>

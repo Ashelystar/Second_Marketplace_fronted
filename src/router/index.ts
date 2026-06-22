@@ -4,8 +4,6 @@ import { ElMessage } from 'element-plus'
 import Home from '../views/home/Index.vue'
 import Detail from '../views/goods/Detail.vue'
 import SearchPage from '../views/goods/SearchPage.vue'
-import ForumLayout from '../views/forum/ForumLayout.vue'
-import Forum from '../views/forum/Index.vue'
 import GoodsList from '../views/goods/List.vue'
 import ChatList from '../views/chat/Index.vue'
 import OrderList from '../views/order/List.vue'
@@ -243,11 +241,6 @@ const router = createRouter({
           path: 'disputes',
           name: 'admin-disputes',
           component: () => import('../components/admin/Disputes.vue'),
-        },
-        {
-          path: 'forum',
-          name: 'admin-forum',
-          component: () => import('../components/admin/Forum.vue'),
         },
         {
           path: 'logs',

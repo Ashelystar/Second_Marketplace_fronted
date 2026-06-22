@@ -35,10 +35,6 @@
 
       <!-- 右侧导航链接 -->
       <nav class="navLinks">
-        <!-- <a href="#" @click.prevent="goToForum">
-          <i class="fa fa-comments"></i>
-          社区
-        </a> -->
         <a href="#" @click.prevent="goToCart">
           <i class="fa fa-shopping-cart"></i>
           购物车
@@ -159,13 +155,6 @@ const searchTag = (tag: string) => {
   handleSearch()
 }
 
-/**
- * 导航到论坛页面
- */
-const goToForum = () => {
-  router.push('/forum')
-}
-
 const goToHome = () => {
   router.push('/')
 }
@@ -196,7 +185,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 顶栏布局与字号由模板上的 Tailwind 类控制，与 ForumLayout 保持一致 */
+/* 顶栏布局与字号由模板上的 Tailwind 类控制 */
 /* 悬浮工具栏 */
 .floatTools {
   position: fixed;

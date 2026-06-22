@@ -138,7 +138,6 @@ src/api/
 ├── wallet.ts     # 钱包相关API (新增)
 ├── goods.ts      # 商品相关API
 ├── user.ts       # 用户相关API
-├── forum.ts      # 论坛相关API
 └── chat.ts       # 聊天相关API
 ```
 
