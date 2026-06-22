@@ -54,7 +54,6 @@
               <div class="msg-content">
                 <div class="msg-bubble" v-html="formatMessage(msg.content)"></div>
                 
-                <!-- 商品网格展示（如果是搜索结果） -->
                 <div v-if="msg.isSearchResult && msg.products && msg.products.length > 0" class="chat-product-grid">
                   <div
                     v-for="p in msg.products"
@@ -206,7 +205,7 @@ const sendMessage = async () => {
     setTimeout(async () => {
       isTyping.value = false
       
-      // 检查是否是搜索商品的动作
+      // 1. 检查是否是搜索商品的动作
       const isSearchAction = response.actions && 
         response.actions.some((action: any) => action.type === 'SEARCH_PRODUCTS')
       
@@ -215,6 +214,24 @@ const sendMessage = async () => {
       // 如果是搜索商品且有商品ID，获取商品详情
       if (isSearchAction && response.product_ids && response.product_ids.length > 0) {
         productDetails = await fetchProductDetails(response.product_ids.slice(0, 6)) // 最多6个
+        goToDetail(productDetails[0]) // 自动跳转到第一个商品详情页
+      }
+
+      // 2. 检查是否是发布商品的动作 (支持后端传回的自定义跳转 action 格式)
+      const publishAction = response.actions && 
+        response.actions.find((action: any) => action.type === 'NAVIGATE_TO_PUBLISH' || action.type?.includes('PUBLISH'))
+      console.log('publishAction:', publishAction);
+      if (publishAction) {
+        console.log('检测到发布商品动作，准备跳转至发布页面。')
+        // 从后端动作字典里提取智能生成的参数表单数据
+        const formParams = publishAction.params || publishAction.payload || {};
+        if (Object.keys(formParams).length > 0) {
+          // 写入缓存，供发布页面抓取
+          localStorage.setItem('agent_publish_form_cache', JSON.stringify(formParams));
+          // 跳转至指定发布商品路由
+          // closeDialog();
+          router.push('/publish');
+        }
       }
       
       messages.push({
@@ -238,7 +255,7 @@ const sendMessage = async () => {
   }
 }
 
-// 获取商品详情（使用你的 TypeScript API）
+// 获取商品详情
 const fetchProductDetails = async (productIds: number[]): Promise<ProductVO[]> => {
   try {
     const promises = productIds.map(id => getProductDetail(id))
@@ -250,7 +267,7 @@ const fetchProductDetails = async (productIds: number[]): Promise<ProductVO[]> =
   }
 }
 
-// 跳转到商品详情页（与首页逻辑完全一致）
+// 跳转到商品详情页
 const goToDetail = (p: ProductVO) => {
   const currentUserId = userStore.userInfo?.id
   if (currentUserId && p.sellerId && Number(currentUserId) === Number(p.sellerId)) {
@@ -265,16 +282,13 @@ const fetchAgentResponse = async (question: string) => {
   try {
     const payload = { message: question, user_id: 1 }
     console.log("Sending to backend:", payload)
-    
     const response = await fetch('/agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    
     const data = await response.json()
     console.log("Received from backend:", data)
-    
     if (!response.ok) throw new Error(data.detail || 'API error')
     return data
   } catch (error) {
@@ -287,50 +301,24 @@ const fetchAgentResponse = async (question: string) => {
 const getMockResponse = (question: string) => {
   const q = question.toLowerCase()
   if (q.includes('苹果') || q.includes('iphone')) {
-    return { 
-      success: true,
-      message: '为您找到相关苹果手机：',
-      actions: [{ type: 'SEARCH_PRODUCTS', description: '已找到商品' }],
-      product_ids: [101, 102]
-    }
+    return { success: true, message: '为您找到相关苹果手机：', actions: [{ type: 'SEARCH_PRODUCTS', description: '已找到商品' }], product_ids: [101, 102] }
   }
   if (q.includes('热门')) {
-    return { 
-      success: true,
-      message: '🔥 当前热门商品：',
-      actions: [{ type: 'SEARCH_PRODUCTS', description: '已找到商品' }],
-      product_ids: [101, 102, 103]
-    }
+    return { success: true, message: '🔥 当前热门商品：', actions: [{ type: 'SEARCH_PRODUCTS', description: '已找到商品' }], product_ids: [101, 102, 103] }
   }
-  if (q.includes('禁售')) {
-    return { 
-      success: true,
-      message: '🚫 禁售物品：\n• 易燃易爆品\n• 管制刀具\n• 食品药品\n• 违规电器\n• 贴身旧物',
-      actions: [{ type: 'SEARCH_PRODUCTS', description: '了解平台规则' }],
-      product_ids: []
-    }
-  }
-  return { 
-    success: false,
-    message: '我可以帮你：\n• 搜索商品\n• 查询价格\n• 了解规则\n• 查看热门',
-    actions: [{ type: 'SEARCH_PRODUCTS', description: '尝试搜索商品' }],
-    product_ids: []
-  }
+  return { success: false, message: '我可以帮你：\n• 搜索商品\n• 查询价格', actions: [], product_ids: [] }
 }
 
-// 快速问题
 const sendQuickQuestion = (question: string) => {
   inputMessage.value = question
   sendMessage()
 }
 
-// 换行
 const newLine = () => {
   inputMessage.value += '\n'
   nextTick(() => adjustInputHeight())
 }
 
-// 调整输入框高度
 const adjustInputHeight = () => {
   const textarea = inputRef.value
   if (textarea) {
@@ -340,54 +328,28 @@ const adjustInputHeight = () => {
   }
 }
 
-// 滚动到底部
 const scrollToBottom = async () => {
   await nextTick()
   if (messageContainer.value) {
-    messageContainer.value.scrollTo({
-      top: messageContainer.value.scrollHeight,
-      behavior: 'smooth'
-    })
+    messageContainer.value.scrollTo({ top: messageContainer.value.scrollHeight, behavior: 'smooth' })
   }
 }
 
-// 格式化消息
 const formatMessage = (content: string) => {
   return content
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
 }
 
-// 格式化时间
 const formatTime = (timestamp: Date) => {
   const date = new Date(timestamp)
-  return date.toLocaleTimeString('zh-CN', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  })
+  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
-// 格式化成色
 const formatCondition = (condition: string) => {
-  const map: Record<string, string> = {
-    'new': '全新',
-    'almost_new': '九成新',
-    'good': '八成新',
-    'fair': '七成新',
-    'poor': '五成新'
-  }
-  return map[condition] || condition
+  const map: Record<string, string> = { 'new': '全新', 'almost_new': '99新', 'good': '95新', 'fair': '9成新', 'poor': '8成新' }
+  return map[condition] || '二手'
 }
-
-// 监听显示状态变化
-watch(() => props.visible, (newVal) => {
-  if (newVal) {
-    nextTick(() => {
-      inputRef.value?.focus()
-      scrollToBottom()
-    })
-  }
-})
 
 onMounted(() => {
   checkMobile()
@@ -397,8 +359,14 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
 })
-</script>
 
+watch(() => props.visible, (newVal) => {
+  if (newVal) {
+    scrollToBottom()
+    nextTick(() => inputRef.value?.focus())
+  }
+})
+</script>
 
 <style scoped>
 /* 对话框容器 */
