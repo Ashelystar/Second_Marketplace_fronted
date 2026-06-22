@@ -11,8 +11,10 @@ import {
 } from '@/api/trade'
 
 export const useOrderStore = defineStore('order', () => {
-  const orders = ref<TradeOrder[]>([])
-  const currentOrder = ref<TradeOrder | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orders = ref<any[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const currentOrder = ref<any | null>(null)
   const items = ref<any[]>([])
   const loading = ref(false)
   const stats = ref({
@@ -22,7 +24,7 @@ export const useOrderStore = defineStore('order', () => {
   })
 
   // 计算属性：按状态分类的订单（全面改为小驼峰匹配后端返回数据字段）
-  const pendingOrders = computed(() => orders.value.filter(o => o.orderStatus === 'pending'))
+  const pendingOrders = computed(() => orders.value.filter(o => o.orderStatus === 'pending' || o.orderStatus === 'pending_payment'))
   const paidOrders = computed(() => orders.value.filter(o => o.orderStatus === 'paid'))
   // 待收货栏：完美兼容后端返回的 'shipped' 和 'delivered' 两种状态
   const shippedOrders = computed(() => orders.value.filter(o => o.orderStatus === 'shipped' || o.orderStatus === 'delivered'))
@@ -32,7 +34,7 @@ export const useOrderStore = defineStore('order', () => {
   async function loadOrders(status?: string) {
     loading.value = true
     try {
-      const result = await listOrders({ status, page: 1, pageSize: 5 })
+      const result = await listOrders({ status, page: 1, pageSize: 100 })
       console.log('订单列表加载结果:', result)
       orders.value = result.list || []
     } catch (error) {

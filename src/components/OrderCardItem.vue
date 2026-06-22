@@ -40,7 +40,7 @@
         合计: <strong>¥{{ (order.payAmount || order.totalAmount || 0).toFixed(2) }}</strong>
       </div>
       <div class="order-actions">
-        <template v-if="order.orderStatus === 'pending'">
+        <template v-if="order.orderStatus === 'pending' || order.orderStatus === 'pending_payment'">
           <button class="action-btn secondary" @click.stop="$emit('cancel', order)">取消订单</button>
           <button class="action-btn primary" @click.stop="$emit('pay', order)">立即支付</button>
         </template>

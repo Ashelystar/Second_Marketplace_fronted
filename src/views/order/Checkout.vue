@@ -307,29 +307,39 @@ const submitOrder = async () => {
     return
   }
 
-  const product = products.value[0]
+  const firstProduct = products.value[0]
+  if (!firstProduct) {
+    alert('商品信息异常')
+    return
+  }
 
-  // 确定交易方式：如果有自提地点则是pickup，否则是shipping
-  const tradeMode: 'pickup' | 'shipping' = product.pickupLocation ? 'pickup' : 'shipping'
+  // 检查所有商品是否属于同一卖家
+  const allSameSeller = products.value.every(p => p.sellerId === firstProduct.sellerId)
+  if (!allSameSeller) {
+    alert('暂不支持跨卖家下单，请分别购买不同卖家的商品')
+    return
+  }
+
+  // 确定交易方式：如果有任一商品设置了自提地点则是pickup，否则是shipping
+  const hasPickup = products.value.some(p => p.pickupLocation)
+  const tradeMode: 'pickup' | 'shipping' = hasPickup ? 'pickup' : 'shipping'
 
   // 构建符合API要求的订单数据
   const orderData: CreateOrderRequest = {
-    sellerId: product.sellerId || 1,
+    sellerId: firstProduct.sellerId || 1,
     tradeMode: tradeMode,
-    freightAmount: product.freightAmount || 0,
+    freightAmount: products.value.reduce((sum, p) => sum + (p.freightAmount || 0), 0),
     remark: remark.value || '',
-    pickupLocation: tradeMode === 'pickup' ? (product.pickupLocation || '') : undefined,
+    pickupLocation: tradeMode === 'pickup' ? (firstProduct.pickupLocation || '') : undefined,
     receiverName: tradeMode === 'shipping' ? selectedAddress.value.receiver : undefined,
     receiverPhone: tradeMode === 'shipping' ? selectedAddress.value.phone : undefined,
     receiverAddress: tradeMode === 'shipping'
       ? `${selectedAddress.value.province}${selectedAddress.value.city}${selectedAddress.value.district}${selectedAddress.value.detail}`
       : undefined,
-    items: [
-      {
-        productId: product.id,
-        quantity: product.quantity
-      }
-    ]
+    items: products.value.map(p => ({
+      productId: p.id,
+      quantity: p.quantity
+    }))
   }
 
   console.log('[Checkout] 创建订单数据:', JSON.stringify(orderData, null, 2))
@@ -399,6 +409,10 @@ const addToCart = () => {
   }
 
   const product = products.value[0]
+  if (!product) {
+    alert('商品信息异常')
+    return
+  }
 
   // 导入购物车工具函数
   import('@/utils/cart').then(({ addToCart: addItemToCart }) => {
@@ -439,7 +453,7 @@ const loadProduct = async (productId: number) => {
       if (typeof firstImage === 'string') {
         imageUrl = firstImage
       } else if (firstImage && typeof firstImage === 'object') {
-        const imgObj = firstImage as Record<string, unknown>
+        const imgObj = firstImage as unknown as Record<string, unknown>
         imageUrl = (imgObj.imageUrl as string) || (imgObj.url as string) || ''
       }
     }
@@ -503,7 +517,7 @@ const loadCartProducts = async (productIds: number[]) => {
           if (typeof firstImage === 'string') {
             imageUrl = firstImage
           } else if (firstImage && typeof firstImage === 'object') {
-            const imgObj = firstImage as Record<string, unknown>
+            const imgObj = firstImage as unknown as Record<string, unknown>
             imageUrl = (imgObj.imageUrl as string) || (imgObj.url as string) || ''
           }
         }
