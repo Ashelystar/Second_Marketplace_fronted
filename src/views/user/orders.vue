@@ -194,7 +194,11 @@
           <!-- 买家信息 -->
           <div class="seller-buyer-row">
             <div class="seller-buyer-avatar">
-              <img :src="order.buyerAvatar || '/default-avatar.png'" alt="买家头像" />
+              <img
+                :src="getImageUrl(order.buyerAvatar)"
+                alt="买家头像"
+                @error="handleImageError"
+              />
             </div>
             <div class="seller-buyer-info">
               <span class="seller-buyer-name">{{ order.buyerName || '匿名用户' }}</span>
@@ -205,10 +209,14 @@
           <!-- 商品信息 -->
           <div class="seller-items-wrap">
             <div v-for="item in order.items" :key="item.productId" class="seller-item-row">
-              <img :src="getSellerImageUrl(item.productImage)" :alt="item.productTitle" class="seller-product-img" />
+              <img
+                :src="getImageUrl(item.productImage)"
+                :alt="item.productTitle"
+                class="seller-product-img"
+                @error="handleImageError"
+              />
               <div class="seller-product-info">
                 <h3 class="seller-product-title">{{ item.productTitle }}</h3>
-                <p class="seller-product-desc" v-if="item.productDesc">{{ item.productDesc }}</p>
                 <div class="seller-product-meta">
                   <span class="seller-price">¥{{ formatPrice(item.price) }}</span>
                   <span class="seller-quantity">x{{ item.quantity }}</span>
@@ -354,7 +362,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useOrderStore } from '@/stores/order'
-import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
+import { getImageUrl } from '@/utils/image'
 import { createShipment } from '@/api/order'
 import { listOrders } from '@/api/trade'
 
@@ -660,11 +668,7 @@ const formatDate = (dateStr: string): string => {
   })
 }
 
-const getSellerImageUrl = (image: string | undefined): string => {
-  if (!image) return PLACEHOLDER_IMG
-  if (image.startsWith('http')) return image
-  return `${import.meta.env.VITE_API_BASE_URL || ''}${image}`
-}
+
 
 const getSellerStatusText = (status: string): string => {
   const statusMap: Record<string, string> = {
@@ -1119,49 +1123,58 @@ onMounted(async () => {
 
 /* ========== 卖家视图样式 ========== */
 .seller-status-tabs {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 10px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 6px;
   margin-bottom: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f1f5f9;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
 }
 
 .seller-tab-btn {
-  padding: 8px 16px;
-  border: none;
-  background: white;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #666;
-  transition: all 0.3s;
+  flex: 1;
   white-space: nowrap;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-}
-
-.seller-tab-btn.active {
-  background: #722ed1;
-  color: white;
 }
 
 .seller-tab-btn:hover:not(.active) {
-  background: #f3e8ff;
-  color: #722ed1;
+  color: #f97316;
+  background-color: #fff7ed;
+}
+
+.seller-tab-btn.active {
+  background: #f97316;
+  color: #fff;
+  font-weight: 600;
 }
 
 .seller-tab-count {
-  font-size: 12px;
-  background: rgba(255, 255, 255, 0.3);
-  padding: 1px 8px;
-  border-radius: 10px;
+  background: rgba(249, 115, 22, 0.15);
+  color: #f97316;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 20px;
 }
 
-.seller-tab-btn:not(.active) .seller-tab-count {
-  background: #f0f0f0;
-  color: #999;
+.seller-tab-btn.active .seller-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
 }
 
 .seller-order-list {
@@ -1171,54 +1184,65 @@ onMounted(async () => {
 }
 
 .seller-order-card {
-  background: white;
-  border-radius: 12px;
+  background: #fff;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01);
+  border: 1px solid #e2e8f0;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.seller-order-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  border-color: #cbd5e1;
 }
 
 .seller-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 14px 16px;
+  background-color: #fafafa;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .seller-order-no {
-  font-size: 14px;
-  color: #666;
+  font-size: 13px;
+  color: #64748b;
 }
 
 .seller-status-tag {
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+  border-radius: 0;
+  background: none;
 }
 
-.seller-status-pending { background: #fff7e6; color: #ff6b00; }
-.seller-status-paid { background: #e6f7ff; color: #1890ff; }
-.seller-status-shipped { background: #f6ffed; color: #52c41a; }
-.seller-status-completed { background: #f0f0f0; color: #666; }
-.seller-status-cancelled { background: #fff1f0; color: #ff4d4f; }
+/* 卖家状态标签 — 纯文字颜色，与买家一致 */
+.seller-status-pending { color: #f97316; }
+.seller-status-paid { color: #8b5cf6; }
+.seller-status-shipped { color: #2563eb; }
+.seller-status-completed { color: #10b981; }
+.seller-status-cancelled { color: #9ca3af; }
 
 .seller-buyer-row {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f8fafc;
   background: #fafafa;
 }
 
 .seller-buyer-avatar {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   overflow: hidden;
-  background: #e0e0e0;
+  background: #e2e8f0;
   flex-shrink: 0;
+  border: 1px solid #e2e8f0;
 }
 
 .seller-buyer-avatar img {
@@ -1235,60 +1259,60 @@ onMounted(async () => {
 
 .seller-buyer-name {
   font-size: 14px;
-  font-weight: bold;
-  color: #333;
+  font-weight: 500;
+  color: #1e293b;
 }
 
 .seller-order-time {
   font-size: 12px;
-  color: #999;
+  color: #94a3b8;
 }
 
 .seller-items-wrap {
-  padding: 16px;
+  padding: 4px 0;
 }
 
 .seller-item-row {
   display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f8fafc;
 }
 
 .seller-item-row:last-child {
-  margin-bottom: 0;
+  border-bottom: none;
 }
 
 .seller-product-img {
-  width: 80px;
-  height: 80px;
+  width: 76px;
+  height: 76px;
+  border-radius: 10px;
   object-fit: cover;
-  border-radius: 4px;
-  background: #f5f5f5;
   flex-shrink: 0;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
 }
 
 .seller-product-info {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
   min-width: 0;
 }
 
 .seller-product-title {
   font-size: 14px;
-  font-weight: bold;
-  color: #333;
-  margin: 0 0 4px 0;
+  color: #1e293b;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.seller-product-desc {
-  font-size: 12px;
-  color: #999;
-  margin: 0 0 8px 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .seller-product-meta {
@@ -1298,31 +1322,32 @@ onMounted(async () => {
 }
 
 .seller-price {
-  font-size: 16px;
-  font-weight: bold;
-  color: #722ed1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
 }
 
 .seller-quantity {
   font-size: 12px;
-  color: #999;
+  color: #94a3b8;
 }
 
 .seller-trade-info {
   padding: 0 16px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .seller-info-row {
   display: flex;
   justify-content: space-between;
   font-size: 13px;
-  color: #666;
+  color: #475569;
   margin-bottom: 8px;
 }
 
 .seller-label {
   flex-shrink: 0;
+  color: #64748b;
 }
 
 .seller-info-row span:last-child {
@@ -1331,29 +1356,33 @@ onMounted(async () => {
 }
 
 .seller-total-row {
-  font-weight: bold;
-  color: #333;
+  font-weight: 600;
+  color: #1e293b;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px dashed #e0e0e0;
+  border-top: 1px solid #f1f5f9;
 }
 
 .seller-amount {
   font-size: 18px;
-  color: #722ed1;
+  color: #f97316;
+  font-weight: 700;
 }
 
 .seller-card-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background: #fafafa;
+  padding: 14px 16px;
+  border-top: 1px solid #f1f5f9;
+  background-color: #fff;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .seller-footer-time {
-  font-size: 12px;
-  color: #999;
+  font-size: 13px;
+  color: #475569;
 }
 
 .seller-actions {
@@ -1362,51 +1391,63 @@ onMounted(async () => {
 }
 
 .seller-actions button {
-  padding: 6px 16px;
-  border: none;
-  border-radius: 4px;
+  padding: 7px 16px;
+  border-radius: 8px;
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.15s ease;
+  outline: none;
 }
 
 .seller-btn-ship {
-  background: #722ed1;
-  color: white;
+  background: #f97316;
+  color: #fff;
+  border: 1px solid #f97316;
+  box-shadow: 0 2px 4px rgba(249, 115, 22, 0.2);
 }
 
 .seller-btn-ship:hover {
-  background: #531dab;
+  background: #ea580c;
+  border-color: #ea580c;
+  transform: translateY(-0.5px);
 }
 
 .seller-btn-trace {
-  background: #1890ff;
-  color: white;
+  background: #fff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
 }
 
 .seller-btn-trace:hover {
-  background: #096dd9;
+  border-color: #f97316;
+  color: #f97316;
+  background-color: #fff7ed;
 }
 
 .seller-btn-detail {
-  background: #fff;
-  color: #1890ff;
-  border: 1px solid #1890ff !important;
+  background: #f97316;
+  color: #fff;
+  border: 1px solid #f97316;
+  box-shadow: 0 2px 4px rgba(249, 115, 22, 0.2);
 }
 
 .seller-btn-detail:hover {
-  background: #e6f7ff;
+  background: #ea580c;
+  border-color: #ea580c;
+  transform: translateY(-0.5px);
 }
 
 .seller-btn-detail-secondary {
   background: #fff;
-  color: #666;
-  border: 1px solid #ddd !important;
+  color: #475569;
+  border: 1px solid #cbd5e1;
 }
 
 .seller-btn-detail-secondary:hover {
-  border-color: #999 !important;
-  color: #333;
+  border-color: #f97316;
+  color: #f97316;
+  background-color: #fff7ed;
 }
 
 /* ========== 发货弹窗样式 ========== */
@@ -1607,11 +1648,8 @@ onMounted(async () => {
     flex-direction: column;
     align-items: flex-end;
   }
-  .seller-status-tabs {
-    gap: 4px;
-  }
   .seller-tab-btn {
-    padding: 6px 10px;
+    padding: 8px 6px;
     font-size: 12px;
   }
   .seller-product-img {
@@ -1621,6 +1659,10 @@ onMounted(async () => {
   .seller-actions button {
     padding: 5px 12px;
     font-size: 12px;
+  }
+  .seller-card-footer {
+    flex-direction: column;
+    align-items: flex-end;
   }
 }
 </style>
