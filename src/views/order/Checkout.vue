@@ -164,7 +164,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { getProductDetail } from '@/api/goods'
 import { createOrder, type CreateOrderRequest } from '@/api/order'
-import { PLACEHOLDER_IMG } from '@/utils/image'
+import { getAddressListApi, createAddressApi } from '@/api/user'
+import { PLACEHOLDER_IMG, getImageUrl } from '@/utils/image'
 
 defineOptions({ name: 'CheckoutPage' })
 
@@ -423,7 +424,7 @@ const loadProduct = async (productId: number) => {
       title: productData.title,
       description: productData.description || '',
       price: priceValue,
-      image: imageUrl || PLACEHOLDER_IMG,
+      image: getImageUrl(imageUrl) || PLACEHOLDER_IMG,
       quantity: 1,
       sellerId: productData.sellerId,
       tradeMode: productData.tradeMode || 'shipping',

@@ -241,9 +241,24 @@ const originBeforeLogin = new Map<string, string>()
 
 router.beforeEach((to, from) => {
   const token = localStorage.getItem('token')
-  // 放宽校验：只要有非空 token 就认为已登录，不再强制依赖 userInfo.id
-  // 避免 fetchUserProfile 覆盖 userInfo 后导致 id 丢失而被误踢
-  const hasValidToken = Boolean(token && token.length > 8)
+  // 检查 token 是否存在且未过期
+  let hasValidToken = Boolean(token && token.length > 8)
+  if (hasValidToken && token) {
+    // 检查 JWT 是否过期
+    try {
+      const parts = token.split('.')
+      if (parts.length >= 2) {
+        const payload = JSON.parse(atob(parts[1] as string))
+        if (payload.exp && Date.now() >= payload.exp * 1000) {
+          hasValidToken = false
+          // 清除过期 token
+          localStorage.removeItem('token')
+          localStorage.removeItem('userInfo')
+          console.log('[router.beforeEach] token 已过期，已清除')
+        }
+      }
+    } catch { /* ignore */ }
+  }
   console.log(`[router.beforeEach] path=${to.path}, hasValidToken=${hasValidToken}`)
   if (hasValidToken) return true
   if (guestAllowedPaths.has(to.path)) return true

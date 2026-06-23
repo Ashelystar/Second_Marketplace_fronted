@@ -81,11 +81,28 @@
       </div>
 
       <!-- 物流信息 -->
-      <div v-if="order.orderStatus === 'shipped'" class="section">
+      <div v-if="order.orderStatus === 'shipped' || order.orderStatus === 'paid'" class="section">
         <h3>物流信息</h3>
         <div class="logistics-info">
-          <p><strong>订单状态：</strong>已发货</p>
+          <p><strong>订单状态：</strong>{{ getStatusText(order.orderStatus) }}</p>
           <button class="btn-secondary" @click="viewLogistics">查看物流轨迹</button>
+        </div>
+        <!-- 物流轨迹展示 -->
+        <div v-if="showLogistics && logisticsTraces.length > 0" class="logistics-traces">
+          <div v-for="(trace, index) in logisticsTraces" :key="index" class="trace-item">
+            <div class="trace-dot" :class="{ active: index === 0 }"></div>
+            <div class="trace-content">
+              <div class="trace-status">{{ trace.traceStatus }}</div>
+              <div class="trace-detail">{{ trace.traceDetail }}</div>
+              <div class="trace-meta">
+                <span v-if="trace.traceLocation">{{ trace.traceLocation }} · </span>
+                <span>{{ trace.traceTime }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="showLogistics && logisticsTraces.length === 0" class="logistics-traces">
+          <p class="no-trace">暂无物流轨迹信息</p>
         </div>
       </div>
 
@@ -149,7 +166,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getOrderDetail, cancelOrder, confirmReceipt, remindShip } from '@/api/order'
+import { getOrderDetail, cancelOrder, confirmReceipt, remindShip, getShipmentTraces } from '@/api/order'
+import { getImageUrl as formatImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'OrderDetail' })
 
@@ -187,6 +205,16 @@ interface Order {
 
 const order = ref<Order | null>(null)
 const loading = ref(false)
+
+// 物流轨迹相关
+const showLogistics = ref(false)
+interface LogisticsTraceItem {
+  traceTime: string
+  traceStatus: string
+  traceDetail: string
+  traceLocation: string
+}
+const logisticsTraces = ref<LogisticsTraceItem[]>([])
 
 // 编辑自提地点相关
 const isEditingPickup = ref(false)
@@ -238,20 +266,20 @@ const loadOrderDetail = async () => {
 
     // API返回格式: { code: 200, message: "success", data: {...} }
     let orderData = (result as Record<string, unknown>)?.data || result
-    
+
     // 将后端返回的下划线命名转换为前端使用的驼峰命名
     orderData = convertToCamelCase(orderData)
-    
+
     console.log('[OrderDetail] 解析后的订单数据:', orderData)
 
-    // 处理商品图片URL - 如果缺少协议头，添加完整URL
-    if (orderData.items && Array.isArray(orderData.items)) {
-      orderData.items.forEach((item: Record<string, unknown>) => {
+    // 处理商品图片URL - 使用统一的工具函数处理相对路径
+    if (orderData && typeof orderData === 'object' && Array.isArray((orderData as Record<string, unknown>).items)) {
+      const items = (orderData as Record<string, unknown>).items as Array<Record<string, unknown>>
+      items.forEach((item) => {
         const imageUrl = item.productImageUrl as string | undefined
-        if (imageUrl && !imageUrl.startsWith('http')) {
-          // 假设后端返回的是相对路径，需要添加基础URL
-          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://1.117.73.156:8083'
-          item.productImageUrl = `${baseUrl}${imageUrl}`
+        if (imageUrl) {
+          // 使用 getImageUrl 统一处理，会自动将 product/xxx 转为 /filebucket/product/xxx
+          item.productImageUrl = formatImageUrl(imageUrl)
           console.log('[OrderDetail] 修正图片URL:', item.productImageUrl)
         }
       })
@@ -324,10 +352,9 @@ const handleRemindShip = async () => {
 }
 
 // 查看物流
-const handleCheckLogistics = () => {
+const handleCheckLogistics = async () => {
   if (!order.value) return
-  // TODO: 实现物流查询功能
-  alert(`物流信息：\n订单号: ${order.value.orderNo}\n运单号：暂无`)
+  await viewLogistics()
 }
 
 // 开始编辑自提地点
@@ -353,35 +380,20 @@ const savePickupLocation = async () => {
     return
   }
 
-  try {
-    // TODO: 调用后端API更新自提地点
-    // await updateOrderPickupLocation(order.value.id, newLocation)
+  // 后端暂不支持修改自提地点接口，仅本地更新
+  console.warn('[OrderDetail] 后端暂不支持修改自提地点，仅本地更新')
+  alert('注意：后端暂不支持修改自提地点，当前仅为本地显示更新')
 
-    // 暂时直接更新本地数据
-    order.value.pickupLocation = newLocation
-    isEditingPickup.value = false
-    editingPickupLocation.value = ''
-
-    alert('收货地址修改成功！')
-    console.log('[OrderDetail] 收货地址已更新为:', newLocation)
-  } catch (error) {
-    console.error('更新收货地址失败:', error)
-    alert('更新收货地址失败，请重试')
-  }
+  // 无论后端是否成功，都本地更新显示
+  order.value.pickupLocation = newLocation
+  isEditingPickup.value = false
+  editingPickupLocation.value = ''
+  console.log('[OrderDetail] 收货地址已更新为:', newLocation)
 }
 
-// 获取完整的图片URL
+// 获取完整的图片URL - 使用统一的工具函数
 const getImageUrl = (url: string | undefined) => {
-  if (!url) return '/placeholder.png'
-
-  // 如果已经是完整URL，直接返回
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
-  }
-
-  // 如果是相对路径，添加基础URL
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://1.117.73.156:8083'
-  return `${baseUrl}${url}`
+  return formatImageUrl(url) || PLACEHOLDER_IMG
 }
 
 // 处理图片加载失败
@@ -392,9 +404,42 @@ const handleImageError = (event: Event) => {
 }
 
 // 查看物流轨迹
-const viewLogistics = () => {
-  // TODO: 跳转到物流轨迹页面
-  alert('查看物流轨迹功能开发中...')
+const viewLogistics = async () => {
+  if (!order.value) return
+
+  // 切换显示状态
+  if (showLogistics.value) {
+    showLogistics.value = false
+    return
+  }
+
+  try {
+    // 获取发货记录ID（从订单数据中获取）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const shipmentId = (order.value as any)?.shipmentId || (order.value as any)?.shipment?.id
+    if (!shipmentId) {
+      alert('暂无物流信息，卖家可能尚未发货')
+      return
+    }
+    console.log('[OrderDetail] 查询物流轨迹, orderId:', order.value.id, 'shipmentId:', shipmentId)
+    const traces = await getShipmentTraces(order.value.id, shipmentId)
+    console.log('[OrderDetail] 物流轨迹数据:', traces)
+
+    if (Array.isArray(traces)) {
+      logisticsTraces.value = traces.map((t) => ({
+        traceTime: t.traceTime || '',
+        traceStatus: t.traceStatus || '',
+        traceDetail: t.traceDetail || '',
+        traceLocation: t.traceLocation || ''
+      }))
+    } else {
+      logisticsTraces.value = []
+    }
+    showLogistics.value = true
+  } catch (error) {
+    console.error('查询物流轨迹失败:', error)
+    alert('查询物流轨迹失败，请重试')
+  }
 }
 
 // 确认收货
@@ -571,6 +616,71 @@ onMounted(() => {
   margin: 8px 0;
   color: #374151;
   font-size: 14px;
+}
+
+/* 物流轨迹 */
+.logistics-traces {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.trace-item {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+  position: relative;
+}
+
+.trace-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 14px;
+  bottom: 0;
+  width: 2px;
+  background: #e5e7eb;
+}
+
+.trace-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #d1d5db;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.trace-dot.active {
+  background: #f97316;
+}
+
+.trace-content {
+  flex: 1;
+}
+
+.trace-status {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.trace-detail {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.trace-meta {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.no-trace {
+  text-align: center;
+  color: #9ca3af;
+  padding: 16px 0;
 }
 
 .btn-edit {

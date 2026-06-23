@@ -42,7 +42,7 @@
         <div class="product-card">
           <h3>商品信息</h3>
           <div v-for="item in order.items" :key="item.id" class="product-item">
-            <img :src="item.productImageUrl || '/placeholder.png'" :alt="item.productTitle" class="product-img" />
+            <img :src="formatProductImage(item.productImageUrl)" :alt="item.productTitle" class="product-img" />
             <div class="product-info">
               <div class="product-title">{{ item.productTitle }}</div>
               <div class="product-meta">
@@ -162,6 +162,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getOrderDetail, createPayment, getPaymentDetail, payOrder } from '@/api/order'
+import { getImageUrl as formatImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'PaymentPage' })
 
@@ -298,6 +299,20 @@ const loadOrderInfo = async () => {
 
     let orderData = (result as Record<string, unknown>)?.data || result
     orderData = convertToCamelCase(orderData)
+
+    // 处理商品图片URL - 使用统一的工具函数处理相对路径
+    if (orderData && typeof orderData === 'object' && Array.isArray((orderData as Record<string, unknown>).items)) {
+      const items = (orderData as Record<string, unknown>).items as Array<Record<string, unknown>>
+      items.forEach((item) => {
+        const imageUrl = item.productImageUrl as string | undefined
+        if (imageUrl) {
+          // 使用 getImageUrl 统一处理，会自动将 product/xxx 转为 /filebucket/product/xxx
+          item.productImageUrl = formatImageUrl(imageUrl)
+          console.log('[Payment] 修正图片URL:', item.productImageUrl)
+        }
+      })
+    }
+
     order.value = orderData as Order
 
     if (order.value.orderStatus !== 'pending_payment') {
@@ -405,6 +420,11 @@ const goBackStep = () => {
 // 返回上一页
 const goBack = () => {
   router.back()
+}
+
+// 格式化商品图片URL
+const formatProductImage = (url: string | undefined) => {
+  return formatImageUrl(url) || PLACEHOLDER_IMG
 }
 
 // 组件挂载时加载数据

@@ -1,4 +1,4 @@
-import type { TradeOrder, OrderProduct } from '@/types'
+import type { TradeOrder } from '@/types'
 
 // ==========================================
 // 1. 所有的接口请求/响应类型定义 (Interfaces)
@@ -22,6 +22,8 @@ export interface ListOrdersParams {
 export interface PageResult<T> {
   list: T[]
   total: number
+  page: number
+  pageSize: number
 }
 
 // 创建订单参数
@@ -34,15 +36,18 @@ export interface CreateOrderRequest {
   items: { productId: number; quantity: number }[]
 }
 
-// 各种操作的请求体 (根据你提供的 JSON 结构)
+// 各种操作的请求体
 export interface CancelOrderRequest { cancelReason: string }
-export interface PayOrderRequest { paymentChannel: string }
-export interface ShippingRequest { logisticsCompany: string; trackingNo: string }
-export interface RejectRequest { rejectReason: string }
-export interface WalletAdjustRequest { userId: number; changeAmount: number; note: string }
-export interface WithdrawalRequest { amount: number; channel: string; channelAccountMask?: string }
+export interface CreatePaymentRequest { paymentChannel: 'alipay' | 'wechat' | 'balance' }
+export interface CreateShipmentRequest {
+  shipmentType: 'shipping' | 'pickup'
+  logisticsCompany?: string  // shipping 场景必填
+  trackingNo?: string        // shipping 场景必填
+  pickupCode?: string        // pickup 场景可选
+}
+export interface PickupVerifyRequest { pickupCode: string }
 
-// 具体的返回数据结构
+// 支付结果
 export interface PaymentResult {
   paymentId: number
   paymentStatus: string
@@ -50,11 +55,15 @@ export interface PaymentResult {
   channelTradeNo: string
 }
 
+// 物流轨迹
 export interface LogisticsTrace {
+  id: number
+  shipmentId: number
   traceTime: string
   traceStatus: string
   traceDetail: string
   traceLocation: string
+  createdAt: string
 }
 
 // ==========================================
@@ -62,7 +71,6 @@ export interface LogisticsTrace {
 // ==========================================
 
 async function handleRequest<T>(url: string, options: RequestInit, errorMsg: string): Promise<T> {
-  // 自动从本地存储获取 Token 并加入 Header
   const token = localStorage.getItem('token')
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -75,7 +83,7 @@ async function handleRequest<T>(url: string, options: RequestInit, errorMsg: str
     ...options,
     headers: { ...headers, ...options.headers },
   })
-    console.log(`请求 ${url} 返回状态码:`, response.status)
+  console.log(`请求 ${url} 返回状态码:`, response.status)
   if (!response.ok) {
     const text = await response.text()
     throw new Error(text || `网络错误：${response.status}`)
@@ -98,10 +106,10 @@ async function handleRequest<T>(url: string, options: RequestInit, errorMsg: str
 }
 
 // ==========================================
-// 3. 核心 API 函数导出 (订单 + 钱包)
+// 3. 核心 API 函数导出 (订单 + 支付 + 物流)
 // ==========================================
 
-/** 1. 创建订单 */
+/** 1. 创建订单 - POST /orders */
 export async function createOrder(data: CreateOrderRequest): Promise<TradeOrder> {
   return handleRequest<TradeOrder>('/api/orders', {
     method: 'POST',
@@ -109,7 +117,7 @@ export async function createOrder(data: CreateOrderRequest): Promise<TradeOrder>
   }, '创建订单失败')
 }
 
-/** 2. 获取订单列表 (支持分页/搜索) */
+/** 2. 获取订单列表 - GET /orders */
 export async function listOrders(params: ListOrdersParams): Promise<PageResult<TradeOrder>> {
   const query = new URLSearchParams()
   if (params.role) query.append('role', params.role)
@@ -122,24 +130,27 @@ export async function listOrders(params: ListOrdersParams): Promise<PageResult<T
   }, '获取列表失败')
 }
 
-/** 3. 订单详情/商品项 */
+/** 3. 订单详情 - GET /orders/{orderId} */
 export async function getOrderDetail(orderId: number): Promise<TradeOrder> {
   return handleRequest<TradeOrder>(`/api/orders/${orderId}`, { method: 'GET' }, '获取详情失败')
 }
 
-export async function getOrderItems(orderId: number): Promise<OrderProduct[]> {
-  return handleRequest<OrderProduct[]>(`/api/orders/${orderId}/items`, { method: 'GET' }, '获取详情失败')
+/** 4. 创建支付单 - POST /orders/{orderId}/payments */
+export async function createPayment(orderId: number, data: CreatePaymentRequest): Promise<number> {
+  return handleRequest<number>(`/api/orders/${orderId}/payments`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }, '创建支付单失败')
 }
 
-/** 4. 支付订单 */
-export async function payOrder(orderId: number, body: PayOrderRequest): Promise<PaymentResult> {
-  return handleRequest<PaymentResult>(`/api/orders/${orderId}/pay`, {
-    method: 'POST',
-    body: JSON.stringify(body)
+/** 5. 发起支付 - POST /payments/{paymentId}/pay */
+export async function payOrder(paymentId: number): Promise<unknown> {
+  return handleRequest<unknown>(`/api/payments/${paymentId}/pay`, {
+    method: 'POST'
   }, '支付失败')
 }
 
-/** 5. 取消订单 */
+/** 6. 取消订单 - POST /orders/{orderId}/cancel */
 export async function cancelOrder(orderId: number, body: CancelOrderRequest): Promise<void> {
   return handleRequest<void>(`/api/orders/${orderId}/cancel`, {
     method: 'POST',
@@ -147,50 +158,37 @@ export async function cancelOrder(orderId: number, body: CancelOrderRequest): Pr
   }, '取消失败')
 }
 
-/** 6. 确认收货 */
+/** 7. 确认收货 - POST /orders/{orderId}/confirm-receipt */
 export async function confirmReceipt(orderId: number): Promise<void> {
   return handleRequest<void>(`/api/orders/${orderId}/confirm-receipt`, { method: 'POST' }, '操作失败')
 }
-/**
 
-/** 7. 卖家发货 (物流) */
-export async function shipOrder(orderId: number, body: ShippingRequest): Promise<void> {
-  return handleRequest<void>(`/api/orders/${orderId}/ship`, {
+/** 8. 创建发货记录 - POST /orders/{orderId}/shipments */
+export async function shipOrder(orderId: number, body: CreateShipmentRequest): Promise<number> {
+  return handleRequest<number>(`/api/orders/${orderId}/shipments`, {
     method: 'POST',
     body: JSON.stringify(body)
   }, '发货失败')
 }
 
-/** 8. 获取物流轨迹 */
-export async function getLogisticsTrace(orderId: number): Promise<LogisticsTrace[]> {
-  return handleRequest<LogisticsTrace[]>(`/api/orders/${orderId}/logistics`, { method: 'GET' }, '获取轨迹失败')
+/** 9. 查询物流轨迹 - GET /orders/{orderId}/shipments/{shipmentId}/traces */
+export async function getLogisticsTrace(orderId: number, shipmentId: number): Promise<LogisticsTrace[]> {
+  return handleRequest<LogisticsTrace[]>(`/api/orders/${orderId}/shipments/${shipmentId}/traces`, {
+    method: 'GET'
+  }, '获取轨迹失败')
 }
 
-/** 9. 获取自提码 */
-export async function getPickupCode(orderId: number): Promise<{ pickupCode: string }> {
-  return handleRequest<{ pickupCode: string }>(`/api/orders/${orderId}/pickup-code`, { method: 'GET' }, '获取提货码失败')
+/** 10. 签收 - POST /orders/{orderId}/shipments/{shipmentId}/sign */
+export async function signShipment(orderId: number, shipmentId: number): Promise<void> {
+  return handleRequest<void>(`/api/orders/${orderId}/shipments/${shipmentId}/sign`, {
+    method: 'POST'
+  }, '签收失败')
 }
 
-/** 10. 钱包余额调整 (后台/特定操作) */
-export async function adjustWallet(body: WalletAdjustRequest): Promise<void> {
-  return handleRequest<void>('/api/user/wallet/adjust', {
+/** 11. 自提核销 - POST /orders/{orderId}/shipments/{shipmentId}/pickup-verify */
+export async function verifyPickup(orderId: number, shipmentId: number, data: PickupVerifyRequest): Promise<void> {
+  return handleRequest<void>(`/api/orders/${orderId}/shipments/${shipmentId}/pickup-verify`, {
     method: 'POST',
-    body: JSON.stringify(body)
-  }, '调整余额失败')
-}
-
-/** 11. 提现申请 */
-export async function requestWithdrawal(body: WithdrawalRequest): Promise<void> {
-  return handleRequest<void>('/api/user/wallet/withdraw', {
-    method: 'POST',
-    body: JSON.stringify(body)
-  }, '提现失败')
-}
-
-/** 12. 拒绝/审核 */
-export async function rejectOrder(orderId: number, body: RejectRequest): Promise<void> {
-  return handleRequest<void>(`/api/orders/${orderId}/reject`, {
-    method: 'POST',
-    body: JSON.stringify(body)
-  }, '拒绝失败')
+    body: JSON.stringify(data)
+  }, '自提核销失败')
 }
