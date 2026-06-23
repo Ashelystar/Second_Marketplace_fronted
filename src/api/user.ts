@@ -123,7 +123,7 @@ export interface UserAddressItem {
   city: string
   district: string
   detailAddress: string
-  isDefault: boolean
+  isDefault: boolean | number
 }
 
 export interface UserAddressPayload {
@@ -690,19 +690,24 @@ export async function getAddressListApi(): Promise<UserAddressItem[]> {
 }
 
 export async function createAddressApi(body: UserAddressPayload): Promise<void> {
+  const authHeader = getAuthHeader()
+  console.log('createAddressApi authHeader:', JSON.stringify(authHeader))
+  console.log('createAddressApi 请求数据:', JSON.stringify(body, null, 2))
   const response = await fetch('/api/user/address', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...getAuthHeader(),
+      ...authHeader,
     },
     body: JSON.stringify(body),
   })
+  console.log('createAddressApi response status:', response.status)
+  const rawText = await response.text()
+  console.log('createAddressApi 原始响应:', rawText)
   if (!response.ok) {
-    const text = await response.text()
-    throw new Error(text || `网络错误：${response.status}`)
+    throw new Error(rawText || `网络错误：${response.status}`)
   }
-  const json = await parseResponse<ApiResponse<null>>(response)
+  const json = JSON.parse(rawText)
   if (json.code !== 200) {
     throw new Error(json.message || '新增地址失败')
   }

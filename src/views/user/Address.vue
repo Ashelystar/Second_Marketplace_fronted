@@ -213,7 +213,7 @@ const loadAddressList = async () => {
       city: item.city,
       district: item.district,
       detail: item.detailAddress,
-      isDefault: item.isDefault
+      isDefault: Boolean(item.isDefault)
     }))
   } catch (error) {
     console.error('加载地址列表失败:', error)

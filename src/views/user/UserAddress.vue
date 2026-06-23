@@ -27,7 +27,7 @@
                 <label>收货人姓名</label>
                 <input
                   type="text"
-                  v-model="currentAddress.receiverName"
+                  v-model="currentAddress.receiver_name"
                   placeholder="请输入收货人姓名"
                   required
                 >
@@ -37,7 +37,7 @@
                 <label>手机号码</label>
                 <input
                   type="tel"
-                  v-model="currentAddress.receiverPhone"
+                  v-model="currentAddress.receiver_phone"
                   placeholder="请输入11位手机号码"
                   pattern="\d{11}"
                   maxlength="11"
@@ -82,7 +82,7 @@
               <div class="formGroup">
                 <label>详细地址</label>
                 <textarea
-                  v-model="currentAddress.detailAddress"
+                  v-model="currentAddress.detail_address"
                   placeholder="请输入详细地址，如街道、小区、楼栋、房间号等"
                   rows="3"
                   required
@@ -93,7 +93,7 @@
                 <label>
                   <input
                     type="checkbox"
-                    v-model="currentAddress.isDefault"
+                    v-model="currentAddress.is_default"
                   >
                   <span class="checkboxText">设为默认地址</span>
                 </label>
@@ -122,21 +122,21 @@
           class="addressItem"
           v-for="addr in addressList"
           :key="addr.id"
-          :class="{ isDefault: addr.isDefault }"
+          :class="{ isDefault: addr.is_default }"
         >
           <div class="addressMark">
             <i class="fa fa-map-pin"></i>
           </div>
           <div class="addressContent">
             <div class="addressTop">
-              <span class="receiver">{{ addr.receiverName }}</span>
-              <span class="phone">{{ formatPhone(addr.receiverPhone) }}</span>
-              <span class="defaultTag" v-if="addr.isDefault">默认地址</span>
+              <span class="receiver">{{ addr.receiver_name }}</span>
+              <span class="phone">{{ formatPhone(addr.receiver_phone) }}</span>
+              <span class="defaultTag" v-if="addr.is_default">默认地址</span>
             </div>
-            <div class="addressDetail">{{ addr.province }}{{ addr.city }}{{ addr.district }}{{ addr.detailAddress }}</div>
+            <div class="addressDetail">{{ addr.province }}{{ addr.city }}{{ addr.district }}{{ addr.detail_address }}</div>
           </div>
           <div class="actions">
-            <button class="actionBtn setDefault" @click="setDefault(addr.id)" v-if="!addr.isDefault" title="设为默认">
+            <button class="actionBtn setDefault" @click="setDefault(addr.id)" v-if="!addr.is_default" title="设为默认">
               <i class="fa fa-star-o"></i>
               <span>默认</span>
             </button>
@@ -180,13 +180,13 @@ const addressList = ref<Address[]>([])
 // 定义地址接口
 interface Address {
   id: number
-  receiverName: string
-  receiverPhone: string
+  receiver_name: string
+  receiver_phone: string
   province: string
   city: string
   district: string
-  detailAddress: string
-  isDefault: boolean
+  detail_address: string
+  is_default: boolean | number
 }
 
 // API响应接口
@@ -198,13 +198,13 @@ interface ApiResponse {
 
 // 当前正在编辑/新增的地址
 const currentAddress = reactive({
-  receiverName: '',
-  receiverPhone: '',
+  receiver_name: '',
+  receiver_phone: '',
   province: '',
   city: '',
   district: '',
-  detailAddress: '',
-  isDefault: false
+  detail_address: '',
+  is_default: false
 })
 
 // 手机号脱敏处理
@@ -248,42 +248,42 @@ const openAddModal = () => {
 const openEditModal = (address: Address) => {
   isEditing.value = true
   editingId.value = address.id
-  
+
   // 用选中的地址信息填充表单
   Object.assign(currentAddress, {
-    receiverName: address.receiverName,
-    receiverPhone: address.receiverPhone,
+    receiver_name: address.receiver_name,
+    receiver_phone: address.receiver_phone, // API返回的是完整号码,直接使用
     province: address.province,
     city: address.city,
     district: address.district,
-    detailAddress: address.detailAddress,
-    isDefault: address.isDefault
+    detail_address: address.detail_address,
+    is_default: Boolean(address.is_default)
   })
-  
+
   showModal.value = true
 }
 
 // 重置当前地址表单
 const resetCurrentAddress = () => {
   Object.assign(currentAddress, {
-    receiverName: '',
-    receiverPhone: '',
+    receiver_name: '',
+    receiver_phone: '',
     province: '',
     city: '',
     district: '',
-    detailAddress: '',
-    isDefault: false
+    detail_address: '',
+    is_default: false
   })
 }
 
-// 保存地址（新增或编辑）
+// 保存地址(新增或编辑)
 const saveAddress = async () => {
   // 表单验证
-  if (!currentAddress.receiverName.trim()) {
+  if (!currentAddress.receiver_name.trim()) {
     alert('请输入收货人姓名')
     return
   }
-  if (!/^\d{11}$/.test(currentAddress.receiverPhone)) {
+  if (!/^\d{11}$/.test(currentAddress.receiver_phone)) {
     alert('请输入正确的11位手机号码')
     return
   }
@@ -291,18 +291,33 @@ const saveAddress = async () => {
     alert('请完善省市区信息')
     return
   }
-  if (!currentAddress.detailAddress.trim()) {
+  if (!currentAddress.detail_address.trim()) {
     alert('请输入详细地址')
     return
   }
 
   saving.value = true
   try {
+    // 使用 camelCase 字段名(适配后端)
+    const payload = {
+      receiverName: currentAddress.receiver_name,
+      receiverPhone: currentAddress.receiver_phone,
+      province: currentAddress.province,
+      city: currentAddress.city,
+      district: currentAddress.district,
+      detailAddress: currentAddress.detail_address,
+      isDefault: currentAddress.is_default
+    }
+
+    // 打印提交的数据用于调试
+    console.log('提交的地址数据(camelCase格式):', JSON.stringify(payload, null, 2))
+
     let response
-    
+
     if (isEditing.value && editingId.value) {
       // 编辑地址 - 使用PUT请求
-      response = await axios.put(`/api/user/address/${editingId.value}`, currentAddress, {
+      console.log('更新地址, ID:', editingId.value)
+      response = await axios.put(`/api/user/address/${editingId.value}`, payload, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -310,7 +325,8 @@ const saveAddress = async () => {
       })
     } else {
       // 新增地址 - 使用POST请求
-      response = await axios.post('/api/user/address', currentAddress, {
+      console.log('新增地址')
+      response = await axios.post('/api/user/address', payload, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -329,7 +345,16 @@ const saveAddress = async () => {
     }
   } catch (error) {
     console.error('保存地址失败:', error)
-    alert('网络错误，请稍后重试')
+    // 打印详细错误信息
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = error as any
+    if (err.response) {
+      console.error('错误响应状态:', err.response.status)
+      console.error('错误响应数据:', err.response.data)
+      alert(`网络错误(${err.response.status}): ${err.response.data?.message || '请稍后重试'}`)
+    } else {
+      alert('网络错误,请稍后重试')
+    }
   } finally {
     saving.value = false
   }

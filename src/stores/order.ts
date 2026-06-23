@@ -4,11 +4,14 @@ import type { TradeOrder } from '@/types'
 import {
   listOrders,
   getOrderDetail,
-  getOrderItems,
   cancelOrder as apiCancelOrder,
-  confirmReceipt as apiConfirmReceipt, // 对应上一步中定义的确认收货方法
-  payOrder as apiPayOrder
+  confirmReceipt as apiConfirmReceipt,
+  createPayment as apiCreatePayment
 } from '@/api/trade'
+import {
+  payOrder as apiExecutePayment,
+  remindShip as apiRemindShip
+} from '@/api/order'
 
 export const useOrderStore = defineStore('order', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,7 +51,12 @@ export const useOrderStore = defineStore('order', () => {
     loading.value = true
     try {
       currentOrder.value = await getOrderDetail(orderId)
-      items.value = await getOrderItems(orderId)
+      // 后端订单详情已包含 items 数组，无需单独请求
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detail = currentOrder.value as any
+      if (detail && detail.items) {
+        items.value = detail.items
+      }
     } catch (error) {
       console.error('加载订单详情失败:', error)
     } finally {
@@ -100,10 +108,14 @@ export const useOrderStore = defineStore('order', () => {
   async function initiatePayment(orderId: number, paymentChannel: 'alipay' | 'wechat' | 'balance') {
     loading.value = true
     try {
-      const result = await apiPayOrder(orderId, { paymentChannel })
+      // 1. 先创建支付单，获取 paymentId
+      const paymentId = await apiCreatePayment(orderId, { paymentChannel })
+      console.log('支付单创建成功, paymentId:', paymentId)
+      // 2. 发起支付
+      const result = await apiExecutePayment(paymentId)
       return result
     } catch (error) {
-      console.error('创建支付单失败:', error)
+      console.error('支付失败:', error)
       throw error
     } finally {
       loading.value = false
@@ -111,13 +123,32 @@ export const useOrderStore = defineStore('order', () => {
   }
 
   async function executePayment(paymentId: number) {
-    console.log('执行支付:', paymentId)
-    return true
+    loading.value = true
+    try {
+      console.log('执行支付, paymentId:', paymentId)
+      const result = await apiExecutePayment(paymentId)
+      console.log('支付执行结果:', result)
+      return result
+    } catch (error) {
+      console.error('执行支付失败:', error)
+      throw error
+    } finally {
+      loading.value = false
+    }
   }
 
   async function remindShip(orderId: number) {
-    console.log('提醒发货:', orderId)
-    return true
+    loading.value = true
+    try {
+      console.log('提醒发货, orderId:', orderId)
+      await apiRemindShip(orderId)
+      console.log('提醒发货成功')
+    } catch (error) {
+      console.error('提醒发货失败:', error)
+      throw error
+    } finally {
+      loading.value = false
+    }
   }
 
   // 获取订单分类标签数量

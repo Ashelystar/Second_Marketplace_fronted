@@ -363,7 +363,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useOrderStore } from '@/stores/order'
 import { getImageUrl } from '@/utils/image'
-import { createShipment } from '@/api/order'
+import { createShipment, getShipmentTraces } from '@/api/order'
 import { listOrders } from '@/api/trade'
 
 defineOptions({ name: 'UserOrders' })
@@ -478,9 +478,29 @@ const remindShip = async (order: any) => {
   }
 }
 
-const checkLogistics = (order: any) => {
-  const deliveryMode = order.tradeMode === 'shipping' ? '快递配送' : '线下自提'
-  alert(`【物流干线追踪】\n订单单号: ${order.orderNo}\n运单单号: ${order.shippingNo || '无需物流/暂未分配'}\n履约方式: ${deliveryMode}`)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const checkLogistics = async (order: any) => {
+  // 获取 shipmentId
+  const shipmentId = order.shipmentId || order.shipment?.id
+  if (!shipmentId) {
+    alert('暂无物流信息，卖家可能尚未发货')
+    return
+  }
+
+  try {
+    const traces = await getShipmentTraces(order.id, shipmentId)
+    console.log('[Orders] 物流轨迹:', traces)
+
+    if (Array.isArray(traces) && traces.length > 0) {
+      const latestTrace = traces[0]
+      alert(`【物流信息】\n订单号: ${order.orderNo}\n运单号: ${latestTrace.traceLocation || '无'}\n最新状态: ${latestTrace.traceStatus}\n详细信息: ${latestTrace.traceDetail}\n更新时间: ${latestTrace.traceTime}`)
+    } else {
+      alert('暂无物流轨迹信息')
+    }
+  } catch (error) {
+    console.error('[Orders] 查询物流失败:', error)
+    alert('查询物流信息失败')
+  }
 }
 
 const confirmReceipt = async (order: any) => {
@@ -503,6 +523,7 @@ const viewOrderDetail = (order: any) => {
   router.push({ path: `/order/detail/${order.id}` })
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const viewRefundDetail = (order: any) => {
   alert(`【售后退款信息】\n订单单号: ${order.orderNo}\n原路退回金额: ¥${(order.payAmount || 0).toFixed(2)}\n退款进度: 商家处理中`)
 }
