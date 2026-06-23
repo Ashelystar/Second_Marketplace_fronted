@@ -22,7 +22,7 @@
           :key="tab.id"
           class="filterTab"
           :class="{ active: orderTab === tab.id }"
-          @click="orderTab = tab.id"
+          @click="orderTab = tab.id; currentPage = 1"
         >
           {{ tab.name }}
           <span class="count" v-if="getTabCount(tab.id) > 0">{{ getTabCount(tab.id) }}</span>
@@ -45,7 +45,7 @@
 
         <div 
           v-else 
-          v-for="order in filteredOrders" 
+          v-for="order in pagedOrders" 
           :key="order.id" 
           class="orderCard"
         >
@@ -122,6 +122,17 @@
         </div>
       </template>
     </div>
+
+    <!-- 本地分页 -->
+    <div v-if="totalPages > 1" class="pagination">
+      <button class="page-btn" :disabled="currentPage <= 1" @click="currentPage--">
+        <i class="fa fa-chevron-left"></i> 上一页
+      </button>
+      <span class="page-info">第 {{ currentPage }} / {{ totalPages }} 页（共 {{ filteredOrders.length }} 条）</span>
+      <button class="page-btn" :disabled="currentPage >= totalPages" @click="currentPage++">
+        下一页 <i class="fa fa-chevron-right"></i>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -137,6 +148,8 @@ defineOptions({ name: 'UserOrders' })
 const router = useRouter()
 const orderStore = useOrderStore()
 const orderTab = ref('all')
+const currentPage = ref(1)
+const PAGE_SIZE = 5
 
 const orderTabs = [
   { id: 'all', name: '全部' },
@@ -147,7 +160,7 @@ const orderTabs = [
   { id: 'completed', name: '待评价' }
 ]
 
-// 核心修复：1. 统一改为前端安全计算，2. 并在“待收货”中兼容处理后端的 "delivered" 状态
+// 核心修复：1. 统一改为前端安全计算，2. 并在"待收货"中兼容处理后端的 "delivered" 状态
 const filteredOrders = computed(() => {
   const allList = orderStore.orders || []
   switch (orderTab.value) {
@@ -165,6 +178,16 @@ const filteredOrders = computed(() => {
     default:
       return allList
   }
+})
+
+// 本地分页：从过滤结果中切片，每页 PAGE_SIZE 条
+const pagedOrders = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return filteredOrders.value.slice(start, start + PAGE_SIZE)
+})
+
+const totalPages = computed(() => {
+  return Math.max(1, Math.ceil(filteredOrders.value.length / PAGE_SIZE))
 })
 
 // 动态获取各Tab徽章数量
@@ -200,7 +223,7 @@ const getOrderTotalQuantity = (order: any) => {
 /* --- 交互行为层（已彻底对齐驼峰字段命名） --- */
 
 const payOrder = async (order: any) => {
-  router.push({ path: '/payment', query: { orderId: order.id.toString() } })
+  router.push(`/order/payment/${order.id}`)
 }
 
 const cancelOrder = async (order: any) => {
@@ -244,7 +267,7 @@ const confirmReceipt = async (order: any) => {
 }
 
 const reviewOrder = (order: any) => {
-  alert(`正在前往评价系统，订单号: ${order.orderNo}`)
+  router.push(`/order/review/${order.id}`)
 }
 
 const viewOrderDetail = (order: any) => {
@@ -650,5 +673,47 @@ onMounted(async () => {
     flex-direction: column;
     align-items: flex-end;
   }
+}
+
+/* 分页 */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 20px 0;
+  margin-top: 8px;
+}
+
+.page-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: #f97316;
+  color: #f97316;
+  background: #fff7ed;
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
 }
 </style>

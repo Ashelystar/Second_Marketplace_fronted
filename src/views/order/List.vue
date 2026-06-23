@@ -27,7 +27,7 @@
     <div v-else-if="orders.length === 0" class="empty-state">
       <i class="fa fa-shopping-bag"></i>
       <p>暂无订单</p>
-      <router-link to="/home" class="btn-primary">去逛逛</router-link>
+      <router-link to="/" class="btn-primary">去逛逛</router-link>
     </div>
 
     <!-- 订单列表 -->

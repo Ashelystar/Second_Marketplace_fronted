@@ -27,7 +27,7 @@
         </div>
 
         <nav class="navLinks">
-          <a href="#" @click.prevent="goToCart"><i class="fa fa-shopping-cart"></i> 购物车</a>
+          <a href="#" @click.prevent="goToFavorites"><i class="fa fa-heart"></i> 收藏</a>
           <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
             <UserDropdown />
@@ -686,8 +686,8 @@ const goToCheckout = () => {
   router.push({ path: '/checkout', query: { productId: String(productId) } })
 }
 
-const goToCart = () => {
-  router.push('/cart')
+const goToFavorites = () => {
+  router.push('/user/favorites')
 }
 const goToChat = async () => {
   if (!ensureLoggedIn('和卖家聊天')) return

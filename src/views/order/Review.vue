@@ -211,7 +211,7 @@ const submitReview = async () => {
         orderItemId: item.id,
         rating: form.rating,
         content: form.content || undefined,
-        isAnonymous: form.isAnonymous
+        isAnonymous: form.isAnonymous ? 1 : 0
       })
     }
 

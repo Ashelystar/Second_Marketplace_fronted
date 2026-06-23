@@ -115,10 +115,6 @@
         <span class="totalPrice">¥{{ totalPrice }}</span>
       </div>
       <div class="buttonGroup">
-        <button class="cartBtn" @click="addToCart" v-if="!fromCart">
-          <i class="fa fa-cart-plus"></i>
-          加入购物车
-        </button>
         <button class="submitBtn" @click="submitOrder" :disabled="!selectedAddress">
           提交订单
         </button>
@@ -203,7 +199,6 @@ interface CartProduct {
 const products = ref<CartProduct[]>([])
 const remark = ref('')
 const showAddressPicker = ref(false)
-const fromCart = ref(false)
 const loading = ref(false) // 添加loading状态
 
 const selectedAddress = ref<Address | null>(null)
@@ -392,33 +387,6 @@ const submitOrder = async () => {
   }
 }
 
-const addToCart = () => {
-  if (products.value.length === 0) {
-    alert('商品信息异常')
-    return
-  }
-
-  const product = products.value[0]
-
-  // 导入购物车工具函数
-  import('@/utils/cart').then(({ addToCart: addItemToCart }) => {
-    addItemToCart({
-      id: product.id,
-      title: product.title,
-      price: product.price,
-      image: product.image,
-      condition: '未知'
-    })
-
-    alert('已加入购物车')
-    // 返回上一页（商品详情页）
-    router.back()
-  }).catch(err => {
-    console.error('加入购物车失败:', err)
-    alert('操作失败，请重试')
-  })
-}
-
 const goToAddAddress = () => {
   // 跳转到新建地址页面，带上返回参数
   router.push('/address/edit?from=checkout')
@@ -470,88 +438,6 @@ const loadProduct = async (productId: number) => {
   }
 }
 
-// 从购物车加载商品信息
-const loadCartProducts = async (productIds: number[]) => {
-  try {
-    console.log('[Checkout] 开始从购物车加载商品, productIds:', productIds)
-
-    // 导入购物车工具函数
-    const { getCartItems } = await import('@/utils/cart')
-    const cartItems = getCartItems()
-
-    // 根据productIds过滤出选中的商品
-    const selectedCartItems = cartItems.filter(item => productIds.includes(item.id))
-
-    if (selectedCartItems.length === 0) {
-      alert('未找到选中的商品信息，请返回后重试')
-      router.back()
-      return
-    }
-
-    console.log('[Checkout] 找到的选中商品:', selectedCartItems)
-
-    // 并行请求所有商品的详细信息
-    const productDetailsPromises = selectedCartItems.map(async (cartItem) => {
-      try {
-        const productData = await getProductDetail(cartItem.id)
-        console.log(`[Checkout] 商品${cartItem.id}详情:`, productData)
-
-        // 处理图片：优先使用 image 字段，否则从 images 数组中提取第一张
-        let imageUrl = productData.image || ''
-        if (!imageUrl && Array.isArray(productData.images) && productData.images.length > 0) {
-          const firstImage = productData.images[0]
-          if (typeof firstImage === 'string') {
-            imageUrl = firstImage
-          } else if (firstImage && typeof firstImage === 'object') {
-            const imgObj = firstImage as Record<string, unknown>
-            imageUrl = (imgObj.imageUrl as string) || (imgObj.url as string) || ''
-          }
-        }
-
-        // 处理价格：API 返回 sellingPrice(number) 或 price(string)
-        const priceValue = productData.sellingPrice ?? Number(productData.price) ?? parseFloat(cartItem.price)
-
-        return {
-          id: productData.id,
-          title: productData.title,
-          description: productData.description || '',
-          price: priceValue,
-          image: imageUrl || PLACEHOLDER_IMG,
-          quantity: cartItem.quantity, // 使用购物车中的数量
-          sellerId: productData.sellerId, // 使用真实的sellerId
-          tradeMode: productData.tradeMode || 'shipping',
-          freightAmount: productData.freight || 0,
-          pickupLocation: productData.pickupAddress || ''
-        }
-      } catch (error) {
-        console.error(`[Checkout] 获取商品${cartItem.id}详情失败:`, error)
-        // 如果获取失败，使用购物车中的数据作为降级方案
-        return {
-          id: cartItem.id,
-          title: cartItem.title,
-          description: '',
-          price: parseFloat(cartItem.price),
-          image: cartItem.image || PLACEHOLDER_IMG,
-          quantity: cartItem.quantity,
-          sellerId: 0,
-          tradeMode: 'shipping',
-          freightAmount: 0,
-          pickupLocation: ''
-        }
-      }
-    })
-
-    // 等待所有商品详情加载完成
-    products.value = await Promise.all(productDetailsPromises)
-
-    console.log('[Checkout] 购物车商品信息加载成功:', products.value)
-  } catch (error) {
-    console.error('加载购物车商品失败:', error)
-    alert('商品信息加载失败，请返回重试')
-    router.back()
-  }
-}
-
 onMounted(() => {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
@@ -574,33 +460,15 @@ onMounted(() => {
     localStorage.removeItem('selectedAddress')
   }
 
-  // 检查是否来自购物车
-  const productIdsStr = route.query.productIds as string
-  fromCart.value = route.query.fromCart === 'true'
-
-  if (productIdsStr) {
-    // 从购物车来的情况，传递了多个商品ID（逗号分隔）
-    const productIds = productIdsStr.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id))
-
-    if (productIds.length === 0) {
-      alert('商品信息异常，请返回后重试')
-      router.back()
-      return
-    }
-
-    // 加载购物车中的商品信息
-    loadCartProducts(productIds)
-  } else {
-    // 单独购买的情况 - 从商品详情页跳转过来
-    const productId = route.query.productId ? Number(route.query.productId) : null
-    if (!productId) {
-      alert('商品信息异常，请返回后重试')
-      router.back()
-      return
-    }
-    // 加载真实商品信息
-    loadProduct(productId)
+  // 从商品详情页跳转过来的单独购买
+  const productId = route.query.productId ? Number(route.query.productId) : null
+  if (!productId) {
+    alert('商品信息异常，请返回后重试')
+    router.back()
+    return
   }
+  // 加载真实商品信息
+  loadProduct(productId)
 
   // 设置默认地址
   const defaultAddr = addressList.value.find(a => a.isDefault)
@@ -982,26 +850,6 @@ onMounted(() => {
 .buttonGroup {
   display: flex;
   gap: 10px;
-}
-
-.cartBtn {
-  height: 44px;
-  padding: 0 18px;
-  background: #fff;
-  color: #f97316;
-  border: 1px solid #f97316;
-  border-radius: 22px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 200ms;
-}
-
-.cartBtn:hover {
-  background: #fef3e6;
 }
 
 .totalInfo {

@@ -4,7 +4,6 @@ import { ElMessage } from 'element-plus'
 import Home from '../views/home/Index.vue'
 import Detail from '../views/goods/Detail.vue'
 import SearchPage from '../views/goods/SearchPage.vue'
-import GoodsList from '../views/goods/List.vue'
 import ChatList from '../views/chat/Index.vue'
 import OrderList from '../views/order/List.vue'
 import UserLogin from '../views/user/Login.vue'
@@ -25,11 +24,6 @@ const router = createRouter({
       component: Home,
     },
     // 商品模块路由
-    {
-      path: '/goods',
-      name: 'goods-list',
-      component: GoodsList,
-    },
     {
       path: '/search',
       name: 'search',
@@ -79,13 +73,6 @@ const router = createRouter({
       component: () => import('../views/order/Checkout.vue'),
       meta: { requiresAuth: true },
     },
-    // 购物车模块路由
-    {
-      path: '/cart',
-      name: 'cart',
-      component: () => import('../views/cart/Index.vue'),
-    },
-
     // 订单模块路由
     {
       path: '/order',
@@ -104,11 +91,6 @@ const router = createRouter({
       component: () => import('../views/order/Review.vue'),
       props: true,
       meta: { requiresAuth: true },
-    },
-    {
-      path: '/order/confirm',
-      name: 'order-confirm',
-      component: () => import('../views/order/Confirm.vue'),
     },
     {
       path: '/order/payment/:id',
@@ -130,13 +112,6 @@ const router = createRouter({
       name: 'chat',
       component: ChatList,
     },
-    {
-      path: '/chat/room/:id',
-      name: 'chat-room',
-      component: () => import('../views/chat/Room.vue'),
-      props: true,
-    },
-
     // 用户模块路由
     {
       path: '/user/login',

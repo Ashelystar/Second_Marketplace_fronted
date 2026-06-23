@@ -35,9 +35,9 @@
 
       <!-- 右侧导航链接 -->
       <nav class="navLinks">
-        <a href="#" @click.prevent="goToCart">
-          <i class="fa fa-shopping-cart"></i>
-          购物车
+        <a href="#" @click.prevent="goToFavorites">
+          <i class="fa fa-heart"></i>
+          收藏
         </a>
         <a href="#" class="message-link" @click.prevent="goToMessage">
           <i class="fa fa-bell"></i>
@@ -159,10 +159,10 @@ const goToHome = () => {
   router.push('/')
 }
 /**
- * 导航到购物车页面
+ * 导航到收藏页面
  */
-const goToCart = () => {
-  router.push('/cart')
+const goToFavorites = () => {
+  router.push('/user/favorites')
 }
 
 /**

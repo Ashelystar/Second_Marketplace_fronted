@@ -62,7 +62,6 @@ const menuItems = [
   { icon: 'fa fa-home', label: '个人中心', path: '/user/center' },
   { icon: 'fa fa-plus-circle', label: '我要发布', path: '/publish' },
   { icon: 'fa fa-heart-o', label: '我的收藏', path: '/user/favorites', separator: true },
-  { icon: 'fa fa-shopping-cart', label: '购物车', path: '/cart' },
   { icon: 'fa fa-bell', label: '消息通知', path: '/chat' },
 ]
 

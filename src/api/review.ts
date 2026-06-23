@@ -44,7 +44,7 @@ export interface CreateReviewRequest {
   orderItemId: number
   rating: number
   content?: string
-  isAnonymous?: boolean
+  isAnonymous?: number  // 0: 实名, 1: 匿名
 }
 
 /** 上传评价图片请求 */
