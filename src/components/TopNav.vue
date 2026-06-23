@@ -72,6 +72,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore } from '@/stores/chatStore'
+import { useNoticeStore } from '@/stores/noticeStore'
 import UserDropdown from '@/components/UserDropdown.vue'
 import { useAgentStore } from '@/stores/agentStore'
 const agentStore = useAgentStore()
@@ -120,6 +121,7 @@ const goToAgent = () => {
 const router = useRouter()
 const userStore = useUserStore()
 const chatStore = useChatStore()
+const noticeStore = useNoticeStore()
 
 // 搜索输入框的响应式数据
 const searchInput = ref('')
@@ -130,7 +132,9 @@ const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 const unreadCount = computed(() => {
   const uid = Number(userStore.userInfo?.id || 0)
   if (!uid) return 0
-  return chatStore.getUnreadCountForUser(uid)
+  const chatUnread = chatStore.getUnreadCountForUser(uid)
+  const noticeUnread = noticeStore.unreadCount
+  return chatUnread + noticeUnread
 })
 
 const unreadDisplay = computed(() => (unreadCount.value > 99 ? '99+' : String(unreadCount.value)))
@@ -181,6 +185,7 @@ const goToLogin = () => {
 
 onMounted(() => {
   chatStore.initialize()
+  noticeStore.refresh()
 })
 </script>
 

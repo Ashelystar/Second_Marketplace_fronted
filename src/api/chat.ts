@@ -358,8 +358,14 @@ export interface GetNoticeListParams {
  * 与聊天消息不同：通知是平台统一推送的（系统公告、规则更新等），单向接收，不涉及会话
  */
 export async function getNoticeList(params: GetNoticeListParams = {}): Promise<NoticeVO[]> {
-  const { readStatus = 'all', pageNum = 1, pageSize = 10 } = params
-  const query = new URLSearchParams({ readStatus, pageNum: String(pageNum), pageSize: String(pageSize) })
+  const { readStatus, pageNum = 1, pageSize = 10 } = params
+  const query = new URLSearchParams()
+  query.append('pageNum', String(pageNum))
+  query.append('pageSize', String(pageSize))
+  // 只有明确传入 unread/read 才添加筛选，不传表示查询全部
+  if (readStatus && readStatus !== 'all') {
+    query.append('readStatus', readStatus)
+  }
   return handleRequest<NoticeVO[]>(`/api/notice/list?${query.toString()}`, { method: 'GET' }, '获取通知列表失败')
 }
 

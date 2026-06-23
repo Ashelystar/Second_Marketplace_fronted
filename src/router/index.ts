@@ -222,6 +222,16 @@ const router = createRouter({
           name: 'admin-logs',
           component: () => import('../components/admin/Log.vue'),
         },
+        {
+          path: 'notifications',
+          name: 'admin-notifications',
+          component: () => import('../components/admin/Notifications.vue'),
+        },
+        {
+          path: 'agent',
+          name: 'admin-agent',
+          component: () => import('../components/admin/Agent.vue'),
+        },
       ],
     },
 

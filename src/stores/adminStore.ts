@@ -1,5 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import {
+  publishNoticeApi,
+  getNoticeListApi,
+  revokeNoticeApi,
+  getNoticeDetailApi,
+  type SystemNoticeVO,
+  type PublishNoticeDTO,
+  type NoticeQueryDTO,
+  type PublishStatus
+} from '@/api/notification'
 
 // 用户管理相关类型
 export interface AdminUser {
@@ -196,6 +206,16 @@ export const useAdminStore = defineStore('admin', () => {
   const selectedLog = ref<any>(null)
   const logDetailVisible = ref(false)
   const logDetailLoading = ref(false)
+
+  // 系统通知管理
+  const notifications = ref<SystemNoticeVO[]>([])
+  const notificationLoading = ref(false)
+  const currentNotificationPage = ref(1)
+  const notificationPageSize = ref(10)
+  const totalNotifications = ref(0)
+  const selectedNotification = ref<SystemNoticeVO | null>(null)
+  const notificationDetailVisible = ref(false)
+  const notificationDetailLoading = ref(false)
 
 
   // 模拟数据
@@ -1027,6 +1047,76 @@ const loadLogDetail = async (logId: number) => {
   }
 }
 
+  // 加载通知列表
+  const loadNotifications = async (params?: NoticeQueryDTO) => {
+    try {
+      notificationLoading.value = true
+      const queryParams = {
+        pageNum: params?.pageNum || currentNotificationPage.value,
+        pageSize: params?.pageSize || notificationPageSize.value,
+        noticeType: params?.noticeType || undefined,
+        publishStatus: params?.publishStatus || undefined
+      }
+      console.log('[adminStore] loadNotifications 请求参数:', queryParams)
+      const data = await getNoticeListApi(queryParams)
+      console.log('[adminStore] loadNotifications 返回数据:', data)
+      notifications.value = data || []
+      totalNotifications.value = data?.length || 0
+      if (params?.pageNum) currentNotificationPage.value = params.pageNum
+    } catch (error) {
+      console.error('加载通知列表失败:', error)
+      notifications.value = []
+      totalNotifications.value = 0
+      throw error
+    } finally {
+      notificationLoading.value = false
+    }
+  }
+
+  // 发布通知
+  const publishNotice = async (params: PublishNoticeDTO) => {
+    try {
+      await publishNoticeApi(params)
+      await loadNotifications()
+      return true
+    } catch (error) {
+      console.error('发布通知失败:', error)
+      return false
+    }
+  }
+
+  // 撤回通知
+  const revokeNotice = async (noticeId: number) => {
+    try {
+      await revokeNoticeApi(noticeId)
+      // 更新本地数据
+      const notice = notifications.value.find(n => n.id === noticeId)
+      if (notice) {
+        notice.publishStatus = 'revoked' as PublishStatus
+      }
+      return true
+    } catch (error) {
+      console.error('撤回通知失败:', error)
+      return false
+    }
+  }
+
+  // 加载通知详情
+  const loadNotificationDetail = async (noticeId: number) => {
+    try {
+      notificationDetailLoading.value = true
+      selectedNotification.value = null
+      const data = await getNoticeDetailApi(noticeId)
+      selectedNotification.value = data
+      return data
+    } catch (error) {
+      console.error('加载通知详情失败:', error)
+      throw error
+    } finally {
+      notificationDetailLoading.value = false
+    }
+  }
+
   return {
     // 用户管理
     users,
@@ -1067,6 +1157,16 @@ const loadLogDetail = async (logId: number) => {
     logDetailVisible,
     logDetailLoading,
 
+    // 系统通知管理
+    notifications,
+    notificationLoading,
+    currentNotificationPage,
+    notificationPageSize,
+    totalNotifications,
+    selectedNotification,
+    notificationDetailVisible,
+    notificationDetailLoading,
+
     // 方法
     loadMockData,
     banUser,
@@ -1080,6 +1180,10 @@ const loadLogDetail = async (logId: number) => {
     resolveDispute,
     addDisputeAction,
     loadAdminLogs,
-    loadLogDetail
+    loadLogDetail,
+    loadNotifications,
+    publishNotice,
+    revokeNotice,
+    loadNotificationDetail
   }
 })
