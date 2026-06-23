@@ -34,7 +34,7 @@ export const useOrderStore = defineStore('order', () => {
   async function loadOrders(status?: string) {
     loading.value = true
     try {
-      const result = await listOrders({ role: 'buyer', status, page: 1, pageSize: 5 })
+      const result = await listOrders({ role: 'buyer', status, page: 1, pageSize: 100 })
       console.log('订单列表加载结果:', result)
       orders.value = result.list || []
     } catch (error) {
