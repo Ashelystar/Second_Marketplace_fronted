@@ -64,10 +64,10 @@
               @click="viewOrderDetail(order)"
               title="点击查看订单详情"
             >
-              <img 
-                :src="getImageUrl(item.productImageUrl)" 
-                :alt="item.productTitle" 
-                class="product-img" 
+              <img
+                :src="getImageUrl(item.productImageUrl)"
+                :alt="item.productTitle"
+                class="product-img"
                 @error="handleImageError"
               />
               <div class="product-info-col">
@@ -85,10 +85,10 @@
 
           <div class="card-footer">
             <div class="total-price-summary">
-              共 <strong>{{ getOrderTotalQuantity(order) }}</strong> 件商品，实付款: 
+              共 <strong>{{ getOrderTotalQuantity(order) }}</strong> 件商品，实付款:
               <span class="money-accent">¥{{ (order.payAmount || order.totalAmount || 0).toFixed(2) }}</span>
             </div>
-            
+
             <div class="order-actions-group">
               <template v-if="order.orderStatus === 'pending'">
                 <button class="action-btn secondary" @click.stop="cancelOrder(order)">取消订单</button>
@@ -165,7 +165,7 @@ const filteredOrders = computed(() => {
   const allList = orderStore.orders || []
   switch (orderTab.value) {
     case 'pending':
-      return allList.filter(o => o.orderStatus === 'pending')
+      return allList.filter(o => o.orderStatus === 'pending' || o.orderStatus === 'pending_payment')
     case 'paid':
       return allList.filter(o => o.orderStatus === 'paid')
     case 'shipped':
@@ -194,6 +194,7 @@ const totalPages = computed(() => {
 const getTabCount = (tabId: string) => {
   const allList = orderStore.orders || []
   if (tabId === 'all') return allList.length
+  if (tabId === 'pending') return allList.filter(o => o.orderStatus === 'pending' || o.orderStatus === 'pending_payment').length
   if (tabId === 'shipped') return allList.filter(o => o.orderStatus === 'shipped' || o.orderStatus === 'delivered').length
   return allList.filter(o => o.orderStatus === tabId).length
 }

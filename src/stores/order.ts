@@ -11,8 +11,10 @@ import {
 } from '@/api/trade'
 
 export const useOrderStore = defineStore('order', () => {
-  const orders = ref<TradeOrder[]>([])
-  const currentOrder = ref<TradeOrder | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orders = ref<any[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const currentOrder = ref<any | null>(null)
   const items = ref<any[]>([])
   const loading = ref(false)
   const stats = ref({
@@ -22,7 +24,7 @@ export const useOrderStore = defineStore('order', () => {
   })
 
   // 计算属性：按状态分类的订单（全面改为小驼峰匹配后端返回数据字段）
-  const pendingOrders = computed(() => orders.value.filter(o => o.orderStatus === 'pending'))
+  const pendingOrders = computed(() => orders.value.filter(o => o.orderStatus === 'pending' || o.orderStatus === 'pending_payment'))
   const paidOrders = computed(() => orders.value.filter(o => o.orderStatus === 'paid'))
   // 待收货栏：完美兼容后端返回的 'shipped' 和 'delivered' 两种状态
   const shippedOrders = computed(() => orders.value.filter(o => o.orderStatus === 'shipped' || o.orderStatus === 'delivered'))
@@ -32,8 +34,7 @@ export const useOrderStore = defineStore('order', () => {
   async function loadOrders(status?: string) {
     loading.value = true
     try {
-      // role=buyer 只显示当前用户作为买家的订单，pageSize=100 展示更全
-      const result = await listOrders({ role: 'buyer', status, page: 1, pageSize: 100 })
+      const result = await listOrders({ role: 'buyer', status, page: 1, pageSize: 5 })
       console.log('订单列表加载结果:', result)
       orders.value = result.list || []
     } catch (error) {
@@ -80,10 +81,10 @@ export const useOrderStore = defineStore('order', () => {
     try {
       // 1. 调用带 Auth 头的后端 API 发送 POST 请求
       await apiConfirmReceipt(orderId)
-      
+
       // 2. 交互成功后，自动重新拉取订单列表，利用数据响应式机制无缝刷新界面状态
       await loadOrders()
-      
+
       // 3. 如果此时用户正在详情页中，同步更新详情视图
       if (currentOrder.value?.id === orderId) {
         await loadOrderDetail(orderId)

@@ -49,9 +49,9 @@
         </div>
 
         <div class="addressList" v-if="addressList.length > 0">
-          <div 
-            class="addressItem" 
-            v-for="addr in addressList" 
+          <div
+            class="addressItem"
+            v-for="addr in addressList"
             :key="addr.id"
             :class="{ selected: selectedId === addr.id }"
             @click="selectAddress(addr)"
@@ -65,9 +65,9 @@
               <div class="addressDetail">{{ addr.province }}{{ addr.city }}{{ addr.district }}{{ addr.detail }}</div>
             </div>
             <div class="actions">
-              <button 
-                class="actionBtn setDefault" 
-                @click.stop="setDefault(addr.id)" 
+              <button
+                class="actionBtn setDefault"
+                @click.stop="setDefault(addr.id)"
                 v-if="!addr.isDefault"
               >
                 <i class="fa fa-star"></i>
@@ -99,9 +99,9 @@
         <div class="formContent">
           <div class="formItem">
             <label class="formLabel">收货人</label>
-            <input 
-              type="text" 
-              v-model="formData.receiver" 
+            <input
+              type="text"
+              v-model="formData.receiver"
               placeholder="请输入收货人姓名"
               class="formInput"
               maxlength="20"
@@ -109,9 +109,9 @@
           </div>
           <div class="formItem">
             <label class="formLabel">手机号码</label>
-            <input 
-              type="tel" 
-              v-model="formData.phone" 
+            <input
+              type="tel"
+              v-model="formData.phone"
               placeholder="请输入手机号码"
               class="formInput"
               maxlength="11"
@@ -136,8 +136,8 @@
           </div>
           <div class="formItem">
             <label class="formLabel">详细地址</label>
-            <textarea 
-              v-model="formData.detail" 
+            <textarea
+              v-model="formData.detail"
               placeholder="请输入详细地址，如街道、门牌号等"
               class="formTextarea"
               rows="2"
@@ -166,6 +166,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { getAddressListApi } from '@/api/user'
 
 defineOptions({ name: 'AddressPage' })
 
@@ -199,6 +200,26 @@ interface Address {
 const addressList = ref<Address[]>([])
 const editingId = ref<number | null>(null)
 const selectedId = ref<number | null>(null)
+
+// 从后端加载地址列表
+const loadAddressList = async () => {
+  try {
+    const list = await getAddressListApi()
+    addressList.value = list.map(item => ({
+      id: item.id,
+      receiver: item.receiverName,
+      phone: item.receiverPhone,
+      province: item.province,
+      city: item.city,
+      district: item.district,
+      detail: item.detailAddress,
+      isDefault: item.isDefault
+    }))
+  } catch (error) {
+    console.error('加载地址列表失败:', error)
+    addressList.value = []
+  }
+}
 
 // 手机号脱敏处理
 const formatPhone = (phone: string) => {
@@ -338,7 +359,7 @@ const selectAddress = (addr: Address) => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   // 检查是否有从编辑页面返回的数据
   const formDataStr = localStorage.getItem('addressFormData')
   if (formDataStr) {
@@ -364,31 +385,8 @@ onMounted(() => {
     }
   }
 
-  // 模拟加载已有地址
-  if (addressList.value.length === 0) {
-    addressList.value = [
-      {
-        id: 1,
-        receiver: '张三',
-        phone: '13800138000',
-        province: '北京市',
-        city: '北京市',
-        district: '朝阳区',
-        detail: '望京SOHO大厦T3-1801',
-        isDefault: true
-      },
-      {
-        id: 2,
-        receiver: '李四',
-        phone: '13900139000',
-        province: '上海市',
-        city: '上海市',
-        district: '浦东新区',
-        detail: '环球金融中心1001',
-        isDefault: false
-      }
-    ]
-  }
+  // 从后端加载真实地址
+  await loadAddressList()
 })
 </script>
 
