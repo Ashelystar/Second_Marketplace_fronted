@@ -1,7 +1,15 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { getForumPostList, getForumCategoryList, getForumPostById, auditForumPost, toggleForumPostTop, toggleForumPostFeature, deleteForumPost, flattenForumCategories } from '@/api/forum'
-import type { ForumCategoryFlat, PostAuditStatus, PostDetail } from '@/api/forum.types'
+import { ref } from 'vue'
+import {
+  publishNoticeApi,
+  getNoticeListApi,
+  revokeNoticeApi,
+  getNoticeDetailApi,
+  type SystemNoticeVO,
+  type PublishNoticeDTO,
+  type NoticeQueryDTO,
+  type PublishStatus
+} from '@/api/notification'
 
 // 用户管理相关类型
 export interface AdminUser {
@@ -93,14 +101,6 @@ export interface AdminStats {
   transactionSuccessRate: number
   disputeRate: number
 
-  // 社区相关
-  totalForumPosts: number
-  approvedForumPosts: number
-  pendingForumPosts: number
-  forumPostViews: number
-  totalComments: number
-  totalLikes: number
-
   // 售后相关
   totalAfterSales: number
   pendingAfterSales: number
@@ -112,9 +112,6 @@ export interface AdminStats {
   dailyOrders: number
   weeklyOrders: number[]
 }
-
-// 论坛板块（展平后，供管理端筛选下拉使用）
-export type AdminForumSection = ForumCategoryFlat
 
 // 管理员操作日志相关类型
 export interface AdminLog {
@@ -131,25 +128,6 @@ export interface AdminLog {
   createdAt: string
 }
 
-
-// 论坛帖子相关类型
-export interface AdminForumPost {
-  id: number
-  title: string
-  content: string
-  authorId: number
-  authorName: string
-  categoryId: number
-  categoryName: string
-  status: string // pending, approved, rejected, hidden
-  isTop: boolean
-  isFeatured: boolean
-  viewCount: number
-  likeCount: number
-  commentCount: number
-  createdAt: string
-  updatedAt: string
-}
 
 export const useAdminStore = defineStore('admin', () => {
   // 用户管理
@@ -206,14 +184,6 @@ export const useAdminStore = defineStore('admin', () => {
     transactionSuccessRate: 0,
     disputeRate: 0,
 
-    // 社区相关
-    totalForumPosts: 0,
-    approvedForumPosts: 0,
-    pendingForumPosts: 0,
-    forumPostViews: 0,
-    totalComments: 0,
-    totalLikes: 0,
-
     // 售后相关
     totalAfterSales: 0,
     pendingAfterSales: 0,
@@ -227,16 +197,6 @@ export const useAdminStore = defineStore('admin', () => {
   })
   const statsLoading = ref(false)
 
-  // 论坛管理
-  const forumSections = ref<AdminForumSection[]>([])
-  const forumPosts = ref<AdminForumPost[]>([])
-  const forumLoading = ref(false)
-  const currentForumPage = ref(1)
-  const forumPageSize = ref(10)
-  const totalForumPosts = ref(0)
-  const selectedPost = ref<PostDetail | null>(null)
-  const postDetailLoading = ref(false)
-
   // 操作日志管理
   const adminLogs = ref<AdminLog[]>([])
   const logsLoading = ref(false)
@@ -246,6 +206,16 @@ export const useAdminStore = defineStore('admin', () => {
   const selectedLog = ref<any>(null)
   const logDetailVisible = ref(false)
   const logDetailLoading = ref(false)
+
+  // 系统通知管理
+  const notifications = ref<SystemNoticeVO[]>([])
+  const notificationLoading = ref(false)
+  const currentNotificationPage = ref(1)
+  const notificationPageSize = ref(10)
+  const totalNotifications = ref(0)
+  const selectedNotification = ref<SystemNoticeVO | null>(null)
+  const notificationDetailVisible = ref(false)
+  const notificationDetailLoading = ref(false)
 
 
   // 模拟数据
@@ -416,14 +386,6 @@ export const useAdminStore = defineStore('admin', () => {
       transactionSuccessRate: 100,
       disputeRate: 11.1,
 
-      // 社区相关
-      totalForumPosts: 10,
-      approvedForumPosts: 9,
-      pendingForumPosts: 1,
-      forumPostViews: 12170,
-      totalComments: 15,
-      totalLikes: 14,
-
       // 售后相关
       totalAfterSales: 2,
       pendingAfterSales: 0,
@@ -435,103 +397,6 @@ export const useAdminStore = defineStore('admin', () => {
       dailyOrders: 2,
       weeklyOrders: [0, 0, 0, 0, 0, 2, 0]
     }
-
-    // 模拟论坛板块数据
-    forumSections.value = [
-      { id: 1, name: '二手交易', sortOrder: 1, isEnabled: 1, depth: 0 },
-      { id: 2, name: '验机交流', sortOrder: 2, isEnabled: 1, depth: 0 },
-      { id: 3, name: '避坑指南', sortOrder: 3, isEnabled: 1, depth: 0 },
-    ]
-
-    // 模拟论坛帖子数据
-    forumPosts.value = [
-      {
-        id: 1,
-        title: '如何鉴别二手手机的好坏',
-        content: '这是一篇关于如何鉴别二手手机质量的详细教程...',
-        authorId: 10001,
-        authorName: '张三',
-        categoryId: 2,
-        categoryName: '验机交流',
-        status: 'approved',
-        isTop: true,
-        isFeatured: true,
-        viewCount: 520,
-        likeCount: 32,
-        commentCount: 15,
-        createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 2,
-        title: '出售iPhone 12 Pro',
-        content: '九成新iPhone 12 Pro，无任何划痕，支持验机...',
-        authorId: 10002,
-        authorName: '李四',
-        categoryId: 1,
-        categoryName: '二手交易',
-        status: 'pending',
-        isTop: false,
-        isFeatured: false,
-        viewCount: 120,
-        likeCount: 8,
-        commentCount: 3,
-        createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 3,
-        title: '分享我的验机经验',
-        content: '作为一个多次购买二手商品的买家，我分享一下我的验机经验...',
-        authorId: 10001,
-        authorName: '张三',
-        categoryId: 2,
-        categoryName: '验机交流',
-        status: 'approved',
-        isTop: false,
-        isFeatured: false,
-        viewCount: 280,
-        likeCount: 18,
-        commentCount: 7,
-        createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 4,
-        title: '警惕二手交易骗局',
-        content: '最近遇到了一个诈骗，给大家提个醒...',
-        authorId: 10003,
-        authorName: '王五',
-        categoryId: 3,
-        categoryName: '避坑指南',
-        status: 'approved',
-        isTop: false,
-        isFeatured: true,
-        viewCount: 450,
-        likeCount: 45,
-        commentCount: 22,
-        createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 5,
-        title: '分享我的交易经验',
-        content: '作为一个多次购买二手商品的买家，我分享一下我的交易经验...',
-        authorId: 10001,
-        authorName: '张三',
-        categoryId: 1,
-        categoryName: '二手交易',
-        status: 'approved',
-        isTop: false,
-        isFeatured: false,
-        viewCount: 280,
-        likeCount: 18,
-        commentCount: 7,
-        createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ]
-    totalForumPosts.value = 5
 
     // 模拟操作日志数据
     adminLogs.value = [
@@ -721,12 +586,6 @@ export const useAdminStore = defineStore('admin', () => {
           transactionAmount: overviewData.data.transactionStats?.transactionAmount || 0,
           transactionSuccessRate: overviewData.data.transactionStats?.transactionSuccessRate || 0,
           disputeRate: overviewData.data.transactionStats?.disputeRate || 0,
-          totalForumPosts: overviewData.data.communityStats?.totalForumPosts || 0,
-          approvedForumPosts: overviewData.data.communityStats?.approvedForumPosts || 0,
-          pendingForumPosts: overviewData.data.communityStats?.pendingForumPosts || 0,
-          forumPostViews: overviewData.data.communityStats?.forumPostViews || 0,
-          totalComments: overviewData.data.communityStats?.totalComments || 0,
-          totalLikes: overviewData.data.communityStats?.totalLikes || 0,
           totalAfterSales: overviewData.data.afterSalesStats?.totalAfterSales || 0,
           pendingAfterSales: overviewData.data.afterSalesStats?.pendingAfterSales || 0,
           dailySales: overviewData.data.dailyStats?.dailySales || 0,
@@ -1103,153 +962,6 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  // 加载论坛帖子列表
-  const loadForumPosts = async (params?: {
-    page?: number
-    size?: number
-    keyword?: string
-    status?: string
-    categoryId?: number
-  }) => {
-    try {
-      forumLoading.value = true
-
-      const page = await getForumPostList({
-        pageNum: params?.page ?? 1,
-        pageSize: params?.size ?? 10,
-        keyword: params?.keyword,
-        categoryId: params?.categoryId,
-        status: params?.status as PostAuditStatus | undefined,
-      })
-
-      forumPosts.value = page.list
-      totalForumPosts.value = page.total
-
-      return true
-    } catch (error) {
-      console.error('加载论坛帖子失败:', error)
-      return false
-    } finally {
-      forumLoading.value = false
-    }
-  }
-
-  // 加载论坛板块列表
-  const loadForumSections = async () => {
-    try {
-      forumLoading.value = true
-      const tree = await getForumCategoryList()
-      forumSections.value = flattenForumCategories(tree)
-      return true
-    } catch (error) {
-      console.error('加载论坛板块失败:', error)
-      return false
-    } finally {
-      forumLoading.value = false
-    }
-  }
-
-  // 加载帖子详情
-  const loadPostDetail = async (postId: number) => {
-    try {
-      postDetailLoading.value = true
-      selectedPost.value = null
-      const detail = await getForumPostById(postId)
-      selectedPost.value = detail
-      return detail
-    } catch (error) {
-      console.error('加载帖子详情失败:', error)
-      throw error
-    } finally {
-      postDetailLoading.value = false
-    }
-  }
-
-  // 审核帖子
-  const auditPost = async (postId: number, approved: boolean, rejectReason?: string) => {
-    try {
-      await auditForumPost(postId, approved, rejectReason)
-
-      const post = forumPosts.value.find(p => p.id === postId)
-      if (post) {
-        post.status = approved ? 'approved' : 'rejected'
-      }
-
-      if (selectedPost.value?.id === postId) {
-        selectedPost.value = {
-          ...selectedPost.value,
-          status: approved ? 'approved' : 'rejected',
-        }
-      }
-
-      return true
-    } catch (error) {
-      console.error('审核帖子失败:', error)
-      return false
-    }
-  }
-
-  // 置顶/取消置顶帖子
-  const toggleTopPost = async (postId: number, top: boolean) => {
-    try {
-      await toggleForumPostTop(postId, top)
-
-      const post = forumPosts.value.find(p => p.id === postId)
-      if (post) {
-        post.isTop = top
-      }
-
-      if (selectedPost.value?.id === postId) {
-        selectedPost.value = { ...selectedPost.value, isTop: top }
-      }
-
-      return true
-    } catch (error) {
-      console.error('置顶帖子失败:', error)
-      return false
-    }
-  }
-
-  // 设为/取消精华帖
-  const toggleFeaturePost = async (postId: number, featured: boolean) => {
-    try {
-      await toggleForumPostFeature(postId, featured)
-
-      const post = forumPosts.value.find(p => p.id === postId)
-      if (post) {
-        post.isFeatured = featured
-      }
-
-      if (selectedPost.value?.id === postId) {
-        selectedPost.value = { ...selectedPost.value, isFeatured: featured }
-      }
-
-      return true
-    } catch (error) {
-      console.error('设置精华帖失败:', error)
-      return false
-    }
-  }
-
-  // 删除帖子
-  const deletePost = async (postId: number) => {
-    try {
-      await deleteForumPost(postId)
-
-      forumPosts.value = forumPosts.value.filter(p => p.id !== postId)
-      totalForumPosts.value = Math.max(0, totalForumPosts.value - 1)
-
-      if (selectedPost.value?.id === postId) {
-        selectedPost.value = null
-      }
-
-      return true
-    } catch (error) {
-      console.error('删除帖子失败:', error)
-      return false
-    }
-  }
-
 // 加载操作日志列表
 const loadAdminLogs = async (params?: {
   page?: number
@@ -1335,6 +1047,76 @@ const loadLogDetail = async (logId: number) => {
   }
 }
 
+  // 加载通知列表
+  const loadNotifications = async (params?: NoticeQueryDTO) => {
+    try {
+      notificationLoading.value = true
+      const queryParams = {
+        pageNum: params?.pageNum || currentNotificationPage.value,
+        pageSize: params?.pageSize || notificationPageSize.value,
+        noticeType: params?.noticeType || undefined,
+        publishStatus: params?.publishStatus || undefined
+      }
+      console.log('[adminStore] loadNotifications 请求参数:', queryParams)
+      const data = await getNoticeListApi(queryParams)
+      console.log('[adminStore] loadNotifications 返回数据:', data)
+      notifications.value = data || []
+      totalNotifications.value = data?.length || 0
+      if (params?.pageNum) currentNotificationPage.value = params.pageNum
+    } catch (error) {
+      console.error('加载通知列表失败:', error)
+      notifications.value = []
+      totalNotifications.value = 0
+      throw error
+    } finally {
+      notificationLoading.value = false
+    }
+  }
+
+  // 发布通知
+  const publishNotice = async (params: PublishNoticeDTO) => {
+    try {
+      await publishNoticeApi(params)
+      await loadNotifications()
+      return true
+    } catch (error) {
+      console.error('发布通知失败:', error)
+      return false
+    }
+  }
+
+  // 撤回通知
+  const revokeNotice = async (noticeId: number) => {
+    try {
+      await revokeNoticeApi(noticeId)
+      // 更新本地数据
+      const notice = notifications.value.find(n => n.id === noticeId)
+      if (notice) {
+        notice.publishStatus = 'revoked' as PublishStatus
+      }
+      return true
+    } catch (error) {
+      console.error('撤回通知失败:', error)
+      return false
+    }
+  }
+
+  // 加载通知详情
+  const loadNotificationDetail = async (noticeId: number) => {
+    try {
+      notificationDetailLoading.value = true
+      selectedNotification.value = null
+      const data = await getNoticeDetailApi(noticeId)
+      selectedNotification.value = data
+      return data
+    } catch (error) {
+      console.error('加载通知详情失败:', error)
+      throw error
+    } finally {
+      notificationDetailLoading.value = false
+    }
+  }
+
   return {
     // 用户管理
     users,
@@ -1365,16 +1147,6 @@ const loadLogDetail = async (logId: number) => {
     stats,
     statsLoading,
 
-    // 论坛管理
-    forumSections,
-    forumPosts,
-    forumLoading,
-    currentForumPage,
-    forumPageSize,
-    totalForumPosts,
-    selectedPost,
-    postDetailLoading,
-
     // 操作日志管理
     adminLogs,
     logsLoading,
@@ -1384,6 +1156,16 @@ const loadLogDetail = async (logId: number) => {
     selectedLog,
     logDetailVisible,
     logDetailLoading,
+
+    // 系统通知管理
+    notifications,
+    notificationLoading,
+    currentNotificationPage,
+    notificationPageSize,
+    totalNotifications,
+    selectedNotification,
+    notificationDetailVisible,
+    notificationDetailLoading,
 
     // 方法
     loadMockData,
@@ -1397,14 +1179,11 @@ const loadLogDetail = async (logId: number) => {
     loadDisputeDetail,
     resolveDispute,
     addDisputeAction,
-    loadForumSections,
-    loadForumPosts,
-    loadPostDetail,
-    auditPost,
-    toggleTopPost,
-    toggleFeaturePost,
-    deletePost,
     loadAdminLogs,
-    loadLogDetail
+    loadLogDetail,
+    loadNotifications,
+    publishNotice,
+    revokeNotice,
+    loadNotificationDetail
   }
 })

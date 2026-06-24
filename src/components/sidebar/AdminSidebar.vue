@@ -26,8 +26,9 @@ import {
   User, 
   Goods, 
   Ticket, 
-  ChatLineSquare, 
   Document, 
+  Bell,
+  MagicStick,
   SwitchButton 
 } from '@element-plus/icons-vue'
 
@@ -45,8 +46,9 @@ const menuItems = [
   { id: 'users', text: '用户管理', icon: User },
   { id: 'products', text: '商品审核', icon: Goods },
   { id: 'disputes', text: '纠纷仲裁', icon: Ticket },
-  { id: 'forum', text: '社区管理', icon: ChatLineSquare },
-  { id: 'logs', text: '操作日志', icon: Document }
+  { id: 'logs', text: '操作日志', icon: Document },
+  { id: 'notifications', text: '系统通知', icon: Bell },
+  { id: 'agent', text: 'AI 助手', icon: MagicStick }
 ]
 
 function handleMenuItemClick(tabId: string) {

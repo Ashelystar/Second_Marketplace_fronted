@@ -53,6 +53,43 @@
               </div>
               <div class="msg-content">
                 <div class="msg-bubble" v-html="formatMessage(msg.content)"></div>
+                
+                <div v-if="msg.isSearchResult && msg.products && msg.products.length > 0" class="chat-product-grid">
+                  <div
+                    v-for="p in msg.products"
+                    :key="p.id"
+                    class="chat-product-card"
+                    @click="goToDetail(p)"
+                  >
+                    <div class="chat-product-img">
+                      <img 
+                        :src="getImageUrl(p.images?.[0]?.imageUrl) || PLACEHOLDER_IMG" 
+                        :alt="p.title" 
+                        @error="(e) => (e.target as HTMLImageElement).src = PLACEHOLDER_IMG"
+                      />
+                      <span v-if="p.conditionLevel" class="chat-condition">{{ formatCondition(p.conditionLevel) }}</span>
+                    </div>
+                    <div class="chat-product-info">
+                      <h4 class="chat-product-title">{{ p.title }}</h4>
+                      <p v-if="p.subtitle" class="chat-product-subtitle">{{ p.subtitle }}</p>
+                      <div class="chat-product-footer">
+                        <div class="chat-price">
+                          <span class="chat-current-price">¥{{ p.sellingPrice }}</span>
+                          <span v-if="p.originalPrice" class="chat-original-price">¥{{ p.originalPrice }}</span>
+                        </div>
+                        <div class="chat-stats">
+                          <span v-if="p.viewCount" class="chat-view-count">
+                            <i class="fa fa-eye"></i> {{ p.viewCount }}
+                          </span>
+                          <span v-if="p.favoriteCount" class="chat-fav-count">
+                            <i class="fa fa-heart"></i> {{ p.favoriteCount }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
                 <div class="msg-time">{{ formatTime(msg.timestamp) }}</div>
               </div>
             </div>
@@ -92,8 +129,12 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/userStore'
+import { getProductDetail, type ProductVO } from '@/api/goods'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 // Props
 const props = defineProps({
@@ -107,12 +148,16 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'close'])
 
 // 响应式数据
-const messages = reactive([])
+const messages = reactive<any[]>([])
 const inputMessage = ref('')
 const isTyping = ref(false)
-const messageContainer = ref(null)
-const inputRef = ref(null)
+const messageContainer = ref<HTMLElement | null>(null)
+const inputRef = ref<HTMLTextAreaElement | null>(null)
 const isMobile = ref(false)
+
+// 路由和用户存储
+const router = useRouter()
+const userStore = useUserStore()
 
 // 快速问题
 const quickQuestions = [
@@ -157,12 +202,44 @@ const sendMessage = async () => {
     console.log('发送问题:', question)  
     const response = await fetchAgentResponse(question)
     
-    setTimeout(() => {
+    setTimeout(async () => {
       isTyping.value = false
+      
+      // 1. 检查是否是搜索商品的动作
+      const isSearchAction = response.actions && 
+        response.actions.some((action: any) => action.type === 'SEARCH_PRODUCTS')
+      
+      let productDetails: ProductVO[] = []
+      
+      // 如果是搜索商品且有商品ID，获取商品详情
+      if (isSearchAction && response.product_ids && response.product_ids.length > 0) {
+        productDetails = await fetchProductDetails(response.product_ids.slice(0, 6)) // 最多6个
+        goToDetail(productDetails[0]) // 自动跳转到第一个商品详情页
+      }
+
+      // 2. 检查是否是发布商品的动作 (支持后端传回的自定义跳转 action 格式)
+      const publishAction = response.actions && 
+        response.actions.find((action: any) => action.type === 'NAVIGATE_TO_PUBLISH' || action.type?.includes('PUBLISH'))
+      console.log('publishAction:', publishAction);
+      if (publishAction) {
+        console.log('检测到发布商品动作，准备跳转至发布页面。')
+        // 从后端动作字典里提取智能生成的参数表单数据
+        const formParams = publishAction.params || publishAction.payload || {};
+        if (Object.keys(formParams).length > 0) {
+          // 写入缓存，供发布页面抓取
+          localStorage.setItem('agent_publish_form_cache', JSON.stringify(formParams));
+          // 跳转至指定发布商品路由
+          // closeDialog();
+          router.push('/publish');
+        }
+      }
+      
       messages.push({
         role: 'assistant',
-        content: response.answer || '抱歉，我暂时无法回答。',
-        timestamp: new Date()
+        content: response.message || '抱歉，我暂时无法回答。',
+        timestamp: new Date(),
+        products: productDetails, // 添加商品详情
+        isSearchResult: isSearchAction // 标记是否为搜索结果
       })
       scrollToBottom()
     }, 1000)
@@ -178,21 +255,42 @@ const sendMessage = async () => {
   }
 }
 
-// 调用后端 API
-const fetchAgentResponse = async (question) => {
+// 获取商品详情
+const fetchProductDetails = async (productIds: number[]): Promise<ProductVO[]> => {
   try {
+    const promises = productIds.map(id => getProductDetail(id))
+    const results = await Promise.all(promises)
+    return results.filter((product): product is ProductVO => product !== null)
+  } catch (error) {
+    console.error('获取商品详情失败:', error)
+    return []
+  }
+}
+
+// 跳转到商品详情页
+const goToDetail = (p: ProductVO) => {
+  const currentUserId = userStore.userInfo?.id
+  if (currentUserId && p.sellerId && Number(currentUserId) === Number(p.sellerId)) {
+    router.push({ path: '/seller/product', query: { id: p.id.toString() } })
+  } else {
+    router.push({ path: '/detail', query: { id: p.id.toString() } })
+  }
+}
+
+// 调用后端 API
+const fetchAgentResponse = async (question: string) => {
+  try {
+    const payload = { message: question, user_id: 1 }
+    console.log("Sending to backend:", payload)
     const response = await fetch('/agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        question,
-        user_id: 'szu_user',
-        session_id: Date.now().toString()
-      })
+      body: JSON.stringify(payload)
     })
-    
-    if (!response.ok) throw new Error('API error')
-    return await response.json()
+    const data = await response.json()
+    console.log("Received from backend:", data)
+    if (!response.ok) throw new Error(data.detail || 'API error')
+    return data
   } catch (error) {
     console.error('API 调用失败:', error)
     return getMockResponse(question)
@@ -200,79 +298,58 @@ const fetchAgentResponse = async (question) => {
 }
 
 // 模拟响应
-const getMockResponse = (question) => {
+const getMockResponse = (question: string) => {
   const q = question.toLowerCase()
   if (q.includes('苹果') || q.includes('iphone')) {
-    return { answer: '为您找到 2 款苹果手机：\n\n📱 **iPhone 13**\n¥2999 | 成色极佳\n📱 **iPhone 12**\n¥2200 | 功能完好' }
+    return { success: true, message: '为您找到相关苹果手机：', actions: [{ type: 'SEARCH_PRODUCTS', description: '已找到商品' }], product_ids: [101, 102] }
   }
   if (q.includes('热门')) {
-    return { answer: '🔥 当前热门：\n1. iPhone 13 - ¥2999\n2. ThinkPad - ¥4500\n3. AirPods - ¥1200' }
+    return { success: true, message: '🔥 当前热门商品：', actions: [{ type: 'SEARCH_PRODUCTS', description: '已找到商品' }], product_ids: [101, 102, 103] }
   }
-  if (q.includes('禁售')) {
-    return { answer: '🚫 禁售物品：\n• 易燃易爆品\n• 管制刀具\n• 食品药品\n• 违规电器\n• 贴身旧物' }
-  }
-  return { answer: '我可以帮你：\n• 搜索商品\n• 查询价格\n• 了解规则\n• 查看热门' }
+  return { success: false, message: '我可以帮你：\n• 搜索商品\n• 查询价格', actions: [], product_ids: [] }
 }
 
-// 快速问题
-const sendQuickQuestion = (question) => {
+const sendQuickQuestion = (question: string) => {
   inputMessage.value = question
   sendMessage()
 }
 
-// 换行
 const newLine = () => {
   inputMessage.value += '\n'
   nextTick(() => adjustInputHeight())
 }
 
-// 调整输入框高度
 const adjustInputHeight = () => {
   const textarea = inputRef.value
   if (textarea) {
     textarea.style.height = 'auto'
     textarea.style.height = Math.min(textarea.scrollHeight, 80) + 'px'
-    // 输入框长高时，同时让聊天区域滚动到底部，防止遮挡
     scrollToBottom()
   }
 }
 
-// 滚动到底部
 const scrollToBottom = async () => {
   await nextTick()
   if (messageContainer.value) {
-    messageContainer.value.scrollTo({
-      top: messageContainer.value.scrollHeight,
-      behavior: 'smooth' // 使用平滑滚动，体验更好
-    })
+    messageContainer.value.scrollTo({ top: messageContainer.value.scrollHeight, behavior: 'smooth' })
   }
 }
 
-// 格式化消息
-const formatMessage = (content) => {
+const formatMessage = (content: string) => {
   return content
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
 }
 
-// 格式化时间
-const formatTime = (timestamp) => {
+const formatTime = (timestamp: Date) => {
   const date = new Date(timestamp)
-  return date.toLocaleTimeString('zh-CN', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  })
+  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
-// 监听显示状态变化
-watch(() => props.visible, (newVal) => {
-  if (newVal) {
-    nextTick(() => {
-      inputRef.value?.focus()
-      scrollToBottom()
-    })
-  }
-})
+const formatCondition = (condition: string) => {
+  const map: Record<string, string> = { 'new': '全新', 'almost_new': '99新', 'good': '95新', 'fair': '9成新', 'poor': '8成新' }
+  return map[condition] || '二手'
+}
 
 onMounted(() => {
   checkMobile()
@@ -281,6 +358,13 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
+})
+
+watch(() => props.visible, (newVal) => {
+  if (newVal) {
+    scrollToBottom()
+    nextTick(() => inputRef.value?.focus())
+  }
 })
 </script>
 
@@ -300,7 +384,7 @@ onUnmounted(() => {
   animation: slideInRight 0.3s ease-out;
 }
 
-/* 【新增】保证内部主体撑满容器，建立严格的 Flex 上下布局 */
+/* 保证内部主体撑满容器，建立严格的 Flex 上下布局 */
 .agent-dialog {
   display: flex;
   flex-direction: column;
@@ -375,18 +459,17 @@ onUnmounted(() => {
   color: #374151;
 }
 
-/* 消息区域 - 严格限定 flex 比例并开启滚动 */
+/* 消息区域 */
 .dialog-body {
-  flex: 1 1 0%;       /* 核心修改：允许自由伸长和收缩，基准为 0 */
-  overflow-y: auto;   /* 确保持续开启垂直滚动 */
-  -webkit-overflow-scrolling: touch; /* 优化 iOS 端的滚动灵活性 */
+  flex: 1 1 0%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 16px;
   background: #f9fafb;
   scrollbar-width: thin; 
   scrollbar-color: #c1c1c1 #f1f1f1; 
 }
 
-/* 自定义滚动条样式 */
 .dialog-body::-webkit-scrollbar {
   width: 6px; 
 }
@@ -495,7 +578,7 @@ onUnmounted(() => {
   font-size: 14px;
   line-height: 1.5;
   color: #374151;
-  word-break: break-word; /* 保证长文本和URL能正常换行 */
+  word-break: break-word;
 }
 
 .user-msg .msg-bubble {
@@ -614,6 +697,193 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .agent-dialog-container {
     width: 100%;
+  }
+}
+
+/* ========================================== */
+/* 关键修改：商品网格 - 横向排列，横向滚动 */
+/* ========================================== */
+.chat-product-grid {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: row; /* 水平排列：商品从左到右排列 */
+  flex-wrap: nowrap; /* 不换行，确保所有商品都在同一行 */
+  overflow-x: auto; /* 横向滚动 */
+  overflow-y: hidden; /* 隐藏垂直滚动 */
+  gap: 12px;
+  max-width: 100%;
+  height: auto;
+  padding-bottom: 8px; /* 为滚动条留出空间 */
+  scrollbar-width: thin; /* Firefox 滚动条样式 */
+  scrollbar-color: #c1c1c1 #f1f1f1; /* Firefox 滚动条颜色 */
+}
+
+/* Webkit 滚动条样式 */
+.chat-product-grid::-webkit-scrollbar {
+  height: 6px; /* 水平滚动条高度 */
+}
+
+.chat-product-grid::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.chat-product-grid::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 10px;
+  transition: background 0.3s;
+}
+
+.chat-product-grid::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.chat-product-card {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #f0f0f0;
+  flex: 0 0 auto; /* 不伸缩，不收缩，自动宽度 */
+  width: 180px; /* 固定宽度 */
+  margin-right: 0; /* 使用 gap 代替 margin-right */
+}
+
+.chat-product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border-color: #f97316;
+}
+
+.chat-product-img {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
+}
+
+.chat-product-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.chat-product-card:hover .chat-product-img img {
+  transform: scale(1.05);
+}
+
+.chat-condition {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.chat-product-info {
+  padding: 12px;
+}
+
+.chat-product-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 4px 0;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-product-subtitle {
+  font-size: 12px;
+  color: #666;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-product-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.chat-current-price {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f97316;
+}
+
+.chat-original-price {
+  font-size: 12px;
+  color: #999;
+  text-decoration: line-through;
+}
+
+.chat-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: #888;
+}
+
+.chat-view-count, .chat-fav-count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 用户消息中的商品卡片样式调整 */
+.user-msg .chat-product-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* 响应式调整 */
+@media (max-width: 480px) {
+  .chat-product-grid {
+    gap: 8px;
+    padding-bottom: 6px;
+  }
+  
+  .chat-product-card {
+    width: 150px; /* 移动端稍微窄一点 */
+  }
+  
+  .chat-product-img {
+    height: 100px;
+  }
+  
+  .chat-product-info {
+    padding: 8px;
+  }
+  
+  .chat-product-title {
+    font-size: 13px;
+  }
+  
+  .chat-current-price {
+    font-size: 14px;
   }
 }
 </style>

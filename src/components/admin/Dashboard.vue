@@ -162,9 +162,9 @@
         </ElCol>
       </ElRow>
 
-      <!-- 交易与社区数据 -->
+      <!-- 交易与售后数据 -->
       <ElRow :gutter="20" class="mb-4">
-        <ElCol :span="6">
+        <ElCol :span="12">
           <ElCard shadow="hover">
             <template #header>
               <div class="card-header">
@@ -199,75 +199,7 @@
             </div>
           </ElCard>
         </ElCol>
-        <ElCol :span="6">
-          <ElCard shadow="hover">
-            <template #header>
-              <div class="card-header">
-                <span>社区数据</span>
-              </div>
-            </template>
-            <ElRow>
-              <ElCol :span="12">
-                <ElStatistic 
-                  :value="adminStore.stats.totalForumPosts" 
-                  title="总帖子数" 
-                />
-              </ElCol>
-              <ElCol :span="12">
-                <ElStatistic 
-                  :value="adminStore.stats.approvedForumPosts" 
-                  title="已审核" 
-                />
-              </ElCol>
-            </ElRow>
-            <div class="mt-4">
-              <div class="flex justify-between mb-1">
-                <span>审核率</span>
-                <span>{{ Math.round((adminStore.stats.approvedForumPosts / adminStore.stats.totalForumPosts) * 100) }}%</span>
-              </div>
-              <ElProgress 
-                :percentage="Math.round((adminStore.stats.approvedForumPosts / adminStore.stats.totalForumPosts) * 100)" 
-                :stroke-width="10" 
-                status="success" 
-              />
-            </div>
-          </ElCard>
-        </ElCol>
-        <ElCol :span="6">
-          <ElCard shadow="hover">
-            <template #header>
-              <div class="card-header">
-                <span>互动数据</span>
-              </div>
-            </template>
-            <ElRow>
-              <ElCol :span="12">
-                <ElStatistic 
-                  :value="adminStore.stats.totalComments" 
-                  title="总评论数" 
-                />
-              </ElCol>
-              <ElCol :span="12">
-                <ElStatistic 
-                  :value="adminStore.stats.totalLikes" 
-                  title="总点赞数" 
-                />
-              </ElCol>
-            </ElRow>
-            <div class="mt-4">
-              <div class="flex justify-between mb-1">
-                <span>平均互动率</span>
-                <span>{{ Math.round(((adminStore.stats.totalComments + adminStore.stats.totalLikes) / adminStore.stats.totalForumPosts) * 100) }}%</span>
-              </div>
-              <ElProgress 
-                :percentage="Math.min(100, Math.round(((adminStore.stats.totalComments + adminStore.stats.totalLikes) / adminStore.stats.totalForumPosts) * 100))" 
-                :stroke-width="10" 
-                status="success" 
-              />
-            </div>
-          </ElCard>
-        </ElCol>
-        <ElCol :span="6">
+        <ElCol :span="12">
           <ElCard shadow="hover">
             <template #header>
               <div class="card-header">

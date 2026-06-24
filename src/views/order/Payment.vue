@@ -23,131 +23,146 @@
 
     <!-- 支付内容 -->
     <div v-else-if="order" class="payment-content">
-      <!-- 订单信息卡片 -->
-      <div class="order-card">
-        <div class="order-header">
-          <span class="label">订单号：</span>
-          <span class="value">{{ order.orderNo }}</span>
+      <!-- 步骤1: 选择支付方式 -->
+      <template v-if="step === 'select'">
+        <!-- 订单信息卡片 -->
+        <div class="order-card">
+          <div class="order-header">
+            <span class="label">订单号：</span>
+            <span class="value">{{ order.orderNo }}</span>
+          </div>
+          <div class="order-status">
+            <span :class="['status-badge', getStatusClass(order.orderStatus)]">
+              {{ getStatusText(order.orderStatus) }}
+            </span>
+          </div>
         </div>
-        <div class="order-status">
-          <span :class="['status-badge', getStatusClass(order.orderStatus)]">
-            {{ getStatusText(order.orderStatus) }}
-          </span>
-        </div>
-      </div>
 
-      <!-- 商品信息 -->
-      <div class="product-card">
-        <h3>商品信息</h3>
-        <div v-for="item in order.items" :key="item.id" class="product-item">
-          <img :src="item.productImageUrl || '/placeholder.png'" :alt="item.productTitle" class="product-img" />
-          <div class="product-info">
-            <div class="product-title">{{ item.productTitle }}</div>
-            <div class="product-meta">
-              <span class="price">¥{{ item.unitPrice.toFixed(2) }}</span>
-              <span class="quantity">x{{ item.quantity }}</span>
+        <!-- 商品信息 -->
+        <div class="product-card">
+          <h3>商品信息</h3>
+          <div v-for="item in order.items" :key="item.id" class="product-item">
+            <img :src="formatProductImage(item.productImageUrl)" :alt="item.productTitle" class="product-img" />
+            <div class="product-info">
+              <div class="product-title">{{ item.productTitle }}</div>
+              <div class="product-meta">
+                <span class="price">¥{{ item.unitPrice.toFixed(2) }}</span>
+                <span class="quantity">x{{ item.quantity }}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 金额明细 -->
-      <div class="amount-card">
-        <h3>支付金额</h3>
-        <div class="amount-row">
-          <span class="label">商品总额：</span>
-          <span class="value">¥{{ order.totalAmount.toFixed(2) }}</span>
+        <!-- 金额明细 -->
+        <div class="amount-card">
+          <h3>支付金额</h3>
+          <div class="amount-row">
+            <span class="label">商品总额：</span>
+            <span class="value">¥{{ order.totalAmount.toFixed(2) }}</span>
+          </div>
+          <div class="amount-row">
+            <span class="label">运费：</span>
+            <span class="value">¥{{ order.freightAmount.toFixed(2) }}</span>
+          </div>
+          <div class="amount-row total">
+            <span class="label">实付金额：</span>
+            <span class="total-value">¥{{ order.payAmount.toFixed(2) }}</span>
+          </div>
         </div>
-        <div class="amount-row">
-          <span class="label">运费：</span>
-          <span class="value">¥{{ order.freightAmount.toFixed(2) }}</span>
-        </div>
-        <div class="amount-row total">
-          <span class="label">实付金额：</span>
-          <span class="total-value">¥{{ order.payAmount.toFixed(2) }}</span>
-        </div>
-      </div>
 
-      <!-- 支付方式选择 -->
-      <div class="payment-method-card">
-        <h3>选择支付方式</h3>
-        <div class="method-list">
-          <div
-            v-for="method in paymentMethods"
-            :key="method.value"
-            :class="['method-item', { selected: selectedMethod === method.value }]"
-            @click="selectedMethod = method.value"
+        <!-- 支付方式选择 -->
+        <div class="payment-method-card">
+          <h3>选择支付方式</h3>
+          <div class="method-list">
+            <div
+              v-for="method in paymentMethods"
+              :key="method.value"
+              :class="['method-item', { selected: selectedMethod === method.value }]"
+              @click="selectedMethod = method.value"
+            >
+              <div class="method-icon">
+                <i :class="method.icon"></i>
+              </div>
+              <div class="method-info">
+                <div class="method-name">{{ method.name }}</div>
+                <div class="method-desc">{{ method.desc }}</div>
+              </div>
+              <div class="method-check">
+                <i v-if="selectedMethod === method.value" class="fa fa-check-circle"></i>
+                <i v-else class="fa fa-circle-o"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 创建支付单按钮 -->
+        <div class="action-area">
+          <button
+            class="pay-btn"
+            :disabled="!selectedMethod || paying"
+            @click="handleCreatePayment"
           >
-            <div class="method-icon">
-              <i :class="method.icon"></i>
-            </div>
-            <div class="method-info">
-              <div class="method-name">{{ method.name }}</div>
-              <div class="method-desc">{{ method.desc }}</div>
-            </div>
-            <div class="method-check">
-              <i v-if="selectedMethod === method.value" class="fa fa-check-circle"></i>
-              <i v-else class="fa fa-circle-o"></i>
-            </div>
-          </div>
+            <span v-if="paying">
+              <i class="fa fa-spinner fa-spin"></i> 创建支付单...
+            </span>
+            <span v-else>立即支付 ¥{{ order.payAmount.toFixed(2) }}</span>
+          </button>
         </div>
-      </div>
+      </template>
 
-      <!-- 支付按钮 -->
-      <div class="action-area">
-        <button
-          class="pay-btn"
-          :disabled="!selectedMethod || paying"
-          @click="handlePay"
-        >
-          <span v-if="paying">
-            <i class="fa fa-spinner fa-spin"></i> 生成支付二维码...
-          </span>
-          <span v-else>立即支付 ¥{{ order.payAmount.toFixed(2) }}</span>
-        </button>
-      </div>
-
-      <!-- 支付二维码弹窗 -->
-      <div v-if="showQRCode" class="qrcode-modal" @click.self="closeQRCode">
-        <div class="qrcode-content">
-          <div class="qrcode-header">
-            <h3>{{ getPaymentMethodName(selectedMethod) }}扫码支付</h3>
-            <button class="close-btn" @click="closeQRCode">
-              <i class="fa fa-times"></i>
+      <!-- 步骤2: 确认支付 -->
+      <template v-if="step === 'pay' && paymentDetail">
+        <div class="pay-confirm-card">
+          <div class="confirm-header">
+            <button class="back-step-btn" @click="goBackStep">
+              <i class="fa fa-arrow-left"></i>
             </button>
+            <h2>确认支付</h2>
           </div>
 
-          <div class="qrcode-body">
-            <div class="amount-display">
-              <span class="label">支付金额：</span>
-              <span class="value">¥{{ order.payAmount.toFixed(2) }}</span>
+          <div class="confirm-body">
+            <div class="info-row">
+              <span class="info-label">支付单号</span>
+              <span class="info-value">{{ paymentDetail.paymentNo }}</span>
             </div>
-
-            <!-- 二维码区域 -->
-            <div class="qrcode-container">
-              <canvas ref="qrCodeCanvas" class="qr-code"></canvas>
+            <div class="info-row">
+              <span class="info-label">支付方式</span>
+              <span class="info-value">{{ getPaymentMethodName(paymentDetail.paymentChannel) }}</span>
             </div>
-
-            <div class="qrcode-tips">
-              <p><i class="fa fa-info-circle"></i> 请在5分钟内完成支付</p>
-              <p><i class="fa fa-shield"></i> 安全支付，资金有保障</p>
+            <div class="info-row">
+              <span class="info-label">支付状态</span>
+              <span class="info-value status-created">待支付</span>
+            </div>
+            <div class="info-row amount-highlight">
+              <span class="info-label">应付金额</span>
+              <span class="info-value pay-amount">¥{{ paymentDetail.payableAmount.toFixed(2) }}</span>
             </div>
           </div>
 
-          <div class="qrcode-footer">
-            <button class="btn-secondary" @click="closeQRCode">取消支付</button>
+          <div class="confirm-footer">
+            <button
+              class="pay-btn"
+              :disabled="executingPay"
+              @click="executePay"
+            >
+              <span v-if="executingPay">
+                <i class="fa fa-spinner fa-spin"></i> 支付中...
+              </span>
+              <span v-else>确认支付 ¥{{ paymentDetail.payableAmount.toFixed(2) }}</span>
+            </button>
+            <button class="btn-secondary cancel-btn" @click="goBackStep">返回重选</button>
           </div>
         </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getOrderDetail, createPayment } from '@/api/order'
-import QRCode from 'qrcode'
+import { getOrderDetail, createPayment, getPaymentDetail, payOrder } from '@/api/order'
+import { getImageUrl as formatImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 defineOptions({ name: 'PaymentPage' })
 
@@ -183,16 +198,32 @@ interface Order {
   items: OrderItem[]
 }
 
+interface PaymentDetail {
+  id: number
+  orderId: number
+  paymentNo: string
+  paymentChannel: string
+  paymentStatus: string
+  payableAmount: number
+  paidAmount?: number
+  channelTradeNo?: string
+  paidAt?: string
+  failedReason?: string
+  createdAt: string
+}
+
 const order = ref<Order | null>(null)
 const loading = ref(false)
 const paying = ref(false)
+const executingPay = ref(false)
 const error = ref('')
 const selectedMethod = ref<'alipay' | 'wechat' | 'balance'>('alipay')
-const showQRCode = ref(false)
-const qrCodeCanvas = ref<HTMLCanvasElement | null>(null)
+const currentPaymentId = ref<number | null>(null)
+const paymentDetail = ref<PaymentDetail | null>(null)
+const step = ref<'select' | 'pay'>('select')  // select=选择支付方式, pay=确认支付
 
 // 支付方式列表
-const paymentMethods = [
+const paymentMethods: { value: 'alipay' | 'wechat' | 'balance'; name: string; desc: string; icon: string }[] = [
   { value: 'alipay', name: '支付宝', desc: '推荐使用', icon: 'fa fa-alipay' },
   { value: 'wechat', name: '微信支付', desc: '快捷方便', icon: 'fa fa-wechat' },
   { value: 'balance', name: '余额支付', desc: '账户余额', icon: 'fa fa-wallet' }
@@ -210,6 +241,24 @@ const getStatusText = (status: string) => {
   return textMap[status] || status
 }
 
+// 将蛇形命名转换为驼峰命名（适配后端返回格式）
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const convertToCamelCase = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(item => convertToCamelCase(item))
+  } else if (obj !== null && typeof obj === 'object') {
+    const converted: Record<string, unknown> = {}
+    for (const key of Object.keys(obj)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+        converted[camelKey] = convertToCamelCase((obj as Record<string, unknown>)[key])
+      }
+    }
+    return converted
+  }
+  return obj
+}
+
 // 获取状态样式类
 const getStatusClass = (status: string) => {
   const classMap: Record<string, string> = {
@@ -220,6 +269,16 @@ const getStatusClass = (status: string) => {
     cancelled: 'status-cancelled'
   }
   return classMap[status] || ''
+}
+
+// 获取支付方式名称
+const getPaymentMethodName = (method: string) => {
+  const nameMap: Record<string, string> = {
+    alipay: '支付宝',
+    wechat: '微信支付',
+    balance: '余额'
+  }
+  return nameMap[method] || method
 }
 
 // 加载订单信息
@@ -234,20 +293,31 @@ const loadOrderInfo = async () => {
   error.value = ''
 
   try {
-    console.log('[Payment] 开始加载订单信息, orderId:', orderId)
+    console.log('[Payment] 步骤0: 加载订单信息, orderId:', orderId)
     const result = await getOrderDetail(orderId)
-    console.log('[Payment] API返回数据:', result)
+    console.log('[Payment] 订单API返回:', result)
 
-    // API返回格式: { code: 200, message: "success", data: {...} }
-    const orderData = (result as Record<string, unknown>)?.data || result
+    let orderData = (result as Record<string, unknown>)?.data || result
+    orderData = convertToCamelCase(orderData)
+
+    // 处理商品图片URL - 使用统一的工具函数处理相对路径
+    if (orderData && typeof orderData === 'object' && Array.isArray((orderData as Record<string, unknown>).items)) {
+      const items = (orderData as Record<string, unknown>).items as Array<Record<string, unknown>>
+      items.forEach((item) => {
+        const imageUrl = item.productImageUrl as string | undefined
+        if (imageUrl) {
+          // 使用 getImageUrl 统一处理，会自动将 product/xxx 转为 /filebucket/product/xxx
+          item.productImageUrl = formatImageUrl(imageUrl)
+          console.log('[Payment] 修正图片URL:', item.productImageUrl)
+        }
+      })
+    }
+
     order.value = orderData as Order
 
-    // 检查订单状态
     if (order.value.orderStatus !== 'pending_payment') {
       error.value = `订单状态为"${getStatusText(order.value.orderStatus)}"，无法支付`
-      setTimeout(() => {
-        router.back()
-      }, 2000)
+      setTimeout(() => { router.back() }, 2000)
     }
   } catch (err: unknown) {
     console.error('加载订单失败:', err)
@@ -257,99 +327,104 @@ const loadOrderInfo = async () => {
   }
 }
 
-// 处理支付
-const handlePay = async () => {
+// 步骤1: 创建支付单
+const handleCreatePayment = async () => {
   if (!order.value || !selectedMethod.value) return
 
   paying.value = true
-
   try {
-    console.log('[Payment] 开始创建支付单, orderId:', order.value.id, 'method:', selectedMethod.value)
+    console.log('[Payment] 步骤1: POST /api/orders/{orderId}/payments, channel:', selectedMethod.value)
 
-    // 1. 创建支付单
-    const paymentResult = await createPayment(order.value.id, {
+    // request() 返回 json.data，即后端 data 字段的值
+    // 后端返回 CommonResult<Long>，data 为数字 paymentId
+    const rawData = await createPayment(order.value.id, {
       paymentChannel: selectedMethod.value
     })
-    console.log('[Payment] 支付单创建成功:', paymentResult)
+    console.log('[Payment] createPayment 原始返回:', rawData, '类型:', typeof rawData)
 
-    // 获取支付单ID
-    const paymentData = (paymentResult as Record<string, unknown>)?.data || paymentResult
-
-    // API可能直接返回数字类型的支付单ID，也可能返回对象
-    let paymentId = null
-    if (typeof paymentResult === 'number') {
-      // 直接是支付单ID数字
-      paymentId = paymentResult
-    } else if (typeof paymentData === 'number') {
-      // data字段是数字
-      paymentId = paymentData
-    } else if (typeof paymentData === 'object' && paymentData !== null) {
-      // data是对象，尝试获取id字段
-      paymentId = (paymentData as Record<string, unknown>)?.id
+    // 兼容处理：data 可能是数字，也可能是包含 id 字段的对象
+    let paymentId: number
+    if (typeof rawData === 'number') {
+      paymentId = rawData
+    } else if (rawData && typeof rawData === 'object' && 'id' in (rawData as Record<string, unknown>)) {
+      paymentId = (rawData as Record<string, unknown>).id as number
+      console.log('[Payment] 从对象中提取 paymentId:', paymentId)
+    } else {
+      throw new Error(`创建支付单返回数据格式异常: ${JSON.stringify(rawData)}`)
     }
 
-    if (!paymentId) {
-      console.error('无法获取支付单ID，完整响应:', JSON.stringify(paymentResult, null, 2))
-      throw new Error(`未获取到支付单ID，响应数据: ${JSON.stringify(paymentResult)}`)
-    }
+    console.log('[Payment] 支付单创建成功, paymentId:', paymentId)
+    currentPaymentId.value = paymentId
 
-    console.log('[Payment] 支付单ID:', paymentId)
-
-    // 2. 显示支付二维码
-    showQRCode.value = true
-    paying.value = false
-
-    // 3. 生成二维码
-    await nextTick()
-    if (qrCodeCanvas.value) {
-      try {
-        const qrData = JSON.stringify({
-          paymentId: paymentId,
-          orderId: order.value.id,
-          amount: order.value.payAmount,
-          method: selectedMethod.value
-        })
-
-        await QRCode.toCanvas(qrCodeCanvas.value, qrData, {
-          width: 200,
-          height: 200,
-          margin: 1,
-          color: {
-            dark: '#000000',
-            light: '#ffffff'
-          }
-        })
-        console.log('[Payment] 二维码生成成功')
-      } catch (err) {
-        console.error('生成二维码失败:', err)
-      }
-    }
-
+    // 步骤2: 获取支付单详情
+    await loadPaymentDetail()
   } catch (err: unknown) {
-    console.error('支付失败:', err)
-    alert(`支付失败：${(err as Error).message || '未知错误'}`)
+    console.error('[Payment] 创建支付单失败:', err)
+    alert(`创建支付单失败：${(err as Error).message || '未知错误'}`)
+  } finally {
     paying.value = false
   }
 }
 
-// 关闭二维码弹窗
-const closeQRCode = () => {
-  showQRCode.value = false
+// 步骤2: 获取支付单详情
+const loadPaymentDetail = async () => {
+  if (!order.value || !currentPaymentId.value) return
+
+  try {
+    console.log('[Payment] 步骤2: GET /api/orders/{orderId}/payments/{paymentId}')
+    const result = await getPaymentDetail(order.value.id, currentPaymentId.value)
+    console.log('[Payment] 支付单详情:', result)
+
+    const detail = convertToCamelCase(result)
+    paymentDetail.value = detail as PaymentDetail
+
+    // 进入确认支付步骤
+    step.value = 'pay'
+  } catch (err: unknown) {
+    console.error('[Payment] 获取支付单详情失败:', err)
+    alert(`获取支付单详情失败：${(err as Error).message || '未知错误'}`)
+  }
 }
 
-// 获取支付方式名称
-const getPaymentMethodName = (method: string) => {
-  const nameMap: Record<string, string> = {
-    alipay: '支付宝',
-    wechat: '微信支付',
-    balance: '余额'
+// 步骤3: 发起实际支付
+const executePay = async () => {
+  if (!currentPaymentId.value) return
+
+  executingPay.value = true
+  try {
+    console.log('[Payment] 步骤3: POST /api/payments/{paymentId}/pay, paymentId:', currentPaymentId.value)
+    await payOrder(currentPaymentId.value)
+    console.log('[Payment] 支付成功')
+
+    alert('支付成功！')
+
+    // 跳转到订单详情页
+    if (order.value) {
+      router.push(`/order/detail/${order.value.id}`)
+    }
+  } catch (err: unknown) {
+    console.error('[Payment] 支付失败:', err)
+    alert(`支付失败：${(err as Error).message || '未知错误'}`)
+  } finally {
+    executingPay.value = false
   }
-  return nameMap[method] || method
+}
+
+// 返回上一步
+const goBackStep = () => {
+  step.value = 'select'
+  currentPaymentId.value = null
+  paymentDetail.value = null
 }
 
 // 返回上一页
 const goBack = () => {
   router.back()
+}
+
+// 格式化商品图片URL
+const formatProductImage = (url: string | undefined) => {
+  return formatImageUrl(url) || PLACEHOLDER_IMG
 }
 
 // 组件挂载时加载数据
@@ -704,132 +779,137 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-/* 二维码弹窗 */
-.qrcode-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.qrcode-content {
+/* 确认支付卡片 */
+.pay-confirm-card {
   background: white;
   border-radius: 12px;
-  width: 90%;
-  max-width: 400px;
-  max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
-.qrcode-header {
+.confirm-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 16px;
   border-bottom: 1px solid #f0f0f0;
 }
 
-.qrcode-header h3 {
+.confirm-header h2 {
   font-size: 18px;
   font-weight: bold;
   color: #333;
   margin: 0;
 }
 
-.close-btn {
-  width: 32px;
-  height: 32px;
+.back-step-btn {
+  width: 36px;
+  height: 36px;
   border: none;
-  background: transparent;
-  font-size: 20px;
-  color: #999;
+  background: #f5f5f5;
+  font-size: 16px;
+  color: #666;
   cursor: pointer;
   border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.3s;
 }
 
-.close-btn:hover {
-  background: #f5f5f5;
+.back-step-btn:hover {
+  background: #e8e8e8;
   color: #333;
 }
 
-.qrcode-body {
-  padding: 24px;
+.confirm-body {
+  padding: 20px 16px;
 }
 
-.amount-display {
-  text-align: center;
-  margin-bottom: 24px;
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f5f5f5;
 }
 
-.amount-display .label {
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
   font-size: 14px;
   color: #666;
-  margin-right: 8px;
 }
 
-.amount-display .value {
-  font-size: 28px;
+.info-value {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.status-created {
+  color: #f97316;
+  font-weight: bold;
+}
+
+.amount-highlight {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 2px dashed #e0e0e0;
+}
+
+.pay-amount {
+  font-size: 24px;
   font-weight: bold;
   color: #ff6b00;
 }
 
-.qrcode-container {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 24px;
-}
-
-.qr-code {
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  background: white;
-}
-
-.qrcode-tips {
-  background: #f7f7f7;
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.qrcode-tips p {
-  font-size: 12px;
-  color: #666;
-  margin: 8px 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.qrcode-tips p:first-child {
-  margin-top: 0;
-}
-
-.qrcode-tips p:last-child {
-  margin-bottom: 0;
-}
-
-.qrcode-footer {
-  display: flex;
-  gap: 12px;
+.confirm-footer {
   padding: 16px;
   border-top: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.qrcode-footer button {
-  flex: 1;
-  padding: 12px;
+.confirm-footer .pay-btn {
+  width: 100%;
+  padding: 14px;
+  background: #ff6b00;
+  color: white;
+  border: none;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s;
+}
+
+.confirm-footer .pay-btn:hover:not(:disabled) {
+  background: #e65a00;
+}
+
+.confirm-footer .pay-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  width: 100%;
+  padding: 12px;
+  background: white;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.cancel-btn:hover {
+  border-color: #ff6b00;
+  color: #ff6b00;
 }
 
 .btn-secondary {

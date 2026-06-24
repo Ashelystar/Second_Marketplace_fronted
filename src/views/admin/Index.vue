@@ -74,9 +74,9 @@ function getTabTitle(tabId: string): string {
     users: '用户管理',
     products: '商品审核',
     disputes: '纠纷仲裁',
-    forum: '社区管理',
     logs: '操作日志',
-    notifications: '系统通知'
+    notifications: '系统通知',
+    agent: 'AI 助手'
   }
   return titles[tabId] || '管理中心'
 }

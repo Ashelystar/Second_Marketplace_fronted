@@ -4,15 +4,20 @@ import type { TradeOrder } from '@/types'
 import {
   listOrders,
   getOrderDetail,
-  getOrderItems,
   cancelOrder as apiCancelOrder,
   confirmReceipt as apiConfirmReceipt,
-  payOrder as apiPayOrder
+  createPayment as apiCreatePayment
 } from '@/api/trade'
+import {
+  payOrder as apiExecutePayment,
+  remindShip as apiRemindShip
+} from '@/api/order'
 
 export const useOrderStore = defineStore('order', () => {
-  const orders = ref<TradeOrder[]>([])
-  const currentOrder = ref<TradeOrder | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orders = ref<any[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const currentOrder = ref<any | null>(null)
   const items = ref<any[]>([])
   const loading = ref(false)
   const stats = ref({
@@ -21,17 +26,19 @@ export const useOrderStore = defineStore('order', () => {
     averageRating: 0
   })
 
-  // 计算属性：按状态分类的订单
-  const pendingOrders = computed(() => orders.value.filter(o => o.order_status === 'pending'))
-  const paidOrders = computed(() => orders.value.filter(o => o.order_status === 'paid'))
-  const shippedOrders = computed(() => orders.value.filter(o => o.order_status === 'shipped'))
-  const refundingOrders = computed(() => orders.value.filter(o => o.order_status === 'refunding'))
-  const completedOrders = computed(() => orders.value.filter(o => o.order_status === 'completed'))
+  // 计算属性：按状态分类的订单（全面改为小驼峰匹配后端返回数据字段）
+  const pendingOrders = computed(() => orders.value.filter(o => o.orderStatus === 'pending' || o.orderStatus === 'pending_payment'))
+  const paidOrders = computed(() => orders.value.filter(o => o.orderStatus === 'paid'))
+  // 待收货栏：完美兼容后端返回的 'shipped' 和 'delivered' 两种状态
+  const shippedOrders = computed(() => orders.value.filter(o => o.orderStatus === 'shipped' || o.orderStatus === 'delivered'))
+  const refundingOrders = computed(() => orders.value.filter(o => o.orderStatus === 'refunding'))
+  const completedOrders = computed(() => orders.value.filter(o => o.orderStatus === 'completed'))
 
   async function loadOrders(status?: string) {
     loading.value = true
     try {
-      const result = await listOrders({ status, page: 1, pageSize: 100 })
+      const result = await listOrders({ role: 'buyer', status, page: 1, pageSize: 100 })
+      console.log('订单列表加载结果:', result)
       orders.value = result.list || []
     } catch (error) {
       console.error('加载订单列表失败:', error)
@@ -44,7 +51,12 @@ export const useOrderStore = defineStore('order', () => {
     loading.value = true
     try {
       currentOrder.value = await getOrderDetail(orderId)
-      items.value = await getOrderItems(orderId)
+      // 后端订单详情已包含 items 数组，无需单独请求
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detail = currentOrder.value as any
+      if (detail && detail.items) {
+        items.value = detail.items
+      }
     } catch (error) {
       console.error('加载订单详情失败:', error)
     } finally {
@@ -56,9 +68,7 @@ export const useOrderStore = defineStore('order', () => {
     loading.value = true
     try {
       await apiCancelOrder(orderId, { cancelReason: reason || '买家取消订单' })
-      // 重新加载订单列表以更新状态
       await loadOrders()
-      // 如果当前正在查看该订单详情，也需要更新
       if (currentOrder.value?.id === orderId) {
         await loadOrderDetail(orderId)
       }
@@ -70,18 +80,25 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
+  /**
+   * 确认收货核心函数
+   * @param orderId 订单列表单项中的核心主键ID
+   */
   async function confirmReceipt(orderId: number): Promise<void> {
     loading.value = true
     try {
+      // 1. 调用带 Auth 头的后端 API 发送 POST 请求
       await apiConfirmReceipt(orderId)
-      // 重新加载订单列表以更新状态
+
+      // 2. 交互成功后，自动重新拉取订单列表，利用数据响应式机制无缝刷新界面状态
       await loadOrders()
-      // 如果当前正在查看该订单详情，也需要更新
+
+      // 3. 如果此时用户正在详情页中，同步更新详情视图
       if (currentOrder.value?.id === orderId) {
         await loadOrderDetail(orderId)
       }
     } catch (error) {
-      console.error('确认收货失败:', error)
+      console.error('业务层处理确认收货失败:', error)
       throw error
     } finally {
       loading.value = false
@@ -91,10 +108,14 @@ export const useOrderStore = defineStore('order', () => {
   async function initiatePayment(orderId: number, paymentChannel: 'alipay' | 'wechat' | 'balance') {
     loading.value = true
     try {
-      const result = await apiPayOrder(orderId, { paymentChannel })
+      // 1. 先创建支付单，获取 paymentId
+      const paymentId = await apiCreatePayment(orderId, { paymentChannel })
+      console.log('支付单创建成功, paymentId:', paymentId)
+      // 2. 发起支付
+      const result = await apiExecutePayment(paymentId)
       return result
     } catch (error) {
-      console.error('创建支付单失败:', error)
+      console.error('支付失败:', error)
       throw error
     } finally {
       loading.value = false
@@ -102,18 +123,35 @@ export const useOrderStore = defineStore('order', () => {
   }
 
   async function executePayment(paymentId: number) {
-    // TODO: 根据实际API实现
-    console.log('执行支付:', paymentId)
-    return true
+    loading.value = true
+    try {
+      console.log('执行支付, paymentId:', paymentId)
+      const result = await apiExecutePayment(paymentId)
+      console.log('支付执行结果:', result)
+      return result
+    } catch (error) {
+      console.error('执行支付失败:', error)
+      throw error
+    } finally {
+      loading.value = false
+    }
   }
 
   async function remindShip(orderId: number) {
-    // TODO: 根据实际API实现提醒发货功能
-    console.log('提醒发货:', orderId)
-    return true
+    loading.value = true
+    try {
+      console.log('提醒发货, orderId:', orderId)
+      await apiRemindShip(orderId)
+      console.log('提醒发货成功')
+    } catch (error) {
+      console.error('提醒发货失败:', error)
+      throw error
+    } finally {
+      loading.value = false
+    }
   }
 
-  // 获取订单数量
+  // 获取订单分类标签数量
   function getCount(status: string) {
     switch (status) {
       case 'all': return orders.value.length

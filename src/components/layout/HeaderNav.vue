@@ -23,8 +23,7 @@
       </div>
 
       <nav class="navLinks">
-        <!-- <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a> -->
-        <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
+        <a href="#" @click.prevent="router.push('/user/favorites')"><i class="fa fa-heart"></i> 收藏</a>
         <a href="#" class="message-link" @click.prevent="router.push('/chat')">
           <i class="fa fa-bell"></i>
           消息
@@ -59,7 +58,9 @@ const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 const unreadCount = computed(() => {
   const uid = Number(userStore.userInfo?.id || 0)
   if (!uid) return 0
-  return chatStore.getUnreadCountForUser(uid) + noticeStore.unreadCount
+  const chatUnread = chatStore.getUnreadCountForUser(uid)
+  const noticeUnread = noticeStore.unreadCount
+  return chatUnread + noticeUnread
 })
 
 const unreadDisplay = computed(() => (unreadCount.value > 99 ? '99+' : String(unreadCount.value)))
@@ -77,7 +78,7 @@ const searchTag = (tag: string) => {
 
 onMounted(() => {
   chatStore.initialize()
-  noticeStore.fetchUnreadCount()
+  noticeStore.refresh()
 })
 </script>
 

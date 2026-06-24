@@ -65,7 +65,8 @@ export interface PickupVerifyRequest {
 
 // --- 通用请求函数 (包含 Token 自动注入) ---
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem('token'); // 假设你存的是 token
+  const token = localStorage.getItem('token');
+  console.log('[order.request] URL:', url, 'token:', token ? 'exists(' + token.substring(0, 20) + '...)' : 'missing')
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     // oxlint-disable-next-line unicorn/no-useless-fallback-in-spread
@@ -77,12 +78,16 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   }
 
   const response = await fetch(url, { ...options, headers });
+  console.log('[order.request] HTTP status:', response.status)
+
+  const text = await response.text()
+  console.log('[order.request] Response body:', text)
 
   if (!response.ok) {
-    throw new Error(`网络错误: ${response.status}`);
+    throw new Error(text || `网络错误: ${response.status}`);
   }
 
-  const json: ApiResponse<T> = await response.json();
+  const json: ApiResponse<T> = JSON.parse(text);
   if (json.code !== 200) {
     throw new Error(json.message || '请求失败');
   }
@@ -121,11 +126,6 @@ export const confirmReceipt = (orderId: number) =>
 /** 订单状态日志 */
 export const getOrderStatusLogs = (orderId: number) =>
   request(`/api/orders/${orderId}/status-logs`);
-
-/** 获取订单商品列表 */
-export const getOrderItems = (orderId: number) =>
-  request(`/api/orders/${orderId}/items`);
-
 
 // ===================== 支付流程 =====================
 
@@ -186,10 +186,7 @@ export const verifyPickup = (orderId: number, shipmentId: number, data: PickupVe
 
 // ===================== 辅助函数 =====================
 
-/** 获取订单统计信息 */
-export const getOrderStats = () =>
-  request('/api/orders/stats');
-
-/** 提醒发货 */
+/** 提醒发货（后端暂无此接口，前端占位，调用时可能返回404） */
 export const remindShip = (orderId: number) =>
   request(`/api/orders/${orderId}/remind-ship`, { method: 'POST' });
+

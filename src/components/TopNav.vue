@@ -35,13 +35,9 @@
 
       <!-- 右侧导航链接 -->
       <nav class="navLinks">
-        <!-- <a href="#" @click.prevent="goToForum">
-          <i class="fa fa-comments"></i>
-          社区
-        </a> -->
-        <a href="#" @click.prevent="goToCart">
-          <i class="fa fa-shopping-cart"></i>
-          购物车
+        <a href="#" @click.prevent="goToFavorites">
+          <i class="fa fa-heart"></i>
+          收藏
         </a>
         <a href="#" class="message-link" @click.prevent="goToMessage">
           <i class="fa fa-bell"></i>
@@ -97,6 +93,7 @@ const floatingTools = [
 
 
 const handleTool = (t: { action: string }) => {
+  console.log(t)
   if (t.action === 'publish') {
     router.push('/publish')
     return
@@ -140,7 +137,9 @@ const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 const unreadCount = computed(() => {
   const uid = Number(userStore.userInfo?.id || 0)
   if (!uid) return 0
-  return chatStore.getUnreadCountForUser(uid) + noticeStore.unreadCount
+  const chatUnread = chatStore.getUnreadCountForUser(uid)
+  const noticeUnread = noticeStore.unreadCount
+  return chatUnread + noticeUnread
 })
 
 const unreadDisplay = computed(() => (unreadCount.value > 99 ? '99+' : String(unreadCount.value)))
@@ -169,10 +168,10 @@ const goToHome = () => {
   router.push('/')
 }
 /**
- * 导航到购物车页面
+ * 导航到收藏页面
  */
-const goToCart = () => {
-  router.push('/cart')
+const goToFavorites = () => {
+  router.push('/user/favorites')
 }
 
 /**
@@ -191,12 +190,12 @@ const goToLogin = () => {
 
 onMounted(() => {
   chatStore.initialize()
-  noticeStore.fetchUnreadCount()
+  noticeStore.refresh()
 })
 </script>
 
 <style scoped>
-/* 顶栏布局与字号由模板上的 Tailwind 类控制，与 ForumLayout 保持一致 */
+/* 顶栏布局与字号由模板上的 Tailwind 类控制 */
 /* 悬浮工具栏 */
 .floatTools {
   position: fixed;

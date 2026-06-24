@@ -39,6 +39,9 @@
             </ul>
           </div>
 
+          <!-- 通知面板 -->
+          <NoticePanel />
+
           <!-- 悬浮子分类 -->
           <!--
           <div
@@ -146,6 +149,7 @@ import { useUserStore } from '@/stores/userStore'
 import { getCategoryList } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import Topnav from '@/components/TopNav.vue'
+import NoticePanel from '@/components/home/NoticePanel.vue'
 import SiteFooter from '@/components/layout/SiteFooter.vue'
 defineOptions({ name: 'HomePage' })
 

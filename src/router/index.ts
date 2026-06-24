@@ -4,9 +4,6 @@ import { ElMessage } from 'element-plus'
 import Home from '../views/home/Index.vue'
 import Detail from '../views/goods/Detail.vue'
 import SearchPage from '../views/goods/SearchPage.vue'
-import ForumLayout from '../views/forum/ForumLayout.vue'
-import Forum from '../views/forum/Index.vue'
-import GoodsList from '../views/goods/List.vue'
 import ChatList from '../views/chat/Index.vue'
 import OrderList from '../views/order/List.vue'
 import UserLogin from '../views/user/Login.vue'
@@ -27,11 +24,6 @@ const router = createRouter({
       component: Home,
     },
     // 商品模块路由
-    {
-      path: '/goods',
-      name: 'goods-list',
-      component: GoodsList,
-    },
     {
       path: '/search',
       name: 'search',
@@ -81,13 +73,6 @@ const router = createRouter({
       component: () => import('../views/order/Checkout.vue'),
       meta: { requiresAuth: true },
     },
-    // 购物车模块路由
-    {
-      path: '/cart',
-      name: 'cart',
-      component: () => import('../views/cart/Index.vue'),
-    },
-
     // 订单模块路由
     {
       path: '/order',
@@ -106,11 +91,6 @@ const router = createRouter({
       component: () => import('../views/order/Review.vue'),
       props: true,
       meta: { requiresAuth: true },
-    },
-    {
-      path: '/order/confirm',
-      name: 'order-confirm',
-      component: () => import('../views/order/Confirm.vue'),
     },
     {
       path: '/order/payment/:id',
@@ -132,13 +112,6 @@ const router = createRouter({
       name: 'chat',
       component: ChatList,
     },
-    {
-      path: '/chat/room/:id',
-      name: 'chat-room',
-      component: () => import('../views/chat/Room.vue'),
-      props: true,
-    },
-
     // 用户模块路由
     {
       path: '/user/login',
@@ -245,14 +218,19 @@ const router = createRouter({
           component: () => import('../components/admin/Disputes.vue'),
         },
         {
-          path: 'forum',
-          name: 'admin-forum',
-          component: () => import('../components/admin/Forum.vue'),
-        },
-        {
           path: 'logs',
           name: 'admin-logs',
           component: () => import('../components/admin/Log.vue'),
+        },
+        {
+          path: 'notifications',
+          name: 'admin-notifications',
+          component: () => import('../components/admin/Notifications.vue'),
+        },
+        {
+          path: 'agent',
+          name: 'admin-agent',
+          component: () => import('../components/admin/Agent.vue'),
         },
       ],
     },
@@ -273,9 +251,24 @@ const originBeforeLogin = new Map<string, string>()
 
 router.beforeEach((to, from) => {
   const token = localStorage.getItem('token')
-  // 放宽校验：只要有非空 token 就认为已登录，不再强制依赖 userInfo.id
-  // 避免 fetchUserProfile 覆盖 userInfo 后导致 id 丢失而被误踢
-  const hasValidToken = Boolean(token && token.length > 8)
+  // 检查 token 是否存在且未过期
+  let hasValidToken = Boolean(token && token.length > 8)
+  if (hasValidToken && token) {
+    // 检查 JWT 是否过期
+    try {
+      const parts = token.split('.')
+      if (parts.length >= 2) {
+        const payload = JSON.parse(atob(parts[1] as string))
+        if (payload.exp && Date.now() >= payload.exp * 1000) {
+          hasValidToken = false
+          // 清除过期 token
+          localStorage.removeItem('token')
+          localStorage.removeItem('userInfo')
+          console.log('[router.beforeEach] token 已过期，已清除')
+        }
+      }
+    } catch { /* ignore */ }
+  }
   console.log(`[router.beforeEach] path=${to.path}, hasValidToken=${hasValidToken}`)
   if (hasValidToken) return true
   if (guestAllowedPaths.has(to.path)) return true

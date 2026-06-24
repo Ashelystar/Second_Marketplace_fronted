@@ -6,7 +6,11 @@
         <i class="fa fa-arrow-left"></i>
       </button>
       <span class="title">购物车</span>
-      <div class="right"></div>
+      <div class="right">
+        <button v-if="cartItems.length > 0" class="deleteBtn" @click="deleteSelected">
+          <i class="fa fa-trash-o"></i> 删除
+        </button>
+      </div>
     </div>
 
     <!-- 购物车为空 -->
@@ -173,6 +177,26 @@ const settle = () => {
       fromCart: 'true'
     }
   })
+}
+
+// 删除选中的商品
+const deleteSelected = () => {
+  const selectedItems = cartItems.value.filter(item => item.selected)
+  if (selectedItems.length === 0) {
+    alert('请先选择要删除的商品')
+    return
+  }
+
+  if (!confirm(`确定要删除选中的 ${selectedItems.length} 件商品吗？`)) {
+    return
+  }
+
+  // 过滤掉选中的商品
+  cartItems.value = cartItems.value.filter(item => !item.selected)
+  // 保存到 localStorage
+  saveCartItems(cartItems.value)
+
+  alert('已删除选中的商品')
 }
 
 import { useSmartBack } from '@/composables/useSmartBack'

@@ -78,7 +78,26 @@ export const useUserStore = defineStore('user', () => {
     isAdmin: false,
   })
 
-  const isLoggedIn = computed(() => !!token.value && !!userInfo.value)
+  // 检查 JWT token 是否过期
+  const isTokenExpired = (t: string): boolean => {
+    try {
+      const parts = t.split('.')
+      if (parts.length < 2) return false
+      const payloadPart = parts[1] as string
+      const payload = JSON.parse(atob(payloadPart))
+      if (payload.exp) {
+        // 提前 60 秒视为过期，避免边界问题
+        return Date.now() >= (payload.exp * 1000 - 60000)
+      }
+    } catch { /* ignore */ }
+    return false
+  }
+
+  const isLoggedIn = computed(() => {
+    if (!token.value || !userInfo.value) return false
+    if (isTokenExpired(token.value)) return false
+    return true
+  })
 
   const isFavorited = (productId: number) => {
     return favoriteIds.value.includes(productId) || favorites.value.some(item => item.id === productId)
@@ -433,6 +452,7 @@ export const useUserStore = defineStore('user', () => {
     syncFavoritesFromServer,
     loadUserSecurityInfo,
     login,
-    logout
+    logout,
+    isTokenExpired
   }
 })

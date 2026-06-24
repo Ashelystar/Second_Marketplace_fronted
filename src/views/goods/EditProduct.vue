@@ -11,8 +11,7 @@
         </div>
 
         <nav class="navLinks">
-          <!-- <a href="#" @click.prevent="router.push('/forum')"><i class="fa fa-comments"></i> 社区</a> -->
-          <a href="#" @click.prevent="router.push('/cart')"><i class="fa fa-shopping-cart"></i> 购物车</a>
+          <a href="#" @click.prevent="router.push('/user/favorites')"><i class="fa fa-heart"></i> 收藏</a>
           <a href="#" @click.prevent="router.push('/chat')"><i class="fa fa-bell"></i> 消息</a>
           <template v-if="userStore.isLoggedIn">
             <UserDropdown />
@@ -642,8 +641,75 @@ const handleLogin = () => {
 }
 
 onMounted(async () => {
-  await loadCategories()
-  loadProduct()
+  // 1. 你原来的加载分类列表逻辑（保持不变）
+  try {
+    const list = await getCategoryList()
+    categories.value = list
+    if (list.length > 0 && !route.query.id) {
+      form.category_id = list[0].id
+    }
+  } catch (err) {
+    console.error('加载分类列表失败', err)
+  }
+
+  // 2. 你原来的编辑模式检测（保持不变）
+  if (route.query.id) {
+    isEditing.value = true
+    productId.value = Number(route.query.id)
+    try {
+      const detail = await getProductDetail(productId.value)
+      Object.assign(form, detail)
+    } catch (err) {
+      alert('加载商品详情失败')
+    }
+    return
+  }
+
+  // ========================================================
+  // 3. ✨ 纯数据填充逻辑：只往格子填值，绝不改动你的变量名和网页
+  // ========================================================
+  const cache = localStorage.getItem('agent_publish_form_cache')
+  if (cache) {
+    try {
+      const parsed = JSON.parse(cache)
+      
+      // 严格对齐你在 form 里定义的原始变量名，只在有值时进行静默覆盖填充
+      if (parsed.title) form.title = parsed.title
+      if (parsed.description) form.description = parsed.description
+      if (parsed.brand) form.brand = parsed.brand
+      if (parsed.model) form.model = parsed.model
+      
+      // 分类 ID
+      const cid = parsed.category_id || parsed.categoryId
+      if (cid) form.category_id = Number(cid)
+      
+      // 成色级别
+      const cond = parsed.condition_level || parsed.conditionLevel
+      if (cond) form.condition_level = cond
+
+      // 入手原价与预售价格 (转为数字确保不影响计算)
+      const op = parsed.original_price ?? parsed.originalPrice
+      if (op !== undefined) form.original_price = Number(op)
+      
+      const sp = parsed.selling_price ?? parsed.sellingPrice
+      if (sp !== undefined) form.selling_price = Number(sp)
+
+      // 交易方式、城市与具体自提地点
+      const tm = parsed.trade_mode || parsed.tradeMode
+      if (tm) form.trade_mode = tm
+      
+      const pc = parsed.pickup_city || parsed.pickupCity
+      if (pc) form.pickup_city = pc
+
+      const pa = parsed.pickup_address || parsed.pickupAddress
+      if (pa) form.pickup_address = pa
+
+      // 填充完毕后，按需移除缓存，防止下次进来还误填充
+      localStorage.removeItem('agent_publish_form_cache')
+    } catch (e) {
+      console.error('解析智能体表单缓存失败', e)
+    }
+  }
 })
 </script>
 
