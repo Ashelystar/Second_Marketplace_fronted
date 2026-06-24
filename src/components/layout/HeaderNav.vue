@@ -46,18 +46,20 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore } from '@/stores/chatStore'
+import { useNoticeStore } from '@/stores/noticeStore'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 const chatStore = useChatStore()
+const noticeStore = useNoticeStore()
 const searchInput = ref('')
 const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 
 const unreadCount = computed(() => {
   const uid = Number(userStore.userInfo?.id || 0)
   if (!uid) return 0
-  return chatStore.getUnreadCountForUser(uid)
+  return chatStore.getUnreadCountForUser(uid) + noticeStore.unreadCount
 })
 
 const unreadDisplay = computed(() => (unreadCount.value > 99 ? '99+' : String(unreadCount.value)))
@@ -73,13 +75,9 @@ const searchTag = (tag: string) => {
   handleSearch()
 }
 
-/** 导航到消息页面（路由守卫统一处理登录校验） */
-const goToMessage = () => {
-  router.push('/chat')
-}
-
 onMounted(() => {
   chatStore.initialize()
+  noticeStore.fetchUnreadCount()
 })
 </script>
 

@@ -465,9 +465,9 @@ export interface PublicUserBrief {
   avatarUrl: string | null
 }
 
-/** 获取其他用户的公开昵称/头像（信用分接口含 nickname） */
+/** 获取其他用户的公开昵称/头像（调用 GET /api/user/profile/{userId} 公开接口） */
 export async function getPublicUserBriefApi(userId: number | string): Promise<PublicUserBrief> {
-  const url = `/api/user/credit-score/${encodeURIComponent(String(userId))}`
+  const url = `/api/user/profile/${encodeURIComponent(String(userId))}`
   const response = await fetch(url, {
     method: 'GET',
     headers: getAuthHeader(),
@@ -477,16 +477,12 @@ export async function getPublicUserBriefApi(userId: number | string): Promise<Pu
     throw new Error(text || `网络错误：${response.status}`)
   }
   const json = await parseResponse<ApiResponse<UserCreditScoreData>>(response)
-  console.log(`[getPublicUserBriefApi] userId=${userId} response:`, json.data)
-  if (json.code !== 200) {
-    throw new Error(json.message || '获取用户信息失败')
-  }
-  if (!json.data) {
-    console.warn(`[getPublicUserBriefApi] userId=${userId} 返回 data 为 null`)
+  if (json.code !== 200 || !json.data) {
+    console.warn(`[getPublicUserBriefApi] userId=${userId} 返回异常`)
     throw new Error('用户信息未返回')
   }
   return {
-    nickname: json.data.nickname,
+    nickname: json.data.nickname?.trim() || `用户${userId}`,
     avatarUrl: json.data.avatarUrl ?? null,
   }
 }

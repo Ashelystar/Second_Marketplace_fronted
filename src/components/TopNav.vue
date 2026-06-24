@@ -72,13 +72,19 @@
 <script setup lang="ts">
 // 导入Vue组合式API和状态管理
 
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore } from '@/stores/chatStore'
+import { useNoticeStore } from '@/stores/noticeStore'
 import UserDropdown from '@/components/UserDropdown.vue'
 import { useAgentStore } from '@/stores/agentStore'
 const agentStore = useAgentStore()
+
+const showAgentDialog = computed({
+  get: () => agentStore.isDialogVisible,
+  set: (v: boolean) => { if (v) agentStore.openDialog(); else agentStore.closeDialog() }
+})
 
 const floatingTools = [
   { id: 1, icon: 'fa fa-plus', label: '发闲置', action: 'publish' },
@@ -123,6 +129,7 @@ const goToAgent = () => {
 const router = useRouter()
 const userStore = useUserStore()
 const chatStore = useChatStore()
+const noticeStore = useNoticeStore()
 
 // 搜索输入框的响应式数据
 const searchInput = ref('')
@@ -133,7 +140,7 @@ const hotTags = ['iPhone', 'MacBook', 'AirPods', 'Switch']
 const unreadCount = computed(() => {
   const uid = Number(userStore.userInfo?.id || 0)
   if (!uid) return 0
-  return chatStore.getUnreadCountForUser(uid)
+  return chatStore.getUnreadCountForUser(uid) + noticeStore.unreadCount
 })
 
 const unreadDisplay = computed(() => (unreadCount.value > 99 ? '99+' : String(unreadCount.value)))
@@ -156,13 +163,6 @@ const handleSearch = () => {
 const searchTag = (tag: string) => {
   searchInput.value = tag
   handleSearch()
-}
-
-/**
- * 导航到论坛页面
- */
-const goToForum = () => {
-  router.push('/forum')
 }
 
 const goToHome = () => {
@@ -191,6 +191,7 @@ const goToLogin = () => {
 
 onMounted(() => {
   chatStore.initialize()
+  noticeStore.fetchUnreadCount()
 })
 </script>
 

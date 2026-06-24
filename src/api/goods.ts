@@ -67,7 +67,12 @@ export async function getProductDetail(id: number): Promise<Product> {
 
 /** 下架商品（将商品置为下架状态，非真删除） */
 export async function offShelfProduct(id: number): Promise<string> {
-  return handleRequest<string>(`/api/product/${id}`, { method: 'DELETE' }, '下架商品失败')
+  return handleRequest<string>(`/api/product/${id}/off-shelf`, { method: 'POST' }, '下架商品失败')
+}
+
+/** 删除商品（软删除，标记为deleted，删除后不可见） */
+export async function deleteProduct(id: number): Promise<string> {
+  return handleRequest<string>(`/api/product/${id}`, { method: 'DELETE' }, '删除商品失败')
 }
 
 /** 重新上架商品 */
@@ -237,6 +242,11 @@ export async function updateProduct(id: number, params: UpdateProductParams): Pr
 /** 查询商品单独状态 */
 export async function getProductStatus(id: number): Promise<string> {
   return handleRequest<string>(`/api/product/status?id=${id}`, { method: 'GET' }, '查询商品状态失败')
+}
+
+/** 判断商品是否在售（大小写不敏感，兼容后端不同枚举风格） */
+export function isOnSale(status: string): boolean {
+  return String(status || '').toLowerCase() === 'on_sale'
 }
 
 /** 商品分类 */

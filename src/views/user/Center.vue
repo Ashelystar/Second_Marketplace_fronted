@@ -134,7 +134,7 @@
             <button class="actionBtn" @click="editProduct(product)">
               <i class="fa fa-edit"></i>
             </button>
-            <button class="actionBtn delete" @click="deleteProduct(product)">
+            <button class="actionBtn delete" @click="deleteProductHandler(product)">
               <i class="fa fa-trash"></i>
             </button>
           </div>
@@ -147,7 +147,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { offShelfProduct, relistProduct, revokeReview, getMyProducts, type ProductVO } from '@/api/goods'
+import { offShelfProduct, deleteProduct, relistProduct, revokeReview, getMyProducts, type ProductVO } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 
 const router = useRouter()
@@ -174,7 +174,7 @@ interface Product {
   originalPrice: number
   image: string
   category: string
-  status: '在售' | '已下架' | '待审核' | '已驳回'
+  status: '在售' | '已下架' | '待审核' | '已驳回' | '草稿'
   viewCount: number
   favoriteCount: number
   consultCount: number
@@ -200,6 +200,16 @@ const formatTime = (dateStr?: string) => {
 }
 
 // 将 ProductVO 转换为 Product
+const resolveStatus = (raw: string): Product['status'] => {
+  // 统一转小写做大小写不敏感匹配（后端不同接口可能返回不同大小写）
+  const key = String(raw || '').toLowerCase()
+  const mapped = statusMap[key] || statusMap[raw] // 先小写查，再原值查
+  if (mapped) return mapped as Product['status']
+  // 未映射的状态记录下来方便排查，降级显示为"已下架"而非假"在售"
+  console.warn('[Center] 未知商品状态，请更新 statusMap:', raw)
+  return '已下架'
+}
+
 const toProduct = (item: ProductVO): Product => {
   const coverImage = item.images?.find(img => img.isCover)?.imageUrl
     || item.images?.[0]?.imageUrl
@@ -211,7 +221,7 @@ const toProduct = (item: ProductVO): Product => {
     originalPrice: item.originalPrice || 0,
     image: coverImage ? getImageUrl(coverImage) : PLACEHOLDER_IMG,
     category: '',
-    status: (statusMap[item.publishStatus] || '在售') as Product['status'],
+    status: resolveStatus(item.publishStatus),
     viewCount: item.viewCount || 0,
     favoriteCount: item.favoriteCount || 0,
     consultCount: 0,
@@ -313,10 +323,10 @@ const revokeReviewFn = async (product: Product) => {
   }
 }
 
-const deleteProduct = async (product: Product) => {
+const deleteProductHandler = async (product: Product) => {
   if (confirm(`确定要删除商品「${product.title}」吗？删除后不可恢复！`)) {
     try {
-      await offShelfProduct(product.id)
+      await deleteProduct(product.id)
       products.value = products.value.filter(p => p.id !== product.id)
       alert('商品已删除')
     } catch (err) {

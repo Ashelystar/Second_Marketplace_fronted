@@ -96,7 +96,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { getCategoryList, getDraftList } from '@/api/goods'
+import { getCategoryList, getDraftList, deleteProduct } from '@/api/goods'
 import type { Category, ProductImageVO } from '@/api/goods'
 import { getImageUrl } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
@@ -159,10 +159,13 @@ const editDraft = (draft: Draft) => {
   router.push({ path: '/edit', query: { id: draft.id.toString() } })
 }
 
-const deleteDraft = (draft: Draft) => {
-  if (confirm(`确定要删除草稿「${draft.title || '未命名'}」吗？`)) {
+const deleteDraft = async (draft: Draft) => {
+  if (!confirm(`确定要删除草稿「${draft.title || '未命名'}」吗？`)) return
+  try {
+    await deleteProduct(draft.id)
     drafts.value = drafts.value.filter(d => d.id !== draft.id)
-    // TODO: 调用后端删除接口
+  } catch (err: unknown) {
+    alert(err instanceof Error ? err.message : '删除草稿失败')
   }
 }
 

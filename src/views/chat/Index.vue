@@ -167,7 +167,7 @@
                   <div v-else-if="msg.contentType === 'image'" class="image-content">
                     <img :src="msg.content" alt="图片消息">
                   </div>
-                  <div v-else-if="msg.contentType === 'product'" class="product-content" @click="msg.product?.id ? goToProductDetail(msg.product.id) : undefined">
+                  <div v-else-if="msg.contentType === 'product'" class="product-content" @click="msg.product?.id ? goToProductDetail(msg.product) : undefined">
                     <div v-if="msg.product?.title" class="product-mini">
                       <img :src="(msg.product?.image ? getImageUrl(msg.product.image) : PLACEHOLDER_IMG)" :alt="msg.product?.title || '商品'">
                       <div class="product-mini-info">
@@ -291,7 +291,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { useSmartBack } from '@/composables/useSmartBack'
-import { getProductDetail } from '@/api/goods'
+import { getProductDetail, getProductStatus, isOnSale } from '@/api/goods'
 import { resolveUserDisplayProfile, isFallbackUserLabel } from '@/api/user'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore, type ChatProductCard, type ChatUserProfile } from '@/stores/chatStore'
@@ -331,7 +331,7 @@ const contextMenuPos = ref({ x: 0, y: 0 })
 const contextMenuMessage = ref<{ id: number; type: string; senderId: number; createdAt: number } | null>(null)
 
 // ============ 轮询 ============
-const POLL_INTERVAL = 3000 // 每 3 秒轮询一次
+const POLL_INTERVAL = 2000 // 每 2 秒轮询一次
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let isPolling = false
 
@@ -538,14 +538,31 @@ const createConversationFromRoute = async () => {
   const routeConversationId = Number(route.query.conversationId || 0)
   if (routeConversationId > 0) {
     activeConversationId.value = routeConversationId
+    // 进入已有对话时也置顶
+    chatStore.touchConversation(routeConversationId)
     await chatStore.fetchMessages(routeConversationId)
     return
   }
 
-  // 2. 商家主页/其他页面传来 friendId/sellerId，创建新会话
+  // 2. 商家主页/其他页面传来 friendId/sellerId
   const routeFriendId = Number(route.query.friendId || route.query.sellerId || 0)
   if (!routeFriendId || routeFriendId === current.id) return
 
+  // 2a. 先查是否已有与该卖家的历史会话（复用，不创建新的）
+  const existingConv = chatStore.conversations.find(
+    (conv) => conv.userId === routeFriendId
+  )
+  if (existingConv) {
+    activeConversationId.value = existingConv.id
+    // 进入已有对话时也置顶
+    chatStore.touchConversation(existingConv.id)
+    await chatStore.fetchMessages(existingConv.id)
+    // 清除 URL 中的 friendId，避免下次误判
+    await router.replace({ query: { ...route.query, friendId: undefined, sellerId: undefined } })
+    return
+  }
+
+  // 2b. 没有已有会话，创建新的
   const legacy = getLegacyFriend(routeFriendId)
   const profile = await resolveUserDisplayProfile(routeFriendId, {
     sellerName: route.query.sellerName,
@@ -572,7 +589,27 @@ const createConversationFromRoute = async () => {
   const conversation = await chatStore.ensureConversation(current, target, productForConv)
   if (conversation) {
     activeConversationId.value = conversation.id
+    // 新建/进入对话时置顶
+    chatStore.touchConversation(conversation.id)
     await chatStore.fetchMessages(conversation.id)
+  }
+}
+
+/** 把商品详情 VO 转成聊天页顶部卡片对象 */
+const buildProductCard = (detail: Awaited<ReturnType<typeof getProductDetail>>): ChatProductCard => {
+  const image = detail.image
+    ? getImageUrl(detail.image)
+    : Array.isArray(detail.images) && detail.images[0]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? getImageUrl(((detail.images[0] as any).url || (detail.images[0] as any).imageUrl || ''))
+      : PLACEHOLDER_IMG
+  return {
+    id: detail.id,
+    title: detail.title || `商品${detail.id}`,
+    price: Number(detail.sellingPrice ?? detail.price ?? 0),
+    originalPrice: detail.originalPrice ? Number(detail.originalPrice) : undefined,
+    image,
+    sellerId: (detail as unknown as { sellerId?: number }).sellerId,
   }
 }
 
@@ -580,54 +617,53 @@ const initProductFromQuery = async () => {
   const productId = Number(route.query.productId || 0)
   if (!productId) return
   try {
-    const detail = await getProductDetail(productId)
-    const image = detail.image
-      ? getImageUrl(detail.image)
-      : Array.isArray(detail.images) && detail.images[0]
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ? getImageUrl(((detail.images[0] as any).url || (detail.images[0] as any).imageUrl || ''))
-        : PLACEHOLDER_IMG
-    pendingProduct.value = {
-      id: detail.id,
-      title: detail.title || `商品${detail.id}`,
-      price: Number(detail.sellingPrice ?? detail.price ?? 0),
-      originalPrice: detail.originalPrice ? Number(detail.originalPrice) : undefined,
-      image,
+    // 先校验商品是否在售
+    const status = await getProductStatus(productId)
+    if (isOnSale(status)) {
+      // 明确在售，正常加载
+      const detail = await getProductDetail(productId)
+      pendingProduct.value = buildProductCard(detail)
+      return
     }
+    // 非在售时尝试兜底：详情接口如果能查到就显示（兼容状态接口异常）
+    console.warn('[initProductFromQuery] 状态非在售，尝试兜底加载详情:', { productId, status })
+    const detail = await getProductDetail(productId)
+    pendingProduct.value = buildProductCard(detail)
   } catch (error) {
-    console.error('加载咨询商品失败', error)
+    console.error('[initProductFromQuery] 加载商品失败，清空卡片:', error)
+    pendingProduct.value = null
   }
 }
 
 /** 根据当前会话的 productId 加载商品详情到顶部卡片 */
 const fetchActiveProduct = async () => {
   const thread = activeThread.value
-  // 优先使用 URL 中的 productId（用户从商品页点击进入时）
   const routeProductId = Number(route.query.productId || 0)
-  const pid = routeProductId || thread?.productId
+  // URL 明确带了 productId → 用户从某个商品页进入，优先显示该商品（即使复用已有会话）
+  // 否则 → 使用会话自身绑定的 productId
+  const pid = routeProductId || thread?.productId || 0
   if (!pid) {
+    console.warn('[fetchActiveProduct] 会话无 productId，清空卡片:', { conversationId: activeConversationId.value })
     pendingProduct.value = null
     return
   }
   // 已经是同一个商品就不重复请求
   if (pendingProduct.value?.id === pid) return
   try {
-    const detail = await getProductDetail(pid)
-    const image = detail.image
-      ? getImageUrl(detail.image)
-      : Array.isArray(detail.images) && detail.images[0]
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ? getImageUrl(((detail.images[0] as any).url || (detail.images[0] as any).imageUrl || ''))
-        : PLACEHOLDER_IMG
-    pendingProduct.value = {
-      id: detail.id,
-      title: detail.title || `商品${detail.id}`,
-      price: Number(detail.sellingPrice ?? detail.price ?? 0),
-      originalPrice: detail.originalPrice ? Number(detail.originalPrice) : undefined,
-      image,
+    // 先校验商品是否在售
+    const status = await getProductStatus(pid)
+    if (isOnSale(status)) {
+      const detail = await getProductDetail(pid)
+      pendingProduct.value = buildProductCard(detail)
+      return
     }
+    // 非在售时尝试兜底：详情接口如果能查到就显示（兼容状态接口异常或商品实际仍存在）
+    console.warn('[fetchActiveProduct] 状态非在售，尝试兜底加载详情:', { pid, status, conversationId: activeConversationId.value })
+    const detail = await getProductDetail(pid)
+    pendingProduct.value = buildProductCard(detail)
   } catch (error) {
-    console.error('加载会话商品失败', error)
+    console.error('[fetchActiveProduct] 加载会话商品失败，清空卡片:', error)
+    pendingProduct.value = null
   }
 }
 
@@ -654,7 +690,7 @@ const switchThread = async (conversationId: number) => {
   sidebarOpen.value = false
   // 切换会话时清除 URL 中的 productId，避免旧商品影响新会话
   if (route.query.productId) {
-    router.replace({ query: { ...route.query, productId: undefined } })
+    await router.replace({ query: { ...route.query, productId: undefined } })
   }
   // 确保消息缓存已加载
   await chatStore.fetchMessages(conversationId)
@@ -778,9 +814,19 @@ const goToUserProfile = (userId: number, name?: string, avatar?: string, locatio
       conversationId: activeConversationId.value,
     }))
   }
+  const query: Record<string, string | undefined> = {
+    name,
+    avatar,
+    location: location || '未知',
+  }
+  // 带上当前正在聊的商品ID，回到主页点"沟通一下"时能恢复同一个商品
+  const fromProductId = activeProductCard.value?.id
+  if (fromProductId) {
+    query.fromProductId = String(fromProductId)
+  }
   router.push({
     path: `/user/home/${userId}`,
-    query: { name, avatar, location: location || '未知' },
+    query,
   })
 }
 
@@ -790,7 +836,7 @@ const goToMyCenter = () => {
   router.push('/user/center')
 }
 
-const viewProductDetail = () => {
+const viewProductDetail = async () => {
   if (!activeProductCard.value?.id) return
   // 保存当前会话上下文，返回时恢复
   if (activeConversationId.value) {
@@ -798,18 +844,73 @@ const viewProductDetail = () => {
       conversationId: activeConversationId.value,
     }))
   }
-  router.push({ name: 'goods-detail', params: { id: activeProductCard.value.id } })
+  // 跳转前校验商品状态，已下架/删除的商品直接提示
+  try {
+    const raw = String(await getProductStatus(activeProductCard.value.id) || '').toLowerCase()
+    if (raw === 'on_sale') {
+      // 在售，允许跳转
+    } else if (raw === 'deleted') {
+      ElMessage.warning('该商品已被删除')
+      return
+    } else if (raw === 'draft') {
+      ElMessage.warning('商品未上架')
+      return
+    } else if (raw === 'pending_review') {
+      ElMessage.warning('商品审核中，暂时无法查看')
+      return
+    } else if (raw === 'rejected') {
+      ElMessage.warning('商品审核未通过')
+      return
+    } else {
+      ElMessage.warning('该商品已下架')
+      return
+    }
+  } catch { /* 状态查询失败不阻塞跳转 */ }
+  navigateToProductDetail(activeProductCard.value)
 }
 
 /** 点击消息中的商品卡片，跳转到对应商品详情 */
-const goToProductDetail = (productId: number) => {
-  if (!productId) return
+const goToProductDetail = async (card: ChatProductCard | undefined | null) => {
+  if (!card?.id) return
   if (activeConversationId.value) {
     sessionStorage.setItem('chat_return_conv', JSON.stringify({
       conversationId: activeConversationId.value,
     }))
   }
-  router.push({ name: 'goods-detail', params: { id: productId } })
+  // 跳转前校验商品状态
+  try {
+    const raw = String(await getProductStatus(card.id) || '').toLowerCase()
+    if (raw === 'on_sale') {
+      // 在售，允许跳转
+    } else if (raw === 'deleted') {
+      ElMessage.warning('该商品已被删除')
+      return
+    } else if (raw === 'draft') {
+      ElMessage.warning('商品未上架')
+      return
+    } else if (raw === 'pending_review') {
+      ElMessage.warning('商品审核中，暂时无法查看')
+      return
+    } else if (raw === 'rejected') {
+      ElMessage.warning('商品审核未通过')
+      return
+    } else {
+      ElMessage.warning('该商品已下架')
+      return
+    }
+  } catch { /* 状态查询失败不阻塞跳转 */ }
+  navigateToProductDetail(card)
+}
+
+/** 根据当前用户是否是商品卖家，跳转卖家详情页或买家详情页 */
+const navigateToProductDetail = (card: ChatProductCard) => {
+  const currentUserId = currentUserProfile.value.id
+  const isOwner = card.sellerId && currentUserId && card.sellerId === currentUserId
+  if (isOwner) {
+    router.push({ name: 'seller-product-detail', query: { id: String(card.id) } })
+  } else {
+    router.push({ name: 'goods-detail', params: { id: card.id } })
+  }
 }
 
 const clearChat = () => {
@@ -945,6 +1046,8 @@ onMounted(async () => {
   // 这样从不同商品进入同一卖家的会话时，顶部始终显示用户点进来的那个商品
   await createConversationFromRoute()
   await initProductFromQuery()
+  // 无论通过哪种方式进入，加载当前会话绑定的商品卡片
+  await fetchActiveProduct()
   // 如果没有加载到会话，尝试从 sessionStorage 恢复
   if (!activeConversationId.value) {
     try {

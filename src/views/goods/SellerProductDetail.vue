@@ -59,7 +59,15 @@
       <div class="sellerCard card">
         <div class="sellerMain">
           <div class="productStatus">
-            <span class="statusTag" :class="product.status === '在售' ? 'onSale' : product.status === '待审核' ? 'pending' : 'offSale'">
+            <span
+              class="statusTag"
+              :class="
+                product.status === '在售' ? 'onSale' :
+                product.status === '待审核' ? 'pending' :
+                product.status === '已驳回' || product.status === '已删除' ? 'rejected' :
+                'offSale'
+              "
+            >
               <i :class="product.status === '在售' ? 'fa fa-check-circle' : product.status === '待审核' ? 'fa fa-clock' : 'fa fa-pause-circle'"></i>
               {{ product.status }}
             </span>
@@ -178,7 +186,7 @@
               <button class="actionBtn" @click="shareProduct">
                 <i class="fa fa-share-alt"></i> 分享
               </button>
-              <button class="actionBtn" @click="goToConsult">
+              <button v-if="product?.status === '在售'" class="actionBtn" @click="goToConsult">
                 <i class="fa fa-comment"></i> 咨询
               </button>
             </div>
@@ -305,7 +313,7 @@
 
       <!-- 底部操作栏 -->
       <div class="bottomBar">
-        <button class="deleteBtn" @click="deleteProduct">
+        <button class="deleteBtn" @click="deleteProductHandler">
           <i class="fa fa-trash-alt"></i> 删除商品
         </button>
         <div class="bottomRight">
@@ -350,7 +358,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { offShelfProduct, relistProduct, revokeReview, getProductDetail } from '@/api/goods'
+import { useChatStore } from '@/stores/chatStore'
+import { offShelfProduct, deleteProduct, relistProduct, revokeReview, getProductDetail } from '@/api/goods'
 import { createConversation } from '@/api/chat'
 import type { ProductVO } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
@@ -361,6 +370,7 @@ defineOptions({ name: 'SellerProductDetail' })
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const chatStore = useChatStore()
 
 const searchInput = ref('')
 const activeTab = ref('consult')
@@ -416,7 +426,7 @@ interface ProductData {
   isNew: boolean
   canBargain: boolean
   freight: number
-  status: '在售' | '已下架' | '待审核' | '草稿'
+  status: '在售' | '已下架' | '待审核' | '草稿' | '已驳回' | '已删除' | '未知'
   viewCount: number
   favoriteCount: number
   consultCount: number
@@ -563,9 +573,15 @@ const loadDetails = async () => {
       canBargain: vo.canBargain ?? false,
       freight: 0,
       status: (() => {
-        if (vo.publishStatus === 'off_shelf') return '已下架'
-        if (vo.publishStatus === 'pending_review') return '待审核'
-        return '在售'
+        const raw = String(vo.publishStatus || '').toLowerCase()
+        if (raw === 'on_sale') return '在售'
+        if (raw === 'off_sale' || raw === 'off_shelf' || raw === 'offline') return '已下架'
+        if (raw === 'pending_review') return '待审核'
+        if (raw === 'draft') return '草稿'
+        if (raw === 'rejected') return '已驳回'
+        if (raw === 'deleted') return '已删除'
+        console.warn('[SellerProductDetail] 未知商品状态，请更新映射:', vo.publishStatus)
+        return '未知'
       })(),
       viewCount: vo.viewCount || 0,
       favoriteCount: vo.favoriteCount || 0,
@@ -647,11 +663,16 @@ const editProduct = () => {
   router.push({ path: '/edit', query: { id: product.value.id.toString() } })
 }
 
-const deleteProduct = () => {
+const deleteProductHandler = async () => {
   if (!product.value) return
   if (confirm('确定要删除该商品吗？删除后不可恢复！')) {
-    alert('商品已删除')
-    router.push('/')
+    try {
+      await deleteProduct(product.value.id)
+      alert('商品已删除')
+      router.push('/')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : '删除商品失败')
+    }
   }
 }
 
@@ -667,13 +688,47 @@ const goToConsult = async () => {
   }
   if (!product.value) return
 
+  // 只有「在售」的商品才允许发起咨询
+  if (product.value.status !== '在售') {
+    alert('商品当前未在售，暂时无法发起咨询')
+    return
+  }
+
   const p = product.value
+
+  // 1. 强制刷新会话列表，拿到后端最新数据再检查是否已有同一卖家的会话
+  try {
+    await chatStore.refreshConversations()
+  } catch { /* 刷新失败不阻塞 */ }
+
+  // 2. 查找是否已有与该卖家的历史会话（同一卖家共用一个对话列表）
+  const existingConv = chatStore.conversations.find(
+    (conv) => conv.userId === p.sellerId
+  )
+
+  if (existingConv) {
+    // 复用已有会话
+    router.push({
+      path: '/chat',
+      query: { conversationId: String(existingConv.id), productId: String(p.id) }
+    })
+    return
+  }
+
+  // 3. 没有已有会话，创建新的
   try {
     const conv = await createConversation({
       conversationType: 'product_consult',
       productId: p.id,
       userId: p.sellerId,
     })
+    // 立即加入本地 store，避免聊天页 syncActiveConversation 找不到而回退到第一条会话
+    const idx = chatStore.conversations.findIndex((c: { id: number }) => c.id === conv.id)
+    if (idx >= 0) {
+      chatStore.conversations[idx] = conv
+    } else {
+      chatStore.conversations.unshift(conv)
+    }
     router.push({ path: '/chat', query: { conversationId: String(conv.id), productId: String(p.id) } })
   } catch (err) {
     console.error('创建会话失败，使用兜底流程:', err)
@@ -973,6 +1028,11 @@ onMounted(() => {
 .statusTag.pending {
   background: #fffbeb;
   color: #d97706;
+}
+
+.statusTag.rejected {
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 .productTitle {
