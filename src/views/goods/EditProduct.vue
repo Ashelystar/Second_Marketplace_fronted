@@ -261,7 +261,7 @@
     <div class="bottomBar">
       <button class="draftBtn" @click="handleSaveDraft">保存草稿</button>
       <button class="saveFullBtn" @click="handleSave">
-        {{ isEditing ? '保存修改' : '保存并发布' }}
+        保存并发布
       </button>
     </div>
   </div>
@@ -626,7 +626,7 @@ const handleSave = async () => {
     }
 
     alert('商品已保存')
-    router.back()
+    router.push('/user/center')
   } catch (err) {
     console.error('操作失败:', err)
     alert(err instanceof Error ? err.message : '操作失败')
@@ -641,27 +641,15 @@ const handleLogin = () => {
 }
 
 onMounted(async () => {
-  // 1. 你原来的加载分类列表逻辑（保持不变）
-  try {
-    const list = await getCategoryList()
-    categories.value = list
-    if (list.length > 0 && !route.query.id) {
-      form.category_id = list[0].id
-    }
-  } catch (err) {
-    console.error('加载分类列表失败', err)
+  // 1. 加载分类列表
+  await loadCategories()
+  if (!route.query.id && categoryList.value.length > 0) {
+    form.categoryId = categoryList.value[0].id
   }
 
-  // 2. 你原来的编辑模式检测（保持不变）
+  // 2. 编辑模式检测
   if (route.query.id) {
-    isEditing.value = true
-    productId.value = Number(route.query.id)
-    try {
-      const detail = await getProductDetail(productId.value)
-      Object.assign(form, detail)
-    } catch (err) {
-      alert('加载商品详情失败')
-    }
+    await loadProduct()
     return
   }
 
