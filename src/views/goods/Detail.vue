@@ -268,6 +268,11 @@
             </div>
             <div class="commentContent">{{ comment.content }}</div>
 
+            <!-- 卖家回复 -->
+            <div v-if="comment.sellerReply" class="sellerReply">
+              <span class="sellerReplyTag">{{ isMyProduct ? '我的回复：' : '卖家回复：' }}</span>{{ comment.sellerReply }}
+            </div>
+
             <!-- 回复列表 -->
             <div class="replyList" v-if="comment.replies && comment.replies.length > 0">
               <div v-for="reply in getDisplayReplies(comment)" :key="reply.id" class="replyItem">
@@ -456,6 +461,13 @@ const favoritePending = ref(false)
 const isFavorited = computed(() => {
   if (!product.value?.id) return false
   return userStore.isFavorited(product.value.id)
+})
+
+// 判断当前用户是否为该商品的卖家
+const isMyProduct = computed(() => {
+  const currentUserId = userStore.userInfo?.id
+  const sellerId = product.value?.sellerId
+  return !!(currentUserId && sellerId && currentUserId === sellerId)
 })
 
 // 评论相关
@@ -965,6 +977,7 @@ watch(() => [route.query.id, route.params.id], async () => {
     isLoading.value = true
     await loadDetails()
     await loadRecs()
+    await loadComments()
   }
 }, { immediate: true })
 
@@ -1006,14 +1019,12 @@ const loadComments = async () => {
 onMounted(() => {
   // 如果从搜索页跳转过来，回显搜索关键词
   if (route.query.q) searchInput.value = route.query.q as string
-  console.log('正在加载评论...')
   
   if (userStore.isLoggedIn) {
     void userStore.loadFavoriteIds()
-    console.log(product)
-    console.log(product.value)
-    // loadComments()
   }
+  // 加载评论
+  void loadComments()
 })
 </script>
 
@@ -1852,6 +1863,20 @@ onMounted(() => {
   line-height: 1.6;
   color: var(--text);
   margin-bottom: 10px;
+}
+
+.sellerReply {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #c2410c;
+  background: #fff7ed;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.sellerReplyTag {
+  font-weight: 600;
 }
 
 /* 回复列表 */
