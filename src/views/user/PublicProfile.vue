@@ -11,13 +11,11 @@
       <section v-if="seller" class="profile-card">
         <div class="profile-main">
           <div class="avatar-wrap">
-            <img
-              v-if="seller.avatar"
+            <UserAvatar
               :src="seller.avatar"
-              :alt="seller.name"
+              :name="seller.name"
               class="avatar"
             />
-            <div v-else class="avatar avatar-default">{{ seller.name.charAt(0) }}</div>
           </div>
 
           <div class="profile-info">
@@ -129,6 +127,7 @@ import Topnav from '@/components/TopNav.vue'
 import { useProductStore } from '@/stores/productStore'
 import { useUserStore } from '@/stores/userStore'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
+import UserAvatar from '@/components/UserAvatar.vue'
 import {
   getSellerReputationSnapshotApi,
   getSellerReputationHistoryApi,

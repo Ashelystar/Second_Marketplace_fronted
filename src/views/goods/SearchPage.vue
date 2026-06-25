@@ -392,6 +392,12 @@ const handleLogin = () => {
 
 onMounted(async () => {
   loadCategoryTags()
+  // 有搜索词时立即清空旧数据 + 开启 loading，避免闪现旧数据或空状态
+  if (route.query.q) {
+    store.filteredProducts = []
+    store.products = []
+    store.isLoading = true
+  }
   // 先获取用户真实位置，再加载数据（确保距离计算基准正确）
   await store.requestLocation()
   if (route.query.q) {

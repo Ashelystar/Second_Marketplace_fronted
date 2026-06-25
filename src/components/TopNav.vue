@@ -68,7 +68,7 @@
 <script setup lang="ts">
 // 导入Vue组合式API和状态管理
 
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore } from '@/stores/chatStore'
@@ -76,6 +76,11 @@ import { useNoticeStore } from '@/stores/noticeStore'
 import UserDropdown from '@/components/UserDropdown.vue'
 import { useAgentStore } from '@/stores/agentStore'
 const agentStore = useAgentStore()
+
+const showAgentDialog = computed({
+  get: () => agentStore.isDialogVisible,
+  set: (v: boolean) => { if (v) agentStore.openDialog(); else agentStore.closeDialog() }
+})
 
 const floatingTools = [
   { id: 1, icon: 'fa fa-plus', label: '发闲置', action: 'publish' },

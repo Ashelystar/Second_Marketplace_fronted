@@ -33,6 +33,7 @@ export interface ChatProductCard {
   price: number
   originalPrice?: number
   image: string
+  sellerId?: number
 }
 
 /** 适配后的消息（前端统一格式） */
@@ -106,6 +107,7 @@ function voToMessage(vo: MessageVO): ChatMessage {
         price: Number(extAny.price ?? 0),
         image: String(extAny.imageUrl ?? extAny.image ?? ''),
         originalPrice: extAny.originalPrice ? Number(extAny.originalPrice) : undefined,
+        sellerId: extAny.sellerId ? Number(extAny.sellerId) : undefined,
       }
     }
 
@@ -125,13 +127,14 @@ function voToMessage(vo: MessageVO): ChatMessage {
               price: Number(parsed.price ?? 0),
               image: String(parsed.imageUrl ?? parsed.image ?? ''),
               originalPrice: parsed.originalPrice ? Number(parsed.originalPrice) : undefined,
+              sellerId: parsed.sellerId ? Number(parsed.sellerId) : undefined,
             }
           }
         }
       } catch {
         // content 是纯文本（如 "宜家小边桌 LACK"），当作标题兜底
         if (vo.content && vo.content !== '[消息已撤回]') {
-          product = { id: 0, title: vo.content, price: 0, image: '' }
+          product = { id: 0, title: vo.content, price: 0, image: '', sellerId: undefined }
         }
       }
     }
@@ -163,6 +166,9 @@ export const useChatStore = defineStore('chat', () => {
 
   /** 消息缓存: conversationId → ChatMessage[] */
   const messageCache = ref<Record<number, ChatMessage[]>>({})
+
+  /** 记录用户点击会话的最后时间（用于列表置顶排序） */
+  const lastAccessTimes = ref<Record<number, number>>({})
 
   const initialized = ref(false)
 
@@ -198,6 +204,12 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /** 强制刷新会话列表（不读 initialized 缓存），用于创建新会话前检测重复 */
+  const refreshConversations = async () => {
+    initialized.value = false
+    await initialize()
+  }
+
   // ---------- 会话管理 ----------
 
   /**
@@ -210,6 +222,18 @@ export const useChatStore = defineStore('chat', () => {
     product?: ChatProductCard,
   ): Promise<Conversation | null> => {
     if (!currentUser.id || !targetUser.id || currentUser.id === targetUser.id) return null
+
+    // 先查是否已有与该用户的会话（按 userId 去重，同一卖家只保留一个会话）
+    const existingConv = conversations.value.find((c) => c.userId === targetUser.id)
+    if (existingConv) {
+      // 更新 productId（可能是从不同商品进入的），但不创建新会话
+      if (product?.id && existingConv.productId !== product.id) {
+        existingConv.productId = product.id
+      }
+      touchConversation(existingConv.id)
+      return existingConv
+    }
+
     try {
       const conv = await apiCreateConversation({
         conversationType: 'product_consult',
@@ -249,7 +273,7 @@ export const useChatStore = defineStore('chat', () => {
       // 同步 conversation 列表中的 userAvatar（Conversation 类型不含，但 Detail 有）
       const conv = conversations.value.find((c) => c.id === conversationId)
       if (conv && detail.userAvatar) {
-        ;(conv as Record<string, unknown>).userAvatar = detail.userAvatar
+        ;(conv as unknown as Record<string, unknown>).userAvatar = detail.userAvatar
       }
       return msgs
     } catch (e) {
@@ -293,12 +317,23 @@ export const useChatStore = defineStore('chat', () => {
         cached.sort((a, b) => a.createdAt - b.createdAt)
       }
 
+      // ★ 同步已有消息的 recalled 状态（对方撤回后轮询可实时感知，无需刷新）
+      const remoteMap = new Map(remoteMsgs.map((m) => [m.id, m]))
+      for (const msg of cached) {
+        const remote = remoteMap.get(msg.id)
+        if (remote && remote.recalled && !msg.recalled) {
+          msg.recalled = true
+          msg.content = RECALL_TEXT
+          msg.product = undefined
+        }
+      }
+
       // 同步 userAvatar
       const conv = conversations.value.find((c) => c.id === conversationId)
       if (conv && detail.userAvatar) {
-        ;(conv as Record<string, unknown>).userAvatar = detail.userAvatar
+        ;(conv as unknown as Record<string, unknown>).userAvatar = detail.userAvatar
       }
-
+    
       return newMsgs.length
     } catch (e) {
       console.error('[ChatStore] 轮询消息失败:', e)
@@ -443,12 +478,44 @@ export const useChatStore = defineStore('chat', () => {
   // ---------- 会话列表（侧边栏用） ----------
 
   const getConversationsForUser = (_userId: number): ChatThread[] => {
-    return conversations.value
+    const accessMap = lastAccessTimes.value
+
+    // 按 userId 去重：同一卖家只保留最近活动的那个会话
+    const convByUser = new Map<number, Conversation>()
+    for (const conv of conversations.value) {
+      const existing = convByUser.get(conv.userId)
+      if (!existing) {
+        convByUser.set(conv.userId, conv)
+        continue
+      }
+      // 比较两个会话的最后活动时间（max of lastMessageAt and accessTime），保留更新的
+      const existingActivity = Math.max(
+        existing.lastMessageAt ? new Date(existing.lastMessageAt).getTime() : 0,
+        accessMap[existing.id] || 0,
+      )
+      const newActivity = Math.max(
+        conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() : 0,
+        accessMap[conv.id] || 0,
+      )
+      if (newActivity > existingActivity) {
+        convByUser.set(conv.userId, conv)
+      }
+    }
+
+    return Array.from(convByUser.values())
+      .sort((a, b) => {
+        // 按 max(最后消息时间, 用户点击时间) 降序：最近互动/点击的排最上面
+        const msgA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
+        const msgB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0
+        const ta = Math.max(msgA, accessMap[a.id] || 0)
+        const tb = Math.max(msgB, accessMap[b.id] || 0)
+        return tb - ta
+      })
       .map((conv) => {
         const partner: ChatUserProfile = {
           id: conv.userId,
           name: conv.userNickname || `用户${conv.userId}`,
-          avatar: (conv as Record<string, unknown>).userAvatar as string || '',
+          avatar: (conv as unknown as Record<string, unknown>).userAvatar as string || '',
           location: '',
           rating: 5,
         }
@@ -487,7 +554,6 @@ export const useChatStore = defineStore('chat', () => {
           lastMessagePreview: preview,
         }
       })
-      .sort((a, b) => b.updatedAt - a.updatedAt)
   }
 
   const getUnreadCountForUser = (_userId: number): number => {
@@ -496,10 +562,16 @@ export const useChatStore = defineStore('chat', () => {
 
   // ---------- 其他 ----------
 
+  /** 记录用户点击会话的时间，使被点击的会话自动置顶 */
+  const touchConversation = (conversationId: number) => {
+    lastAccessTimes.value = { ...lastAccessTimes.value, [conversationId]: Date.now() }
+  }
+
   /** 重置整个 store（退出登录或切换账号时调用） */
   const reset = () => {
     conversations.value = []
     messageCache.value = {}
+    lastAccessTimes.value = {}
     initialized.value = false
   }
 
@@ -516,7 +588,7 @@ export const useChatStore = defineStore('chat', () => {
     for (const conv of convs) {
       if (patch.name) conv.userNickname = patch.name
       if (patch.avatar !== undefined) {
-        ;(conv as Record<string, unknown>).userAvatar = patch.avatar
+        ;(conv as unknown as Record<string, unknown>).userAvatar = patch.avatar
       }
     }
   }
@@ -525,6 +597,7 @@ export const useChatStore = defineStore('chat', () => {
     conversations,
     messageCache,
     initialize,
+    refreshConversations,
     reset,
     ensureConversation,
     fetchMessages,
@@ -538,5 +611,6 @@ export const useChatStore = defineStore('chat', () => {
     getUnreadCountForUser,
     clearConversation,
     updateParticipantProfile,
+    touchConversation,
   }
 })

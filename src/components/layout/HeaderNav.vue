@@ -76,11 +76,6 @@ const searchTag = (tag: string) => {
   handleSearch()
 }
 
-/** 导航到消息页面（路由守卫统一处理登录校验） */
-const goToMessage = () => {
-  router.push('/chat')
-}
-
 onMounted(() => {
   chatStore.initialize()
   noticeStore.refresh()

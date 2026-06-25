@@ -201,7 +201,11 @@ export const useProductStore = defineStore('product', () => {
     // 搜索时清除分类筛选，避免 categoryId 与 keyword 交叉干扰
     queryState.value.categoryId = undefined
     queryState.value.keyword = query.trim() || undefined
+    queryState.value.publishStatus = 'on_sale' // 搜索结果只展示在售商品
     queryState.value.current = 1  // 搜索时回到第1页
+    // 立即清空旧数据，避免搜索结果返回前闪现首页的全部商品
+    filteredProducts.value = []
+    products.value = []
     loadProducts()
   }
 
@@ -264,9 +268,12 @@ export const useProductStore = defineStore('product', () => {
   // ========== 排序（后端API优先 + 前端本地兜底）==========
 
   /**
-   * 排序 — 将排序字段和方向传给后端，加载完成后前端再做本地排序兜底
+   * 排序 — 将排序字段和方向传给后端，加载完成后前端再做本地排序兜底。
+   * 切换排序时会重新加载从第1页到当前已加载页数的所有数据，确保已加载的商品不会丢失。
    */
   const sortProducts = async (sortType: SortOption) => {
+    // 记住用户已经加载到了第几页
+    const pagesLoaded = currentPage.value
     currentSort.value = sortType
 
     // 1. 构造后端排序参数（优先让后端排序）
@@ -291,9 +298,15 @@ export const useProductStore = defineStore('product', () => {
         break
     }
 
-    queryState.value.current = 1  // 排序时回到第1页
+    // 2. 逐页加载：先加载第1页（覆盖），再追加加载第2页到之前已加载的页数
+    queryState.value.current = 1
     await loadProducts()
-    // 二次强制兜底：距离排序必须在 loadProducts 后再排一次，确保近的在前面
+    for (let p = 2; p <= pagesLoaded; p++) {
+      queryState.value.current = p
+      await loadProducts(undefined, true)
+    }
+
+    // 3. 二次强制兜底：距离排序必须在 loadProducts 后再排一次，确保近的在前面
     if (sortType === 'distance-near') {
       applyLocalSort(filteredProducts.value, 'distance-near')
     }
@@ -302,7 +315,8 @@ export const useProductStore = defineStore('product', () => {
   // ========== 初始化 ==========
   const initialize = async () => {
     // 重置查询条件，避免从其他页面（如搜索页）返回时携带旧的筛选参数
-    queryState.value = { current: 1, size: 20 }
+    // 首页/搜索页默认只展示在售商品
+    queryState.value = { current: 1, size: 20, publishStatus: 'on_sale' }
     currentSort.value = 'default'
     filterState.value = { minPrice: '', maxPrice: '', conditions: [], locations: [], timeRange: '' }
     await loadProducts()

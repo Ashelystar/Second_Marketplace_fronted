@@ -68,8 +68,7 @@
       <div class="sellerCard card">
         <div class="sellerMain">
           <div class="sellerInfo">
-            <img v-if="product.sellerAvatar" :src="getImageUrl(product.sellerAvatar)" :alt="product.sellerName" class="avatar clickableAvatar" @click="goToSellerProfile" />
-            <div v-else class="avatar avatarDefault clickableAvatar" @click="goToSellerProfile">{{ product.sellerName?.charAt(0) }}</div>
+            <UserAvatar :src="product.sellerAvatar" :name="product.sellerName" class="avatar clickableAvatar" @click="goToSellerProfile" />
             <div class="sellerText">
               <div class="sellerName">
                 <strong class="profileClickable nameLink" @click="goToSellerProfile">{{ product.sellerName }}</strong>
@@ -258,8 +257,7 @@
         <div class="commentList" v-if="comments.length > 0">
           <div v-for="comment in displayedComments" :key="comment.id" class="commentItem">
             <div class="commentUser">
-              <img v-if="comment.avatar" :src="comment.avatar" class="commentAvatar profileClickable" @click.stop="goToUserProfile(comment)" />
-              <div v-else class="commentAvatar avatarDefault profileClickable" @click.stop="goToUserProfile(comment)">{{ comment.name?.charAt(0) }}</div>
+              <UserAvatar :src="comment.avatar" :name="comment.name" class="commentAvatar profileClickable" @click.stop="goToUserProfile(comment)" />
               <div class="commentMeta">
                 <span class="commentName profileClickable nameLink" @click.stop="goToUserProfile(comment)">{{ comment.name }}</span>
                 <span class="commentTime">{{ comment.time }}</span>
@@ -270,12 +268,16 @@
             </div>
             <div class="commentContent">{{ comment.content }}</div>
 
+            <!-- 卖家回复 -->
+            <div v-if="comment.sellerReply" class="sellerReply">
+              <span class="sellerReplyTag">{{ isMyProduct ? '我的回复：' : '卖家回复：' }}</span>{{ comment.sellerReply }}
+            </div>
+
             <!-- 回复列表 -->
             <div class="replyList" v-if="comment.replies && comment.replies.length > 0">
               <div v-for="reply in getDisplayReplies(comment)" :key="reply.id" class="replyItem">
                 <div class="replyUser">
-                  <img v-if="reply.avatar" :src="reply.avatar" class="replyAvatar profileClickable" @click.stop="goToUserProfile(reply)" />
-                  <div v-else class="replyAvatar avatarDefaultSm profileClickable" @click.stop="goToUserProfile(reply)">{{ reply.name?.charAt(0) }}</div>
+                  <UserAvatar :src="reply.avatar" :name="reply.name" class="replyAvatar profileClickable" @click.stop="goToUserProfile(reply)" />
                   <div class="replyMeta">
                     <span class="replyName profileClickable nameLink" @click.stop="goToUserProfile(reply)">{{ reply.name }}</span>
                     <span class="replyTime">{{ reply.time }}</span>
@@ -382,11 +384,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useChatStore } from '@/stores/chatStore'
 import type { Product, ProductImage } from '@/types'
-import { getProductDetail, incrementProductView, getProductStats, getProductStatus, getProductPage, getSellerProducts } from '@/api/goods'
+import { getProductDetail, incrementProductView, getProductStats, getProductStatus, isOnSale, getProductPage, getSellerProducts } from '@/api/goods'
 import { getProductReviews } from '@/api/review'
+import type { Review } from '@/api/review'
 import { createConversation } from '@/api/chat'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import {
   getSellerReputationSnapshotApi,
   resolveUserDisplayProfile,
@@ -399,12 +403,6 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const chatStore = useChatStore()
-
-// 当前用户头像 URL（经过 getImageUrl 处理）
-const currentUserAvatar = computed(() => {
-  const raw = userStore.userInfo?.avatar || userStore.userInfo?.avatarUrl
-  return raw ? getImageUrl(raw) : ''
-})
 
 const ensureLoggedIn = (actionHint: string) => {
   if (userStore.isLoggedIn) return true
@@ -465,12 +463,17 @@ const isFavorited = computed(() => {
   return userStore.isFavorited(product.value.id)
 })
 
+// 判断当前用户是否为该商品的卖家
+const isMyProduct = computed(() => {
+  const currentUserId = userStore.userInfo?.id
+  const sellerId = product.value?.sellerId
+  return !!(currentUserId && sellerId && currentUserId === sellerId)
+})
+
 // 评论相关
 const comments = ref<Comment[]>([])
-const newComment = ref('')
 const replyContent = ref('')
 const activeReplyId = ref<number | null>(null)
-const showCommentInput = ref(false)
 const showAllComments = ref(false)
 const replyToUser = ref<string | null>(null)
 
@@ -507,36 +510,6 @@ interface Reply {
   avatar?: string
   time: string
   content: string
-}
-
-const handleCommentFocus = () => {
-  if (!userStore.isLoggedIn) {
-    alert('请先登录后再评论')
-    router.push('/user/login')
-    return
-  }
-  showCommentInput.value = true
-}
-
-const cancelComment = () => {
-  newComment.value = ''
-  showCommentInput.value = false
-}
-
-const submitComment = () => {
-  if (!newComment.value.trim()) return
-
-  const comment: Comment = {
-    id: Date.now(),
-    name: userStore.userInfo?.username || '匿名用户',
-    avatar: userStore.userInfo?.avatar || userStore.userInfo?.avatarUrl || undefined,
-    time: '刚刚',
-    content: newComment.value.trim(),
-    replies: []
-  }
-
-  comments.value.unshift(comment)
-  cancelComment()
 }
 
 const submitReply = (commentId: number) => {
@@ -694,13 +667,22 @@ const goToChat = async () => {
   const p = product.value
   if (!p) return
 
-  // 1. 先初始化会话列表（如果还没加载），以便检查是否已有与同一卖家的会话
-  if (!chatStore.conversations || chatStore.conversations.length === 0) {
-    try {
-      await chatStore.initialize()
-    } catch {
-      // 初始化失败不影响后续创建流程
+  // 只有在售商品才允许发起聊天
+  try {
+    const status = await getProductStatus(p.id)
+    if (!isOnSale(status)) {
+      alert('该商品当前不在售，暂时无法聊天')
+      return
     }
+  } catch {
+    // 状态查询失败不阻塞，继续流程
+  }
+
+  // 1. 强制刷新会话列表，拿到后端最新数据再检查是否已有同一卖家的会话
+  try {
+    await chatStore.refreshConversations()
+  } catch {
+    // 刷新失败不阻塞后续流程
   }
 
   // 2. 查找是否已有与该卖家的历史会话（同一卖家共用一个对话列表）
@@ -724,6 +706,13 @@ const goToChat = async () => {
       productId: p.id,
       userId: p.sellerId,
     })
+    // 立即加入本地 store，避免聊天页 syncActiveConversation 找不到而回退到第一条会话
+    const idx = chatStore.conversations.findIndex((c: { id: number }) => c.id === conv.id)
+    if (idx >= 0) {
+      chatStore.conversations[idx] = conv
+    } else {
+      chatStore.conversations.unshift(conv)
+    }
     router.push({ path: '/chat', query: { conversationId: String(conv.id), productId: String(p.id) } })
   } catch (err) {
     console.error('创建会话失败，使用兜底流程:', err)
@@ -811,17 +800,41 @@ const loadDetails = async () => {
     return
   }
   try {
-    // 先查询商品状态（非阻塞：失败时仍继续加载详情）
-    try {
-      const status = await getProductStatus(id)
-      productStatus.value = status
-      // 仅真正下架/删除的商品阻止加载，其他状态（draft/pending_review/rejected 等）允许查看详情
-      if (status === 'deleted') {
-        loadError.value = '该商品已被删除'
-        isLoading.value = false
-        return
-      }
-    } catch {
+      // 先查询商品状态（非阻塞：失败时仍继续加载详情）
+      try {
+        const raw = String(await getProductStatus(id) || '').toLowerCase()
+        productStatus.value = raw
+        // 在售直接放行
+        if (raw === 'on_sale') {
+          // 继续加载详情
+        } else if (raw === 'deleted') {
+          loadError.value = '该商品已被删除'
+          isLoading.value = false
+          return
+        } else if (raw === 'draft') {
+          loadError.value = '商品未上架，暂时无法查看'
+          isLoading.value = false
+          return
+        } else if (raw === 'pending_review') {
+          loadError.value = '商品审核中，暂时无法查看'
+          isLoading.value = false
+          return
+        } else if (raw === 'rejected') {
+          loadError.value = '商品审核未通过，暂时无法查看'
+          isLoading.value = false
+          return
+        } else if (raw === 'off_sale' || raw === 'off_shelf' || raw === 'offline') {
+          loadError.value = '该商品已下架，暂时无法查看'
+          isLoading.value = false
+          return
+        }
+        // 其他未知状态也当作不可查看处理
+        if (raw !== 'on_sale') {
+          loadError.value = '商品暂不可查看'
+          isLoading.value = false
+          return
+        }
+      } catch {
       // 状态查询失败不阻塞详情加载
     }
 
@@ -914,15 +927,20 @@ const loadRecs = async () => {
   if (!product.value?.id) return
 
   try {
-    // 使用同分类或随机推荐，排除当前商品，多请求几个以防过滤后不够
-    const params: { current: number; size: number; categoryId?: number } = {
-      current: 1,
-      size: 12, // 多请求一些，过滤掉当前商品后可能不够6个
+    // 随机页码和排序，确保每次换一批拿到不同的商品
+    const randomSorts = ['publishedAt', 'price', 'viewCount'] as const
+    const randomOrders = ['asc', 'desc'] as const
+    const params = {
+      current: Math.floor(Math.random() * 5) + 1, // 随机 1~5 页
+      size: 12,
+      sortField: randomSorts[Math.floor(Math.random() * randomSorts.length)],
+      sortOrder: randomOrders[Math.floor(Math.random() * randomOrders.length)],
     }
     const res = await getProductPage(params)
-    // 过滤掉当前商品并处理图片和价格字段
+    const currentUserId = userStore.userInfo?.id
+    // 过滤掉当前商品以及当前用户自己的商品
     recommendations.value = res.records
-      .filter(r => r.id !== product.value?.id) // 确保不包含当前商品
+      .filter(r => r.id !== product.value?.id && r.sellerId !== currentUserId)
       .slice(0, 6)
       .map(r => ({
         ...r,
@@ -959,11 +977,12 @@ watch(() => [route.query.id, route.params.id], async () => {
     isLoading.value = true
     await loadDetails()
     await loadRecs()
+    await loadComments()
   }
 }, { immediate: true })
 
 // 将 API 数据转换为 UI 数据
-const convertApiReviewToComment = (apiReview: ApiReview): Comment => {
+const convertApiReviewToComment = (apiReview: Review): Comment => {
   return {
     id: apiReview.id,
     userId: apiReview.buyerId,
@@ -972,7 +991,7 @@ const convertApiReviewToComment = (apiReview: ApiReview): Comment => {
     time: formatCommentTime(apiReview.createdAt),
     content: apiReview.content,
     rating: apiReview.rating,
-    isAnonymous: Boolean(apiReview.isAnonymous),
+    isAnonymous: apiReview.isAnonymous,
     sellerReply: apiReview.sellerReply,
     sellerReplyAt: apiReview.sellerReplyAt,
     images: apiReview.images,
@@ -1000,14 +1019,12 @@ const loadComments = async () => {
 onMounted(() => {
   // 如果从搜索页跳转过来，回显搜索关键词
   if (route.query.q) searchInput.value = route.query.q as string
-  console.log('正在加载评论...')
   
   if (userStore.isLoggedIn) {
     void userStore.loadFavoriteIds()
-    console.log(product)
-    console.log(product.value)
-    // loadComments()
   }
+  // 加载评论
+  void loadComments()
 })
 </script>
 
@@ -1846,6 +1863,20 @@ onMounted(() => {
   line-height: 1.6;
   color: var(--text);
   margin-bottom: 10px;
+}
+
+.sellerReply {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #c2410c;
+  background: #fff7ed;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.sellerReplyTag {
+  font-weight: 600;
 }
 
 /* 回复列表 */

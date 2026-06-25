@@ -144,7 +144,7 @@
             <button class="actionBtn" @click="editProduct(product)">
               <i class="fa fa-edit"></i>
             </button>
-            <button class="actionBtn delete" @click="deleteProduct(product)">
+            <button class="actionBtn delete" @click="deleteProductHandler(product)">
               <i class="fa fa-trash-alt"></i>
             </button>
           </div>
@@ -166,7 +166,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { offShelfProduct, relistProduct, revokeReview } from '@/api/goods'
+import { offShelfProduct, deleteProduct, relistProduct, revokeReview, getMyProducts, type ProductVO } from '@/api/goods'
+import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 defineOptions({ name: 'SellerProducts' })
@@ -177,6 +178,18 @@ const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
 
 const searchInput = ref('')
 const filterStatus = ref('all')
+const loading = ref(false)
+
+// 后端状态 -> 前端显示状态
+const statusMap: Record<string, string> = {
+  on_sale: '在售',
+  off_sale: '已下架',
+  off_shelf: '已下架',
+  offline: '已下架',
+  pending_review: '待审核',
+  draft: '草稿',
+  rejected: '已驳回',
+}
 
 interface Product {
   id: number
@@ -185,100 +198,86 @@ interface Product {
   originalPrice: number
   image: string
   category: string
-  status: '在售' | '已下架' | '待审核' | '草稿'
+  status: '在售' | '已下架' | '待审核' | '已驳回' | '草稿'
   viewCount: number
   favoriteCount: number
   consultCount: number
   publishTime: string
+  _raw: ProductVO
 }
 
-const products = ref<Product[]>([
-  {
-    id: 1,
-    title: 'iPhone 14 Pro Max 256G 紫色 99新 无磕碰无划痕',
-    price: 6999,
-    originalPrice: 8999,
-    image: 'https://picsum.photos/id/1/400/400',
-    category: '手机数码',
-    status: '在售',
-    viewCount: 128,
-    favoriteCount: 23,
-    consultCount: 5,
-    publishTime: '3天前'
-  },
-  {
-    id: 2,
-    title: 'AirPods Pro 2 全新未拆封 国行正品',
-    price: 1599,
-    originalPrice: 1999,
-    image: 'https://picsum.photos/id/119/400/400',
-    category: '数码配件',
-    status: '在售',
-    viewCount: 89,
-    favoriteCount: 15,
-    consultCount: 3,
-    publishTime: '1周前'
-  },
-  {
-    id: 3,
-    title: 'MacBook Pro 14寸 M2 Pro 16+512G 银色',
-    price: 12999,
-    originalPrice: 15999,
-    image: 'https://picsum.photos/id/45/400/400',
-    category: '电脑办公',
-    status: '已下架',
-    viewCount: 256,
-    favoriteCount: 42,
-    consultCount: 8,
-    publishTime: '2周前'
-  },
-  {
-    id: 4,
-    title: 'Nintendo Switch OLED 日版 配原装底座',
-    price: 1899,
-    originalPrice: 2499,
-    image: 'https://picsum.photos/id/42/400/400',
-    category: '游戏主机',
-    status: '在售',
-    viewCount: 67,
-    favoriteCount: 12,
-    consultCount: 2,
-    publishTime: '今天'
-  },
-  {
-    id: 5,
-    title: 'Sony WH-1000XM4 头戴式降噪耳机 黑色',
-    price: 1299,
-    originalPrice: 2299,
-    image: 'https://picsum.photos/id/38/400/400',
-    category: '数码配件',
-    status: '在售',
-    viewCount: 45,
-    favoriteCount: 8,
-    consultCount: 1,
-    publishTime: '2天前'
-  },
-  {
-    id: 6,
-    title: 'iPad Air 5 256G WiFi版 星光色',
-    price: 4599,
-    originalPrice: 5499,
-    image: 'https://picsum.photos/id/57/400/400',
-    category: '平板电脑',
-    status: '已下架',
-    viewCount: 112,
-    favoriteCount: 18,
-    consultCount: 4,
-    publishTime: '1个月前'
+const products = ref<Product[]>([])
+
+// 格式化时间
+const formatTime = (dateStr?: string) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  if (days === 0) return '今天'
+  if (days === 1) return '昨天'
+  if (days < 7) return `${days}天前`
+  if (days < 30) return `${Math.floor(days / 7)}周前`
+  return `${Math.floor(days / 30)}个月前`
+}
+
+const resolveStatus = (raw: string): Product['status'] => {
+  const key = String(raw || '').toLowerCase()
+  const mapped = statusMap[key] || statusMap[raw]
+  if (mapped) return mapped as Product['status']
+  console.warn('[SellerProducts] 未知商品状态:', raw)
+  return '已下架'
+}
+
+// 将 ProductVO 转换为 Product
+const toProduct = (item: ProductVO): Product => {
+  const coverImage = item.images?.find(img => img.isCover)?.imageUrl
+    || item.images?.[0]?.imageUrl
+    || ''
+  return {
+    id: item.id,
+    title: item.title,
+    price: item.sellingPrice || 0,
+    originalPrice: item.originalPrice || 0,
+    image: coverImage ? getImageUrl(coverImage) : PLACEHOLDER_IMG,
+    category: '',
+    status: resolveStatus(item.publishStatus),
+    viewCount: item.viewCount || 0,
+    favoriteCount: item.favoriteCount || 0,
+    consultCount: 0,
+    publishTime: formatTime(item.publishedAt),
+    _raw: item,
   }
-])
+}
+
+// 加载商品列表（排除草稿）
+const loadProducts = async () => {
+  loading.value = true
+  try {
+    const result = await getMyProducts({ current: 1, size: 100 })
+    products.value = (result.records || [])
+      .filter(item => item.publishStatus !== 'draft')
+      .map(toProduct)
+  } catch (err) {
+    console.error('加载商品列表失败:', err)
+  } finally {
+    loading.value = false
+  }
+}
 
 const filteredProducts = computed(() => {
-  if (filterStatus.value === 'all') return products.value
-  if (filterStatus.value === 'onSale') return products.value.filter(p => p.status === '在售')
-  if (filterStatus.value === 'offSale') return products.value.filter(p => p.status === '已下架')
-  if (filterStatus.value === 'pendingReview') return products.value.filter(p => p.status === '待审核')
-  return products.value
+  let list = products.value
+  // 状态筛选
+  if (filterStatus.value === 'onSale') list = list.filter(p => p.status === '在售')
+  else if (filterStatus.value === 'offSale') list = list.filter(p => p.status === '已下架')
+  else if (filterStatus.value === 'pendingReview') list = list.filter(p => p.status === '待审核')
+  // 关键词搜索（本地筛选）
+  if (searchInput.value.trim()) {
+    const kw = searchInput.value.trim().toLowerCase()
+    list = list.filter(p => p.title.toLowerCase().includes(kw))
+  }
+  return list
 })
 
 const totalProducts = computed(() => products.value.length)
@@ -290,8 +289,7 @@ import { useSmartBack } from '@/composables/useSmartBack'
 const { goBack } = useSmartBack('/orders')
 
 const performSearch = () => {
-  // 搜索功能实现
-  alert(`搜索：${searchInput.value}`)
+  // 搜索使用本地筛选（filteredProducts 中已处理）
 }
 
 const handleLogin = () => {
@@ -307,13 +305,29 @@ const goToPublish = () => {
 }
 
 const editProduct = (product: Product) => {
-  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(product))
+  const raw = product._raw
+  sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify({
+    id: raw.id,
+    title: raw.title,
+    subtitle: raw.subtitle || '',
+    description: raw.description || '',
+    brand: raw.brand || '',
+    model: raw.model || '',
+    categoryId: raw.categoryId,
+    conditionLevel: raw.conditionLevel || '',
+    originalPrice: raw.originalPrice || 0,
+    price: raw.sellingPrice || 0,
+    canBargain: raw.canBargain || false,
+    tradeMode: raw.tradeMode || 'both',
+    pickupCity: raw.pickupCity || '',
+    pickupAddress: raw.pickupAddress || '',
+    images: raw.images?.map(img => img.imageUrl) || [],
+  }))
   router.push({ path: '/edit', query: { id: product.id.toString() } })
 }
 
 const toggleStatus = async (product: Product) => {
   if (product.status === '在售') {
-    // 在售 -> 下架
     if (!confirm('确定要下架该商品吗？')) return
     try {
       await offShelfProduct(product.id)
@@ -323,7 +337,6 @@ const toggleStatus = async (product: Product) => {
       alert(err instanceof Error ? err.message : '下架失败')
     }
   } else {
-    // 已下架 -> 重新上架
     if (!confirm('确定要重新上架该商品吗？')) return
     try {
       await relistProduct(product.id)
@@ -352,10 +365,15 @@ const statusBadgeClass = (status: string) => {
   return 'offSale'
 }
 
-const deleteProduct = (product: Product) => {
+const deleteProductHandler = async (product: Product) => {
   if (confirm(`确定要删除商品「${product.title}」吗？删除后不可恢复！`)) {
-    products.value = products.value.filter(p => p.id !== product.id)
-    alert('商品已删除')
+    try {
+      await deleteProduct(product.id)
+      products.value = products.value.filter(p => p.id !== product.id)
+      alert('商品已删除')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : '删除失败，请稍后重试')
+    }
   }
 }
 
@@ -377,7 +395,7 @@ const handleTool = (t: { id: number }) => {
 }
 
 onMounted(() => {
-  // TODO: 后端提供用户商品列表接口后替换为 API 调用
+  loadProducts()
 })
 </script>
 

@@ -58,7 +58,15 @@
       <div class="sellerCard card">
         <div class="sellerMain">
           <div class="productStatus">
-            <span class="statusTag" :class="product.status === '在售' ? 'onSale' : product.status === '待审核' ? 'pending' : 'offSale'">
+            <span
+              class="statusTag"
+              :class="
+                product.status === '在售' ? 'onSale' :
+                product.status === '待审核' ? 'pending' :
+                product.status === '已驳回' || product.status === '已删除' ? 'rejected' :
+                'offSale'
+              "
+            >
               <i :class="product.status === '在售' ? 'fa fa-check-circle' : product.status === '待审核' ? 'fa fa-clock' : 'fa fa-pause-circle'"></i>
               {{ product.status }}
             </span>
@@ -67,7 +75,6 @@
           <div class="quickStats">
             <span><i class="fa fa-eye"></i> {{ product.viewCount }} 浏览</span>
             <span><i class="fa fa-heart"></i> {{ product.favoriteCount }} 收藏</span>
-            <span><i class="fa fa-comment"></i> {{ product.consultCount }} 咨询</span>
           </div>
         </div>
       </div>
@@ -177,7 +184,7 @@
               <button class="actionBtn" @click="shareProduct">
                 <i class="fa fa-share-alt"></i> 分享
               </button>
-              <button class="actionBtn" @click="goToConsult">
+              <button v-if="product?.status === '在售'" class="actionBtn" @click="goToConsult">
                 <i class="fa fa-comment"></i> 咨询
               </button>
             </div>
@@ -197,114 +204,54 @@
         </div>
       </div>
 
-      <!-- 咨询与意向管理 -->
-      <section class="manageSection">
-        <div class="manageTabs">
-          <button 
-            class="tabBtn" 
-            :class="{ active: activeTab === 'consult' }"
-            @click="activeTab = 'consult'"
-          >
-            <i class="fa fa-comment"></i> 买家咨询 ({{ product.consults?.length || 0 }})
-          </button>
-          <button 
-            class="tabBtn" 
-            :class="{ active: activeTab === 'intention' }"
-            @click="activeTab = 'intention'"
-          >
-            <i class="fa fa-hand-paper"></i> 意向购买 ({{ product.intentions?.length || 0 }})
-          </button>
+      <!-- 商品评价 -->
+      <section class="reviewSection">
+        <div class="reviewHeader">
+          <h3><i class="fa fa-star"></i> 商品评价</h3>
+          <span class="reviewCount">{{ comments.length }} 条评价</span>
         </div>
 
-        <!-- 咨询列表 -->
-        <div v-if="activeTab === 'consult'" class="consultList">
-          <div v-if="!product.consults?.length" class="emptyState">
-            <i class="fa fa-comment-dots"></i>
-            <p>暂无买家咨询</p>
+        <!-- 评价列表 -->
+        <div class="reviewList" v-if="comments.length > 0">
+          <div v-for="comment in displayedComments" :key="comment.id" class="reviewItem">
+            <div class="reviewUser">
+              <UserAvatar :src="comment.avatar" :name="comment.name" class="reviewAvatar" />
+              <div class="reviewMeta">
+                <span class="reviewName">{{ comment.name }}</span>
+                <span class="reviewTime">{{ comment.time }}</span>
+                <!-- 评分星星 -->
+                <span class="reviewStars" v-if="comment.rating">
+                  <i v-for="s in 5" :key="s" class="fa" :class="s <= comment.rating ? 'fa-star' : 'fa-star-o'"></i>
+                </span>
+              </div>
+            </div>
+            <div class="reviewContent">{{ comment.content }}</div>
+
+            <!-- 我的回复 -->
+            <div v-if="comment.sellerReply" class="sellerReplyBox">
+              <span class="sellerReplyTag">我的回复：</span>{{ comment.sellerReply }}
+            </div>
           </div>
-          <div v-else v-for="consult in product.consults" :key="consult.id" class="consultItem card">
-            <div class="consultHeader">
-              <img :src="consult.buyerAvatar" class="buyerAvatar" />
-              <div class="buyerInfo">
-                <span class="buyerName">{{ consult.buyerName }}</span>
-                <span class="consultTime">{{ consult.time }}</span>
-              </div>
-              <button class="replyBtn" @click="toggleReplyInput(consult)">
-                <i class="fa fa-reply"></i> 回复
-              </button>
-            </div>
-            <div class="consultContent">{{ consult.content }}</div>
-            
-            <!-- 回复列表 -->
-            <div class="consultReplies" v-if="consult.replies && consult.replies.length > 0">
-              <div v-for="reply in getDisplayReplies(consult)" :key="reply.id" class="consultReply" :class="{ seller: reply.isSeller }">
-                <div class="replyHeader">
-                  <img v-if="reply.avatar" :src="reply.avatar" class="replyAvatar" />
-                  <div v-else class="replyAvatar default">{{ reply.name?.charAt(0) }}</div>
-                  <span class="replyName" :class="{ seller: reply.isSeller }">{{ reply.name }}</span>
-                  <span class="replyBadge" v-if="reply.isSeller">卖家</span>
-                  <span class="replyTime">{{ reply.time }}</span>
-                  <button class="subReplyBtn" @click="openSubReply(consult, reply)">
-                    <i class="fa fa-commenting"></i> 回复
-                  </button>
-                </div>
-                <div class="replyContent">{{ reply.content }}</div>
-              </div>
-              
-              <!-- 查看更多回复 -->
-              <button v-if="consult.replies.length > 3" class="toggleRepliesBtn" @click="consult.showReplies = !consult.showReplies">
-                <i :class="consult.showReplies ? 'fa fa-chevron-up' : 'fa fa-chevron-down'"></i>
-                {{ consult.showReplies ? '收起回复' : `查看全部 ${consult.replies.length} 条回复` }}
-              </button>
-            </div>
-            
-            <!-- 回复输入框 -->
-            <div v-if="activeConsultId === consult.id" class="consultReplyInput">
-              <textarea 
-                v-model="consultReplyContent" 
-                :placeholder="replyToUser ? `回复 @${replyToUser}...` : `回复 @${consult.buyerName}...`" 
-                rows="2"
-              ></textarea>
-              <div class="replyActions">
-                <button class="cancelBtn" @click="cancelConsultReply">取消</button>
-                <button class="submitBtn" @click="submitConsultReply(consult)" :disabled="!consultReplyContent.trim()">发送</button>
-              </div>
-            </div>
+
+          <!-- 查看更多按钮 -->
+          <div v-if="comments.length > 3" class="loadMore">
+            <button class="loadMoreBtn" @click="showAllComments = !showAllComments">
+              <i :class="showAllComments ? 'fa fa-chevron-up' : 'fa fa-chevron-down'"></i>
+              {{ showAllComments ? '收起评价' : `查看全部 ${comments.length} 条评价` }}
+            </button>
           </div>
         </div>
 
-        <!-- 意向列表 -->
-        <div v-if="activeTab === 'intention'" class="intentionList">
-          <div v-if="!product.intentions?.length" class="emptyState">
-            <i class="fa fa-hand-paper"></i>
-            <p>暂无意向买家</p>
-          </div>
-          <div v-else v-for="item in product.intentions" :key="item.id" class="intentionItem card">
-            <div class="intentionHeader">
-              <img :src="item.buyerAvatar" class="buyerAvatar" />
-              <div class="buyerInfo">
-                <span class="buyerName">{{ item.buyerName }}</span>
-                <span class="intentionPrice">出价 ¥{{ item.price }}</span>
-              </div>
-              <div class="intentionActions">
-                <button class="contactBtn" @click="contactBuyer(item)">
-                  <i class="fa fa-comment"></i> 联系
-                </button>
-                <button class="rejectBtn" @click="rejectIntention(item)">
-                  <i class="fa fa-times"></i> 婉拒
-                </button>
-              </div>
-            </div>
-            <div class="intentionNote" v-if="item.note">
-              备注：{{ item.note }}
-            </div>
-          </div>
+        <!-- 无评价 -->
+        <div v-else class="emptyReview">
+          <i class="fa fa-star-o"></i>
+          <p>暂无评价</p>
         </div>
       </section>
 
       <!-- 底部操作栏 -->
       <div class="bottomBar">
-        <button class="deleteBtn" @click="deleteProduct">
+        <button class="deleteBtn" @click="deleteProductHandler">
           <i class="fa fa-trash-alt"></i> 删除商品
         </button>
         <div class="bottomRight">
@@ -349,52 +296,29 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { offShelfProduct, relistProduct, revokeReview, getProductDetail } from '@/api/goods'
+import { useChatStore } from '@/stores/chatStore'
+import { offShelfProduct, deleteProduct, relistProduct, revokeReview, getProductDetail } from '@/api/goods'
+import { getProductReviews } from '@/api/review'
+import type { Review } from '@/api/review'
 import { createConversation } from '@/api/chat'
 import type { ProductVO } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 defineOptions({ name: 'SellerProductDetail' })
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const chatStore = useChatStore()
 
 const searchInput = ref('')
-const activeTab = ref('consult')
 
 interface ProductImage {
   id: number
   url: string
   alt: string
-}
-
-interface Consult {
-  id: number
-  buyerName: string
-  buyerAvatar: string
-  time: string
-  content: string
-  replies?: ConsultReply[]
-  showReplies?: boolean
-}
-
-interface ConsultReply {
-  id: number
-  isSeller: boolean
-  name: string
-  avatar?: string | null
-  time: string
-  content: string
-}
-
-interface Intention {
-  id: number
-  buyerName: string
-  buyerAvatar: string
-  price: number
-  note?: string
 }
 
 interface ProductData {
@@ -415,10 +339,9 @@ interface ProductData {
   isNew: boolean
   canBargain: boolean
   freight: number
-  status: '在售' | '已下架' | '待审核' | '草稿'
+  status: '在售' | '已下架' | '待审核' | '草稿' | '已驳回' | '已删除' | '未知'
   viewCount: number
   favoriteCount: number
-  consultCount: number
   soldCount: number
   tags: string[]
   publishedAt?: string
@@ -426,8 +349,6 @@ interface ProductData {
   brand?: string
   model?: string
   stock?: number
-  consults?: Consult[]
-  intentions?: Intention[]
 }
 
 const product = ref<ProductData | null>(null)
@@ -436,53 +357,72 @@ const images = ref<ProductImage[]>([])
 const isLoading = ref(true)
 const EDIT_PRODUCT_CACHE_KEY = 'edit_product_cache'
 
-// 咨询回复相关
-const activeConsultId = ref<number | null>(null)
-const consultReplyContent = ref('')
-const replyToUser = ref<string | null>(null)
-
-const toggleReplyInput = (consult: Consult) => {
-  activeConsultId.value = activeConsultId.value === consult.id ? null : consult.id
-  consultReplyContent.value = ''
-  replyToUser.value = null
+// 评价相关
+interface Comment {
+  id: number
+  userId?: number
+  name: string
+  avatar?: string
+  time: string
+  content: string
+  rating?: number
+  isAnonymous?: number
+  sellerReply?: string
+  sellerReplyAt?: string
+  images?: string[]
 }
 
-const openSubReply = (consult: Consult, reply: ConsultReply) => {
-  activeConsultId.value = consult.id
-  replyToUser.value = reply.name
-  consultReplyContent.value = ''
-}
+const comments = ref<Comment[]>([])
+const showAllComments = ref(false)
 
-const cancelConsultReply = () => {
-  consultReplyContent.value = ''
-  activeConsultId.value = null
-  replyToUser.value = null
-}
-
-const submitConsultReply = (consult: Consult) => {
-  if (!consultReplyContent.value.trim()) return
-  
-  if (!consult.replies) consult.replies = []
-  
-  const reply: ConsultReply = {
-    id: Date.now(),
-    isSeller: true,
-    name: userStore.userInfo?.username || '卖家',
-    avatar: userStore.userInfo?.avatar,
-    time: '刚刚',
-    content: consultReplyContent.value.trim()
+const displayedComments = computed(() => {
+  if (showAllComments.value || comments.value.length <= 3) {
+    return comments.value
   }
-  
-  consult.replies.push(reply)
-  cancelConsultReply()
+  return comments.value.slice(0, 3)
+})
+
+const formatCommentTime = (isoTime: string) => {
+  const created = new Date(isoTime).getTime()
+  if (Number.isNaN(created)) return '未知时间'
+  const now = Date.now()
+  const diffMs = now - created
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return '刚刚'
+  if (diffMin < 60) return `${diffMin}分钟前`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour}小时前`
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffDay < 7) return `${diffDay}天前`
+  return new Date(created).toLocaleDateString()
 }
 
-const getDisplayReplies = (consult: Consult) => {
-  if (!consult.replies) return []
-  if (consult.replies.length <= 3 || consult.showReplies) {
-    return consult.replies
+const convertApiReviewToComment = (apiReview: Review): Comment => {
+  return {
+    id: apiReview.id,
+    userId: apiReview.buyerId,
+    name: apiReview.isAnonymous ? '匿名用户' : `用户${apiReview.buyerId}`,
+    avatar: '',
+    time: formatCommentTime(apiReview.createdAt),
+    content: apiReview.content,
+    rating: apiReview.rating,
+    isAnonymous: apiReview.isAnonymous,
+    sellerReply: apiReview.sellerReply,
+    sellerReplyAt: apiReview.sellerReplyAt,
+    images: apiReview.images,
   }
-  return consult.replies.slice(0, 3)
+}
+
+const loadComments = async () => {
+  if (!product.value?.id) return
+  try {
+    const res = await getProductReviews(product.value.id)
+    if (res.code === 200) {
+      comments.value = res.data.map(convertApiReviewToComment)
+    }
+  } catch (error) {
+    console.error('加载评价失败:', error)
+  }
 }
 
 const currentImage = computed(() => images.value[currentIndex.value] ?? { url: '', alt: '' })
@@ -562,13 +502,18 @@ const loadDetails = async () => {
       canBargain: vo.canBargain ?? false,
       freight: 0,
       status: (() => {
-        if (vo.publishStatus === 'off_shelf') return '已下架'
-        if (vo.publishStatus === 'pending_review') return '待审核'
-        return '在售'
+        const raw = String(vo.publishStatus || '').toLowerCase()
+        if (raw === 'on_sale') return '在售'
+        if (raw === 'off_sale' || raw === 'off_shelf' || raw === 'offline') return '已下架'
+        if (raw === 'pending_review') return '待审核'
+        if (raw === 'draft') return '草稿'
+        if (raw === 'rejected') return '已驳回'
+        if (raw === 'deleted') return '已删除'
+        console.warn('[SellerProductDetail] 未知商品状态，请更新映射:', vo.publishStatus)
+        return '未知'
       })(),
       viewCount: vo.viewCount || 0,
       favoriteCount: vo.favoriteCount || 0,
-      consultCount: 0,
       soldCount: 0,
       tags: [],
       publishedAt: vo.publishedAt || undefined,
@@ -576,8 +521,6 @@ const loadDetails = async () => {
       brand: vo.brand || undefined,
       model: vo.model || undefined,
       stock: vo.stock ?? undefined,
-      consults: [],
-      intentions: [],
     }
 
     images.value = productImages
@@ -646,11 +589,16 @@ const editProduct = () => {
   router.push({ path: '/edit', query: { id: product.value.id.toString() } })
 }
 
-const deleteProduct = () => {
+const deleteProductHandler = async () => {
   if (!product.value) return
   if (confirm('确定要删除该商品吗？删除后不可恢复！')) {
-    alert('商品已删除')
-    router.push('/')
+    try {
+      await deleteProduct(product.value.id)
+      alert('商品已删除')
+      router.push('/')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : '删除商品失败')
+    }
   }
 }
 
@@ -666,13 +614,47 @@ const goToConsult = async () => {
   }
   if (!product.value) return
 
+  // 只有「在售」的商品才允许发起咨询
+  if (product.value.status !== '在售') {
+    alert('商品当前未在售，暂时无法发起咨询')
+    return
+  }
+
   const p = product.value
+
+  // 1. 强制刷新会话列表，拿到后端最新数据再检查是否已有同一卖家的会话
+  try {
+    await chatStore.refreshConversations()
+  } catch { /* 刷新失败不阻塞 */ }
+
+  // 2. 查找是否已有与该卖家的历史会话（同一卖家共用一个对话列表）
+  const existingConv = chatStore.conversations.find(
+    (conv) => conv.userId === p.sellerId
+  )
+
+  if (existingConv) {
+    // 复用已有会话
+    router.push({
+      path: '/chat',
+      query: { conversationId: String(existingConv.id), productId: String(p.id) }
+    })
+    return
+  }
+
+  // 3. 没有已有会话，创建新的
   try {
     const conv = await createConversation({
       conversationType: 'product_consult',
       productId: p.id,
       userId: p.sellerId,
     })
+    // 立即加入本地 store，避免聊天页 syncActiveConversation 找不到而回退到第一条会话
+    const idx = chatStore.conversations.findIndex((c: { id: number }) => c.id === conv.id)
+    if (idx >= 0) {
+      chatStore.conversations[idx] = conv
+    } else {
+      chatStore.conversations.unshift(conv)
+    }
     router.push({ path: '/chat', query: { conversationId: String(conv.id), productId: String(p.id) } })
   } catch (err) {
     console.error('创建会话失败，使用兜底流程:', err)
@@ -686,19 +668,6 @@ const goToConsult = async () => {
         productId: String(p.id),
       },
     })
-  }
-}
-
-const contactBuyer = (item: Intention) => {
-  alert(`正在与 ${item.buyerName} 联系...`)
-}
-
-const rejectIntention = (item: Intention) => {
-  if (confirm(`确定要婉拒 ${item.buyerName} 的购买意向吗？`)) {
-    if (product.value?.intentions) {
-      product.value.intentions = product.value.intentions.filter(i => i.id !== item.id)
-    }
-    alert('已婉拒')
   }
 }
 
@@ -719,8 +688,9 @@ const handleTool = (t: { id: number }) => {
   alert(actions[t.id])
 }
 
-onMounted(() => {
-  loadDetails()
+onMounted(async () => {
+  await loadDetails()
+  void loadComments()
 })
 </script>
 
@@ -972,6 +942,11 @@ onMounted(() => {
 .statusTag.pending {
   background: #fffbeb;
   color: #d97706;
+}
+
+.statusTag.rejected {
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 .productTitle {
@@ -1360,290 +1335,148 @@ onMounted(() => {
   background: #ea580c;
 }
 
-/* 咨询与意向管理 */
-.manageSection {
+/* 商品评价 */
+.reviewSection {
   background: #fff;
   border-radius: 12px;
   margin-bottom: 80px;
+  padding: 20px;
 }
 
-.manageTabs {
-  display: flex;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.tabBtn {
-  flex: 1;
-  padding: 14px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  font-size: 14px;
-  color: #6b7280;
-  cursor: pointer;
+.reviewHeader {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all 150ms;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f3f4f6;
 }
 
-.tabBtn:hover {
+.reviewHeader h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reviewHeader h3 i {
   color: #f97316;
 }
 
-.tabBtn.active {
-  color: #f97316;
-  border-bottom-color: #f97316;
+.reviewCount {
+  font-size: 13px;
+  color: #9ca3af;
 }
 
-.consultList,
-.intentionList {
-  padding: 16px;
+.reviewList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
-.emptyState {
+.reviewItem {
+  padding: 14px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.reviewItem:last-child {
+  border-bottom: none;
+}
+
+.reviewUser {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.reviewAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.reviewMeta {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.reviewName {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.reviewTime {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.reviewStars {
+  font-size: 12px;
+  color: #f59e0b;
+  display: flex;
+  gap: 2px;
+}
+
+.reviewContent {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #374151;
+  margin-top: 8px;
+}
+
+.sellerReplyBox {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #c2410c;
+  background: #fff7ed;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.sellerReplyTag {
+  font-weight: 600;
+}
+
+.emptyReview {
   text-align: center;
   padding: 40px;
   color: #9ca3af;
 }
 
-.emptyState i {
+.emptyReview i {
   font-size: 48px;
   margin-bottom: 12px;
 }
 
-.consultItem,
-.intentionItem {
-  padding: 14px;
-  margin-bottom: 12px;
-}
-
-.consultHeader,
-.intentionHeader {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.buyerAvatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.buyerInfo {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.buyerName {
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.consultTime {
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.intentionPrice {
-  font-size: 13px;
-  color: #f97316;
-}
-
-.replyBtn,
-.contactBtn {
-  padding: 6px 12px;
-  background: #f97316;
-  border: none;
-  border-radius: 6px;
-  color: #fff;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.replyBtn:hover,
-.contactBtn:hover {
-  background: #ea580c;
-}
-
-.rejectBtn {
-  padding: 6px 12px;
-  background: none;
-  border: 1px solid #fca5a5;
-  border-radius: 6px;
-  color: #dc2626;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.rejectBtn:hover {
-  background: #fef2f2;
-}
-
-.intentionActions {
-  display: flex;
-  gap: 8px;
-}
-
-.consultContent {
-  margin-top: 10px;
-  padding: 10px;
-  background: #f9fafb;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #374151;
-}
-
-.consultReply {
-  margin-top: 8px;
-  padding: 10px 12px;
-  background: #fff;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #374151;
-  border-left: 3px solid #6b7280;
-}
-
-.consultReply.seller {
-  border-left-color: #f97316;
-  background: #fff7f0;
-}
-
-.replyHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.replyAvatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.replyAvatar.default {
-  background: #6b7280;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-}
-
-.replyName {
-  font-size: 12px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.replyName.seller {
-  color: #f97316;
-}
-
-.replyBadge {
-  font-size: 10px;
-  padding: 2px 6px;
-  background: #f97316;
-  color: #fff;
-  border-radius: 4px;
-}
-
-.replyTime {
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.replyContent {
-  font-size: 13px;
-  line-height: 1.5;
-  color: #4b5563;
-}
-
-.subReplyBtn {
-  margin-left: auto;
-  padding: 2px 8px;
-  border: none;
-  background: transparent;
-  color: #9ca3af;
-  font-size: 11px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  transition: color 150ms;
-}
-
-.subReplyBtn:hover {
-  color: #f97316;
-}
-
-.toggleRepliesBtn {
-  display: block;
-  width: 100%;
-  padding: 8px;
-  margin-top: 8px;
-  background: none;
-  border: none;
-  color: #6b7280;
-  font-size: 12px;
-  cursor: pointer;
+.loadMore {
   text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
+  padding-top: 12px;
 }
 
-.toggleRepliesBtn:hover {
-  color: #f97316;
-}
-
-.consultReplyInput {
-  margin-top: 10px;
-}
-
-.consultReplyInput textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  resize: none;
-  font-size: 13px;
-  outline: none;
-}
-
-.consultReplyInput textarea:focus {
-  border-color: #f97316;
-}
-
-.replyActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.intentionNote {
-  margin-top: 10px;
-  padding: 8px 10px;
-  background: #f3f4f6;
-  border-radius: 6px;
-  font-size: 12px;
+.loadMoreBtn {
+  background: none;
+  border: none;
   color: #6b7280;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.loadMoreBtn:hover {
+  color: #f97316;
+  background: #fff7ed;
 }
 
 /* 底部操作栏 */

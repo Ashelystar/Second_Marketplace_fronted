@@ -40,13 +40,11 @@
           class="user-card"
           @click="goToUserHome(item.id)"
         >
-          <img
-            v-if="item.avatar"
+          <UserAvatar
             :src="item.avatar"
-            :alt="item.name"
+            :name="item.name"
             class="avatar"
           />
-          <div v-else class="avatar avatar-fallback">{{ item.name.slice(0, 1) }}</div>
           <div class="user-meta">
             <h3 class="name">{{ item.name }}</h3>
             <p class="location">
@@ -65,6 +63,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useProductStore } from '@/stores/productStore'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 defineOptions({ name: 'UserFollows' })
 
