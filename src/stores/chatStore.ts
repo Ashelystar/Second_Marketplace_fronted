@@ -222,6 +222,18 @@ export const useChatStore = defineStore('chat', () => {
     product?: ChatProductCard,
   ): Promise<Conversation | null> => {
     if (!currentUser.id || !targetUser.id || currentUser.id === targetUser.id) return null
+
+    // 先查是否已有与该用户的会话（按 userId 去重，同一卖家只保留一个会话）
+    const existingConv = conversations.value.find((c) => c.userId === targetUser.id)
+    if (existingConv) {
+      // 更新 productId（可能是从不同商品进入的），但不创建新会话
+      if (product?.id && existingConv.productId !== product.id) {
+        existingConv.productId = product.id
+      }
+      touchConversation(existingConv.id)
+      return existingConv
+    }
+
     try {
       const conv = await apiCreateConversation({
         conversationType: 'product_consult',
@@ -261,7 +273,7 @@ export const useChatStore = defineStore('chat', () => {
       // 同步 conversation 列表中的 userAvatar（Conversation 类型不含，但 Detail 有）
       const conv = conversations.value.find((c) => c.id === conversationId)
       if (conv && detail.userAvatar) {
-        ;(conv as Record<string, unknown>).userAvatar = detail.userAvatar
+        ;(conv as unknown as Record<string, unknown>).userAvatar = detail.userAvatar
       }
       return msgs
     } catch (e) {
@@ -319,9 +331,9 @@ export const useChatStore = defineStore('chat', () => {
       // 同步 userAvatar
       const conv = conversations.value.find((c) => c.id === conversationId)
       if (conv && detail.userAvatar) {
-        ;(conv as Record<string, unknown>).userAvatar = detail.userAvatar
+        ;(conv as unknown as Record<string, unknown>).userAvatar = detail.userAvatar
       }
-
+    
       return newMsgs.length
     } catch (e) {
       console.error('[ChatStore] 轮询消息失败:', e)
@@ -467,8 +479,30 @@ export const useChatStore = defineStore('chat', () => {
 
   const getConversationsForUser = (_userId: number): ChatThread[] => {
     const accessMap = lastAccessTimes.value
-    return conversations.value
-      .slice()
+
+    // 按 userId 去重：同一卖家只保留最近活动的那个会话
+    const convByUser = new Map<number, Conversation>()
+    for (const conv of conversations.value) {
+      const existing = convByUser.get(conv.userId)
+      if (!existing) {
+        convByUser.set(conv.userId, conv)
+        continue
+      }
+      // 比较两个会话的最后活动时间（max of lastMessageAt and accessTime），保留更新的
+      const existingActivity = Math.max(
+        existing.lastMessageAt ? new Date(existing.lastMessageAt).getTime() : 0,
+        accessMap[existing.id] || 0,
+      )
+      const newActivity = Math.max(
+        conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() : 0,
+        accessMap[conv.id] || 0,
+      )
+      if (newActivity > existingActivity) {
+        convByUser.set(conv.userId, conv)
+      }
+    }
+
+    return Array.from(convByUser.values())
       .sort((a, b) => {
         // 按 max(最后消息时间, 用户点击时间) 降序：最近互动/点击的排最上面
         const msgA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
@@ -481,7 +515,7 @@ export const useChatStore = defineStore('chat', () => {
         const partner: ChatUserProfile = {
           id: conv.userId,
           name: conv.userNickname || `用户${conv.userId}`,
-          avatar: (conv as Record<string, unknown>).userAvatar as string || '',
+          avatar: (conv as unknown as Record<string, unknown>).userAvatar as string || '',
           location: '',
           rating: 5,
         }
@@ -554,7 +588,7 @@ export const useChatStore = defineStore('chat', () => {
     for (const conv of convs) {
       if (patch.name) conv.userNickname = patch.name
       if (patch.avatar !== undefined) {
-        ;(conv as Record<string, unknown>).userAvatar = patch.avatar
+        ;(conv as unknown as Record<string, unknown>).userAvatar = patch.avatar
       }
     }
   }

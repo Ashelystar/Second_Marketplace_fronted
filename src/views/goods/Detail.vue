@@ -68,8 +68,7 @@
       <div class="sellerCard card">
         <div class="sellerMain">
           <div class="sellerInfo">
-            <img v-if="product.sellerAvatar" :src="getImageUrl(product.sellerAvatar)" :alt="product.sellerName" class="avatar clickableAvatar" @click="goToSellerProfile" />
-            <div v-else class="avatar avatarDefault clickableAvatar" @click="goToSellerProfile">{{ product.sellerName?.charAt(0) }}</div>
+            <UserAvatar :src="product.sellerAvatar" :name="product.sellerName" class="avatar clickableAvatar" @click="goToSellerProfile" />
             <div class="sellerText">
               <div class="sellerName">
                 <strong class="profileClickable nameLink" @click="goToSellerProfile">{{ product.sellerName }}</strong>
@@ -258,8 +257,7 @@
         <div class="commentList" v-if="comments.length > 0">
           <div v-for="comment in displayedComments" :key="comment.id" class="commentItem">
             <div class="commentUser">
-              <img v-if="comment.avatar" :src="comment.avatar" class="commentAvatar profileClickable" @click.stop="goToUserProfile(comment)" />
-              <div v-else class="commentAvatar avatarDefault profileClickable" @click.stop="goToUserProfile(comment)">{{ comment.name?.charAt(0) }}</div>
+              <UserAvatar :src="comment.avatar" :name="comment.name" class="commentAvatar profileClickable" @click.stop="goToUserProfile(comment)" />
               <div class="commentMeta">
                 <span class="commentName profileClickable nameLink" @click.stop="goToUserProfile(comment)">{{ comment.name }}</span>
                 <span class="commentTime">{{ comment.time }}</span>
@@ -274,8 +272,7 @@
             <div class="replyList" v-if="comment.replies && comment.replies.length > 0">
               <div v-for="reply in getDisplayReplies(comment)" :key="reply.id" class="replyItem">
                 <div class="replyUser">
-                  <img v-if="reply.avatar" :src="reply.avatar" class="replyAvatar profileClickable" @click.stop="goToUserProfile(reply)" />
-                  <div v-else class="replyAvatar avatarDefaultSm profileClickable" @click.stop="goToUserProfile(reply)">{{ reply.name?.charAt(0) }}</div>
+                  <UserAvatar :src="reply.avatar" :name="reply.name" class="replyAvatar profileClickable" @click.stop="goToUserProfile(reply)" />
                   <div class="replyMeta">
                     <span class="replyName profileClickable nameLink" @click.stop="goToUserProfile(reply)">{{ reply.name }}</span>
                     <span class="replyTime">{{ reply.time }}</span>
@@ -388,6 +385,7 @@ import type { Review } from '@/api/review'
 import { createConversation } from '@/api/chat'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import {
   getSellerReputationSnapshotApi,
   resolveUserDisplayProfile,

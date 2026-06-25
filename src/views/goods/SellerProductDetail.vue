@@ -232,7 +232,7 @@
           </div>
           <div v-else v-for="consult in product.consults" :key="consult.id" class="consultItem card">
             <div class="consultHeader">
-              <img :src="consult.buyerAvatar" class="buyerAvatar" />
+              <UserAvatar :src="consult.buyerAvatar" :name="consult.buyerName" class="buyerAvatar" />
               <div class="buyerInfo">
                 <span class="buyerName">{{ consult.buyerName }}</span>
                 <span class="consultTime">{{ consult.time }}</span>
@@ -247,8 +247,7 @@
             <div class="consultReplies" v-if="consult.replies && consult.replies.length > 0">
               <div v-for="reply in getDisplayReplies(consult)" :key="reply.id" class="consultReply" :class="{ seller: reply.isSeller }">
                 <div class="replyHeader">
-                  <img v-if="reply.avatar" :src="reply.avatar" class="replyAvatar" />
-                  <div v-else class="replyAvatar default">{{ reply.name?.charAt(0) }}</div>
+                  <UserAvatar :src="reply.avatar" :name="reply.name" class="replyAvatar" />
                   <span class="replyName" :class="{ seller: reply.isSeller }">{{ reply.name }}</span>
                   <span class="replyBadge" v-if="reply.isSeller">卖家</span>
                   <span class="replyTime">{{ reply.time }}</span>
@@ -289,7 +288,7 @@
           </div>
           <div v-else v-for="item in product.intentions" :key="item.id" class="intentionItem card">
             <div class="intentionHeader">
-              <img :src="item.buyerAvatar" class="buyerAvatar" />
+              <UserAvatar :src="item.buyerAvatar" :name="item.buyerName" class="buyerAvatar" />
               <div class="buyerInfo">
                 <span class="buyerName">{{ item.buyerName }}</span>
                 <span class="intentionPrice">出价 ¥{{ item.price }}</span>
@@ -363,6 +362,7 @@ import { createConversation } from '@/api/chat'
 import type { ProductVO } from '@/api/goods'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
 import UserDropdown from '@/components/UserDropdown.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 defineOptions({ name: 'SellerProductDetail' })
 

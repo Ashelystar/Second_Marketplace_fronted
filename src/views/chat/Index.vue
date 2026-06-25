@@ -12,7 +12,7 @@
           v-for="notice in noticeStore.notices"
           :key="notice.inboxId"
           class="notice-item"
-          :class="{ unread: notice.readStatus === 'unread' }"
+          :class="{ unread: notice.readStatus === 'unread', selected: selectedNotice?.inboxId === notice.inboxId }"
           @click="handleNoticeClick(notice)"
         >
           <div class="notice-icon" :class="'notice-' + notice.noticeType">
@@ -43,10 +43,7 @@
             @click="switchThread(thread.conversationId)"
           >
             <div class="friend-avatar">
-              <img v-if="thread.partner.avatar" :src="thread.partner.avatar" :alt="thread.partner.name">
-              <div v-else class="avatar-placeholder small">
-                {{ thread.partner.name.charAt(0) }}
-              </div>
+              <UserAvatar :src="thread.partner.avatar" :name="thread.partner.name" />
             </div>
             <div class="friend-info">
               <p class="friend-name">{{ thread.partner.name }}</p>
@@ -62,6 +59,34 @@
     </aside>
 
     <section class="chat-main">
+      <!-- ========== 通知详情视图 ========== -->
+      <template v-if="selectedNotice">
+        <div class="notice-detail-header">
+          <button class="back-btn" @click="clearSelectedNotice">
+            <i class="fa fa-arrow-left"></i>
+          </button>
+          <div class="notice-detail-header-info">
+            <i :class="getNoticeDetailIcon(selectedNotice.noticeType)"></i>
+            <span>通知详情</span>
+          </div>
+        </div>
+        <div class="notice-detail-body">
+          <h2 class="notice-detail-title">{{ selectedNotice.title }}</h2>
+          <div class="notice-detail-meta">
+            <span class="notice-detail-type">
+              <el-tag :type="getNoticeTypeTag(selectedNotice.noticeType)" size="small">
+                {{ getNoticeTypeLabel(selectedNotice.noticeType) }}
+              </el-tag>
+            </span>
+            <span class="notice-detail-time">{{ formatNoticeDetailTime(selectedNotice.deliveredAt) }}</span>
+          </div>
+          <div class="notice-detail-divider"></div>
+          <div class="notice-detail-content">{{ selectedNotice.content }}</div>
+        </div>
+      </template>
+
+      <!-- ========== 聊天视图 ========== -->
+      <template v-else>
       <div class="chat-header">
         <div class="header-inner">
           <button class="action-btn only-mobile" @click="sidebarOpen = !sidebarOpen">
@@ -72,10 +97,7 @@
           </button>
           <div class="seller-info">
             <div class="seller-avatar">
-              <img v-if="activePartner.avatar" :src="getImageUrl(activePartner.avatar)" :alt="activePartner.name">
-              <div v-else class="avatar-placeholder">
-                {{ activePartner.name.charAt(0) }}
-              </div>
+              <UserAvatar :src="activePartner.avatar" :name="activePartner.name" />
             </div>
             <div class="seller-details">
               <h3 class="seller-name">{{ activePartner.name }}</h3>
@@ -146,10 +168,7 @@
               @contextmenu.prevent="handleContextMenu($event, msg)"
             >
               <div v-if="msg.type === 'received'" class="message-avatar clickable" @click="goToUserProfile(activePartner.id, activePartner.name, activePartner.avatar, activePartner.location)">
-                <img v-if="activePartner.avatar" :src="getImageUrl(activePartner.avatar)" :alt="activePartner.name">
-                <div v-else class="avatar-placeholder small">
-                  {{ activePartner.name.charAt(0) }}
-                </div>
+                <UserAvatar :src="activePartner.avatar" :name="activePartner.name" />
               </div>
 
               <!-- 发出的消息：已读状态放在气泡前面 -->
@@ -187,10 +206,7 @@
               </div>
 
               <div v-if="msg.type === 'sent'" class="message-avatar clickable" @click="goToMyCenter">
-                <img v-if="currentUserProfile.avatar" :src="getImageUrl(currentUserProfile.avatar)" :alt="currentUserProfile.name">
-                <div v-else class="avatar-placeholder small">
-                  {{ currentUserProfile.name.charAt(0) }}
-                </div>
+                <UserAvatar :src="currentUserProfile.avatar" :name="currentUserProfile.name" />
               </div>
             </div>
           </template>
@@ -244,6 +260,7 @@
           </button>
         </div>
       </div>
+      </template>
     </section>
 
     <div v-if="showMoreOptions" class="modal-overlay" @click="showMoreOptions = false">
@@ -299,6 +316,7 @@ import { useNoticeStore } from '@/stores/noticeStore'
 import type { NoticeVO } from '@/api/chat'
 import { uploadChatImage } from '@/api/chat'
 import { getImageUrl, PLACEHOLDER_IMG } from '@/utils/image'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 defineOptions({ name: 'ChatPage' })
 
@@ -321,6 +339,7 @@ const sidebarOpen = ref(false)
 
 const activeConversationId = ref<number>(0)
 const pendingProduct = ref<ChatProductCard | null>(null)
+const selectedNotice = ref<NoticeVO | null>(null)
 
 // 上传状态
 const imageUploading = ref(false)
@@ -485,11 +504,77 @@ const getNoticeIcon = (type: string) => {
   return icons[type] || 'fa fa-bell'
 }
 
-/** 点击通知：标记已读 */
-const handleNoticeClick = (notice: NoticeVO) => {
-  if (notice.readStatus === 'unread') {
-    noticeStore.markRead(notice.inboxId)
+/** 通知详情页图标（更大号的） */
+const getNoticeDetailIcon = (type: string) => {
+  const icons: Record<string, string> = {
+    system: 'fa fa-cog',
+    announcement: 'fa fa-bullhorn',
+    warning: 'fa fa-exclamation-triangle',
+    notification: 'fa fa-info-circle',
+    order: 'fa fa-shopping-cart',
+    after_sale: 'fa fa-exchange',
+    promotion: 'fa fa-gift',
   }
+  return icons[type] || 'fa fa-bell'
+}
+
+/** 通知类型标签文案 */
+const getNoticeTypeLabel = (type: string): string => {
+  const map: Record<string, string> = {
+    system: '系统通知',
+    announcement: '公告',
+    warning: '警告',
+    notification: '通知',
+    order: '订单通知',
+    after_sale: '售后通知',
+    promotion: '促销通知',
+  }
+  return map[type] || type
+}
+
+/** 通知类型标签颜色 */
+const getNoticeTypeTag = (type: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' => {
+  const map: Record<string, string> = {
+    system: 'primary',
+    announcement: 'warning',
+    warning: 'danger',
+    notification: 'info',
+    order: 'success',
+    after_sale: 'warning',
+    promotion: 'info',
+  }
+  return (map[type] || 'info') as 'primary' | 'success' | 'warning' | 'info' | 'danger'
+}
+
+/** 通知详情页时间格式化（完整时间） */
+const formatNoticeDetailTime = (dateStr: string) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return ''
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/** 选中通知，右侧显示详情 */
+const handleNoticeClick = async (notice: NoticeVO) => {
+  selectedNotice.value = notice
+  if (notice.readStatus === 'unread') {
+    try {
+      await noticeStore.markRead(notice.inboxId)
+    } catch {
+      // 静默忽略
+    }
+  }
+}
+
+/** 关闭通知详情，返回聊天 */
+const clearSelectedNotice = () => {
+  selectedNotice.value = null
 }
 
 /** 判断是否需要在当前消息前插入日期/时间分隔线（第一条、跨天、或间隔>5分钟） */
@@ -537,6 +622,30 @@ const createConversationFromRoute = async () => {
   // 1. 商品详情页已创建会话，直接用 conversationId
   const routeConversationId = Number(route.query.conversationId || 0)
   if (routeConversationId > 0) {
+    // 检查是否已有同一卖家的其他会话（防止同一卖家多个会话）
+    const routeConv = chatStore.conversations.find((c) => c.id === routeConversationId)
+    if (routeConv) {
+      const existingConv = chatStore.conversations.find(
+        (c) => c.userId === routeConv.userId && c.id !== routeConversationId,
+      )
+      if (existingConv) {
+        // 比较最后消息时间，使用更活跃的会话
+        const existingTime = existingConv.lastMessageAt
+          ? new Date(existingConv.lastMessageAt).getTime()
+          : 0
+        const routeTime = routeConv.lastMessageAt
+          ? new Date(routeConv.lastMessageAt).getTime()
+          : 0
+        if (existingTime > routeTime) {
+          // 已有会话更活跃，复用已有的
+          activeConversationId.value = existingConv.id
+          chatStore.touchConversation(existingConv.id)
+          await chatStore.fetchMessages(existingConv.id)
+          await router.replace({ query: { ...route.query, conversationId: undefined } })
+          return
+        }
+      }
+    }
     activeConversationId.value = routeConversationId
     // 进入已有对话时也置顶
     chatStore.touchConversation(routeConversationId)
@@ -686,6 +795,8 @@ const scrollToBottom = async () => {
 }
 
 const switchThread = async (conversationId: number) => {
+  // 切换到聊天会话时关闭通知详情
+  selectedNotice.value = null
   activeConversationId.value = conversationId
   sidebarOpen.value = false
   // 切换会话时清除 URL 中的 productId，避免旧商品影响新会话
@@ -1040,7 +1151,16 @@ onMounted(async () => {
   // 登录后再初始化会话列表
   await chatStore.initialize()
   // 初始化通知列表
-  noticeStore.refresh()
+  await noticeStore.refresh()
+  // 检查是否从首页通知跳转过来，自动显示对应通知详情
+  const noticeIdParam = route.query.noticeId
+  if (noticeIdParam) {
+    const numId = Number(noticeIdParam)
+    const notice = noticeStore.notices.find(n => n.inboxId === numId)
+    if (notice) {
+      selectedNotice.value = notice
+    }
+  }
   await refreshFallbackPartnerNames()
   // 注意顺序：先创建/定位会话，再用 URL 的 productId 覆盖顶部商品卡片
   // 这样从不同商品进入同一卖家的会话时，顶部始终显示用户点进来的那个商品
@@ -1127,6 +1247,15 @@ onUnmounted(() => {
 
 .notice-item.unread:hover {
   background: #dbeafe;
+}
+
+.notice-item.selected {
+  background: #fff7ed;
+  border-left: 3px solid #f97316;
+}
+
+.notice-item.selected:hover {
+  background: #ffedd5;
 }
 
 .notice-icon {
@@ -1954,5 +2083,71 @@ onUnmounted(() => {
     transition: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ========== 通知详情视图 ========== */
+
+.notice-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid #e5e7eb;
+  backdrop-filter: blur(6px);
+}
+
+.notice-detail-header-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.notice-detail-header-info i {
+  color: #f97316;
+  font-size: 16px;
+}
+
+.notice-detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.notice-detail-title {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.4;
+}
+
+.notice-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.notice-detail-time {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.notice-detail-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin-bottom: 20px;
+}
+
+.notice-detail-content {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

@@ -3,10 +3,7 @@
     <div class="user-side-card bg-white rounded-xl shadow-sm p-6 sticky top-24 border border-gray-100">
       <div class="flex items-center gap-4 pb-6 border-b border-gray-100 mb-6">
         <div class="user-avatar w-16 h-16 rounded-full bg-gray-200 overflow-hidden ring-2 ring-orange-100">
-          <img v-if="avatarUrl" :src="avatarUrl" alt="头像" class="w-full h-full object-cover" />
-          <div v-else class="w-full h-full flex items-center justify-center bg-gray-300 text-white text-2xl">
-            <i class="fa fa-user"></i>
-          </div>
+          <UserAvatar :src="userStore.userInfo?.avatar || userStore.userInfo?.avatarUrl" :name="displayName" />
         </div>
         <div>
           <h2 class="font-semibold text-lg">{{ displayName }}</h2>
@@ -157,6 +154,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { logoutApi, getUserCreditScoreApi, getUserStatsApi, getUserProfileApi } from '@/api/user'
 import { getImageUrl } from '@/utils/image'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()

@@ -15,15 +15,7 @@
           <div class="flex items-center gap-6">
             <div class="relative">
               <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow">
-                <img
-                  v-if="form.avatarUrl"
-                  :src="getImageUrl(form.avatarUrl)"
-                  alt="头像"
-                  class="w-full h-full object-cover"
-                />
-                <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500">
-                  <i class="fa fa-user text-2xl"></i>
-                </div>
+                <UserAvatar :src="form.avatarUrl" :name="userStore.userInfo?.nickname || userStore.userInfo?.username" />
               </div>
             </div>
             <div>
@@ -155,7 +147,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import axios, { type AxiosError } from 'axios'
 import { useUserStore } from '@/stores/userStore'
-import { getImageUrl } from '@/utils/image'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const userStore = useUserStore()
 // 在已有声明（如 const cityList = ref...）附近添加

@@ -7,40 +7,42 @@
       <div class="main">
         <!-- 左侧分类 -->
         <aside class="sidebar">
-          <div class="categoryCard">
-            <ul class="categoryList">
-              <!-- 全部分类入口 -->
-              <li
-                class="categoryItem"
-                :class="{ active: activeMainCategory === null }"
-                @click="selectMainCategory(null)"
-              >
-                <a href="#" @click.prevent>
-                  <i class="fa fa-th-large catIcon text-orange-500"></i>
-                  <span>全部分类</span>
-                </a>
-              </li>
-              <li
-                v-for="(cat, index) in mainCategories"
-                :key="cat.id"
-                class="categoryItem"
-                :class="{ active: activeMainCategory === cat.id }"
-                :ref="(el) => setCategoryRef(el as HTMLElement, index)"
-                @mouseenter="showSubMenu(cat.id, index)"
-                @mouseleave="hideSubMenu"
-                @click="selectMainCategory(cat.id)"
-              >
-                <a href="#" @click.prevent>
-                  <i :class="cat.iconClass" class="catIcon"></i>
-                  <span>{{ cat.name }}</span>
-                  <i class="fa fa-chevron-right arrow"></i>
-                </a>
-              </li>
-            </ul>
-          </div>
+          <div class="sidebar-sticky">
+            <div class="categoryCard">
+              <ul class="categoryList">
+                <!-- 全部分类入口 -->
+                <li
+                  class="categoryItem"
+                  :class="{ active: activeMainCategory === null }"
+                  @click="selectMainCategory(null)"
+                >
+                  <a href="#" @click.prevent>
+                    <i class="fa fa-th-large catIcon text-orange-500"></i>
+                    <span>全部分类</span>
+                  </a>
+                </li>
+                <li
+                  v-for="(cat, index) in mainCategories"
+                  :key="cat.id"
+                  class="categoryItem"
+                  :class="{ active: activeMainCategory === cat.id }"
+                  :ref="(el) => setCategoryRef(el as HTMLElement, index)"
+                  @mouseenter="showSubMenu(cat.id, index)"
+                  @mouseleave="hideSubMenu"
+                  @click="selectMainCategory(cat.id)"
+                >
+                  <a href="#" @click.prevent>
+                    <i :class="cat.iconClass" class="catIcon"></i>
+                    <span>{{ cat.name }}</span>
+                    <i class="fa fa-chevron-right arrow"></i>
+                  </a>
+                </li>
+              </ul>
+            </div>
 
-          <!-- 通知面板 -->
-          <NoticePanel />
+            <!-- 通知面板 -->
+            <NoticePanel />
+          </div>
 
           <!-- 悬浮子分类 -->
           <!--
@@ -456,7 +458,15 @@ const selectMainCategory = (catId: number | null) => {
 .sidebar {
   width: 200px;
   flex-shrink: 0;
-  position: relative;
+}
+
+/* 左侧 sticky 容器：分类 + 通知整体固定 */
+.sidebar-sticky {
+  position: sticky;
+  top: 80px;
+  max-height: calc(100vh - 80px - 24px);
+  display: flex;
+  flex-direction: column;
 }
 
 .categoryCard {
@@ -464,8 +474,7 @@ const selectMainCategory = (catId: number | null) => {
   border-radius: 8px;
   padding: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 80px;
+  flex-shrink: 0;
 }
 
 .categoryList {

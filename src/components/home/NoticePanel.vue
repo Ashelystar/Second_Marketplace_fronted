@@ -136,8 +136,8 @@ async function handleNoticeClick(notice: NoticeVO) {
       ElMessage.error('标记已读失败')
     }
   }
-  // 跳转到聊天页面的通知列表
-  router.push('/chat')
+  // 跳转到聊天页面并打开对应通知详情
+  router.push({ path: '/chat', query: { noticeId: notice.inboxId.toString() } })
 }
 
 async function handleMarkAllRead() {
@@ -161,6 +161,10 @@ function goToChat() {
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .notice-header {
@@ -215,8 +219,9 @@ function goToChat() {
 }
 
 .notice-list {
-  max-height: 320px;
+  flex: 1;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .notice-item {
@@ -277,6 +282,7 @@ function goToChat() {
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
